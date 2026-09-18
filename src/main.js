@@ -24,7 +24,13 @@ if (renderer) {
   const arrival = document.querySelector('#arrival');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
-  const takeControl = () => { controlled = true; };
+  const takeControl = () => {
+    if (!controlled) {
+      // Hand off at the current shot, never jump back to the start on first touch.
+      scrollTo({top:progress*(document.documentElement.scrollHeight-innerHeight),behavior:'instant'});
+      controlled = true;
+    }
+  };
   addEventListener('wheel', takeControl, {passive:true});
   addEventListener('touchstart', takeControl, {passive:true});
   addEventListener('keydown', takeControl);
