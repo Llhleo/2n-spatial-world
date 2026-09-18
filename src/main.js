@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import { createMonument, createLighting } from './monument.js';
 
 const canvas = document.querySelector('#world');
 let renderer;
@@ -11,8 +12,10 @@ if (renderer) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
+  scene.add(createMonument());
+  createLighting(scene, renderer);
   const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
-  camera.position.set(0, -20, 380);
+  camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
   addEventListener('resize', resize); resize();
   function frame() { renderer.render(scene, camera); }
