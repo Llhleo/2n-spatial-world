@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {toCreasedNormals} from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Authored silhouettes, not a swept centreline: corners remain actual corners.
 export function sculptureShapes() {
@@ -33,6 +34,9 @@ export function sculptureShapes() {
 export function cutSolid(shape, depth) {
   const geometry = new T.ExtrudeGeometry(shape, {depth,steps:1,curveSegments:48,bevelEnabled:true,bevelThickness:.16,bevelSize:.16,bevelSegments:1});
   geometry.translate(0,0,-depth/2);
+  // Smooth only the continuous upper curves. Keep the 45-degree chamfer
+  // boundaries, square base corners and intentional shoulder cuts separate.
+  toCreasedNormals(geometry, Math.PI/7);
   // Supply an index for shared mesh-budget checks; preserve authored face normals.
   geometry.setIndex(Array.from({length:geometry.attributes.position.count},(_,i)=>i));
   geometry.computeBoundingBox(); geometry.computeBoundingSphere();

@@ -1,44 +1,6 @@
 import * as T from 'three';
 import {sculptureShapes, cutSolid} from './sculpture-shapes.js';
 
-// A broad cast ribbon: rounded rectangular section, not a circular tube.
-// The hand-drawn centreline and variable section are independent of any font.
-function ribbon(points, width, depth, resolution = 240) {
-  const path = new T.CatmullRomCurve3(points.map(p => new T.Vector3(...p)), false, 'centripetal');
-  const positions = [], indices = [];
-  // Flat front/side faces joined by narrow 45-degree chamfers.
-  // Duplicate section vertices keep the intentional facet boundaries crisp.
-  const bevel = Math.min(width, depth) * .075;
-  const x = width / 2, z = depth / 2;
-  const section = [[x,z-bevel],[x-bevel,z],[-x+bevel,z],[-x,z-bevel],[-x,-z+bevel],[-x+bevel,-z],[x-bevel,-z],[x,-z+bevel]];
-  const sides = 16;
-  for (let i = 0; i <= resolution; i++) {
-    const t = i / resolution, p = path.getPoint(t), tangent = path.getTangent(t);
-    const n = new T.Vector3(-tangent.y, tangent.x, 0).normalize();
-    for (let j = 0; j < sides; j++) {
-      const [u,z] = section[(Math.floor(j/2)+j%2)%8];
-      positions.push(p.x + n.x * u, p.y + n.y * u, p.z + z);
-    }
-  }
-  for (let i = 0; i < resolution; i++) for (let j = 0; j < sides; j+=2) {
-    const a = i * sides + j, b = i * sides + (j + 1) % sides;
-    indices.push(a, b, a + sides, b, b + sides, a + sides);
-  }
-  for (const [ring, reverse] of [[0, true], [resolution, false]]) {
-    const p = path.getPoint(ring / resolution), center = positions.length / 3;
-    positions.push(p.x, p.y, p.z);
-    const capStart=positions.length/3;
-    positions.push(...positions.slice(ring*sides*3,(ring+1)*sides*3));
-    for (let j = 0; j < sides; j+=2) {
-      const a = capStart + j, b = capStart + j + 1;
-      indices.push(center, reverse ? b : a, reverse ? a : b);
-    }
-  }
-  const g = new T.BufferGeometry();
-  g.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-  g.setIndex(indices); g.computeVertexNormals(); g.computeBoundingSphere();
-  return g;
-}
 
 export function createMonument() {
   const group = new T.Group(); group.name = 'static-silver-monument';
