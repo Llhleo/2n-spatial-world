@@ -1,11 +1,32 @@
 import * as T from 'three';
-export function atmosphere(scene, mobile) {
+import {pose} from './journey.js';
+export function dustData(mobile) {
   let seed=71821;
   const random=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
-  const count=mobile?2600:5500, positions=new Float32Array(count*3), sizes=new Float32Array(count);
-  for(let i=0;i<count;i++) { positions.set([(random()-.5)*210,(random()-.5)*180,random()*490-70],i*3);sizes[i]=.3+random()*.8; }
+  const count=mobile?6200:11000, positions=new Float32Array(count*3), sizes=new Float32Array(count);
+  const camera=new T.PerspectiveCamera(), point=new T.Vector3();
+  for(let i=0;i<count;i++) {
+    if(i<count*.48) {
+      positions.set([(random()-.5)*210,(random()-.5)*180,random()*490-70],i*3);
+      sizes[i]=.35+random()*.6;
+    } else {
+      // Bake dust around the flight corridor once. Never move/recycle it with camera.
+      pose(random()*.82,camera,false);
+      const close=i>count*.94;
+      const radius=close?2+random()*5:8+Math.sqrt(random())*36;
+      const angle=random()*Math.PI*2;
+      point.set(Math.cos(angle)*radius,Math.sin(angle)*radius,-4-random()*30);
+      point.applyQuaternion(camera.quaternion).add(camera.position);
+      positions.set(point.toArray(),i*3);
+      sizes[i]=close?1.1+random()*.5:.5+random()*.65;
+    }
+  }
+  return {count,positions,sizes};
+}
+export function atmosphere(scene, mobile) {
+  const {positions,sizes}=dustData(mobile);
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(positions,3));g.setAttribute('aSize',new T.BufferAttribute(sizes,1));
-  const dust=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uPixel:{value:Math.min(devicePixelRatio,1.5)}},vertexShader:`attribute float aSize; uniform float uPixel; varying float fade; void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(aSize*100.*uPixel/max(1.,-p.z),1.,5.);fade=smoothstep(1.,9.,-p.z)*(1.-smoothstep(90.,280.,-p.z));}`,fragmentShader:`varying float fade;void main(){float r=length(gl_PointCoord-.5);float a=(1.-smoothstep(.08,.5,r))*.48*fade;gl_FragColor=vec4(.64,.67,.70,a);}`});
+  const dust=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uPixel:{value:Math.min(devicePixelRatio,1.5)}},vertexShader:`attribute float aSize; uniform float uPixel; varying float fade; varying float brightness; void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(aSize*165.*uPixel/max(1.,-p.z),1.35*uPixel,7.*uPixel);fade=smoothstep(.3,2.2,-p.z)*(1.-smoothstep(150.,320.,-p.z));brightness=mix(.55,.88,smoothstep(.7,1.5,aSize));}`,fragmentShader:`varying float fade;varying float brightness;void main(){vec2 p=(gl_PointCoord-.5)*vec2(1.,1.15);float r=length(p);float a=(1.-smoothstep(.12,.5,r))*.72*fade;gl_FragColor=vec4(vec3(brightness),a);}`});
   scene.add(new T.Points(g,dust));
   scene.fog=new T.FogExp2(0x11151a,.006);
   // Three broad, world-fixed wisps. Camera passes through them; no screen overlay.
