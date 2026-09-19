@@ -3,6 +3,7 @@ import './style.css';
 import { createMonument, createLighting } from './monument.js';
 import { atmosphere } from './atmosphere.js';
 import { pose } from './journey.js';
+import {stableViewport,scrollProgress} from './viewport.js';
 
 const canvas = document.querySelector('#world');
 let renderer;
@@ -19,15 +20,19 @@ if (renderer) {
   atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
-  function resize() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
-  addEventListener('resize', resize); resize();
   const arrival = document.querySelector('#arrival');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
+  const viewport=stableViewport((next,old)=>{
+    const retained=old?scrollProgress(scrollY,old.range):0;
+    renderer.setSize(next.width,next.height);
+    camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
+    if(old&&controlled)scrollTo({top:retained*next.range,behavior:'instant'});
+  });
   const takeControl = () => {
     if (!controlled) {
       // Hand off at the current shot, never jump back to the start on first touch.
-      scrollTo({top:progress*(document.documentElement.scrollHeight-innerHeight),behavior:'instant'});
+      scrollTo({top:progress*viewport().range,behavior:'instant'});
       controlled = true;
     }
   };
@@ -36,14 +41,15 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   function frame(now) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
-    const scroll = scrollY / Math.max(1, document.documentElement.scrollHeight-innerHeight);
+    const view=viewport();
+    const scroll = scrollProgress(scrollY,view.range);
     if(!controlled) auto = Math.min(1,auto+dt/30);
     const target = reduced.matches ? 1 : controlled ? scroll : auto;
     progress += (target-progress)*(1-Math.exp(-dt*5));
     if(reduced.matches) progress=1;
-    const state=pose(progress,camera,innerWidth<innerHeight);
+    const state=pose(progress,camera,view.width<view.height);
     const text = THREE.MathUtils.smoothstep(progress,.93,.995);
-    arrival.style.opacity=text;arrival.style.transform=`translateY(${(1-text)*18}px)`;
+    arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
