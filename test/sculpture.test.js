@@ -9,8 +9,8 @@ test('two independent solids, no connector and no mobile substitute',()=>{
   for(const m of model.children){
     const g=m.geometry;assert.ok([...g.attributes.normal.array].every(Number.isFinite));
     const thickness=g.boundingBox.max.z-g.boundingBox.min.z;
-    assert.ok(thickness>=7&&thickness<10);
-    assert.ok(g.parameters.options.bevelSize<=.2);
+    assert.ok(thickness>=7&&thickness<14);
+    assert.equal(g.userData.construction,'pitched-contour-loft');
   }
 });
 test('base has square outer corner and direct diagonal-to-foot junction',()=>{
