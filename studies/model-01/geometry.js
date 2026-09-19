@@ -17,7 +17,7 @@ export function silhouettes(){
   const n=new T.Shape();
   // Independent portal: unequal piers and a sloping lintel, not an arch.
   n.moveTo(23,21);n.lineTo(23,45);n.lineTo(29,45);n.lineTo(29,40);
-  n.lineTo(35,44);n.lineTo(43,41);n.lineTo(46,37);n.lineTo(46,21);
+  n.lineTo(35,43);n.lineTo(46,43);n.lineTo(46,21);
   n.lineTo(40,21);n.lineTo(40,36);n.lineTo(35,38);n.lineTo(29,34);
   n.lineTo(29,21);n.closePath();
   return {two,n};
@@ -33,10 +33,13 @@ export function studyModel(){
     const count=outline.length,positions=[],indices=[];
     const center=name==='two'?new T.Vector2(-3,3):new T.Vector2(34,33);
     const depth=y=>name==='two'?7+8*(1-T.MathUtils.smoothstep(y,-30,-13)):8+3*(1-T.MathUtils.smoothstep(y,21,38));
-    const front=name==='two'?2: -3;
+    // Crown projects forward; diagonal recedes into the deeper supporting foot.
+    // This changes the mass in space without decorating the face with panels.
+    const frontAt=y=>name==='two'?2+.065*(y+30):-3;
     for(let ring=0;ring<4;ring++)for(const p of outline){
       const inward=ring===0||ring===3?.10:0;
       const direction=center.clone().sub(p).normalize();
+      const front=frontAt(p.y);
       const z=ring<2?front-depth(p.y)+(ring===1?.12:0):front-(ring===2?.12:0);
       positions.push(p.x+direction.x*inward,p.y+direction.y*inward,z);
     }
