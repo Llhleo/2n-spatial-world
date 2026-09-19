@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {sculptureShapes, cutSolid} from './sculpture-shapes.js';
 
 // A broad cast ribbon: rounded rectangular section, not a circular tube.
 // The hand-drawn centreline and variable section are independent of any font.
@@ -42,12 +43,10 @@ function ribbon(points, width, depth, resolution = 240) {
 export function createMonument() {
   const group = new T.Group(); group.name = 'static-silver-monument';
   const silver = new T.MeshStandardMaterial({ color: 0xd5d8da, metalness: .92, roughness: .29 });
-  const two = ribbon([[-20,18,0],[-18,29,0],[-7,34,0],[7,31,0],[12,22,0],[8,11,0],[-3,0,0],[-15,-12,0],[-20,-24,0],[-7,-25,0],[13,-25,0]], 9, 9);
-  const n = ribbon([[21,20,0],[21,30,0],[21,38,0],[24,42,0],[29,43,0],[34,42,0],[38,38,0],[38,30,0],[38,20,0]], 5.2, 7, 150);
-  group.add(new T.Mesh(two, silver), new T.Mesh(n, silver));
-  // Rear tie is structural, largely hidden in the frontal silhouette.
-  const tie = new T.Mesh(new T.BoxGeometry(19, 2, 3), silver);
-  tie.position.set(16, 25, -4.5); group.add(tie);
+  const shapes=sculptureShapes();
+  const two=new T.Mesh(cutSolid(shapes.two,9),silver);two.name='two-cut-solid';
+  const n=new T.Mesh(cutSolid(shapes.n,7),silver);n.name='n-cut-solid';
+  group.add(two,n);
   return group;
 }
 
