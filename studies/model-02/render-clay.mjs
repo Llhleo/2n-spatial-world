@@ -17,7 +17,7 @@ for(const [name,[position,target]] of Object.entries(shots)){
     for(let i=0;i<total;i+=3){const ids=[0,1,2].map(j=>g.index?g.index.getX(i+j):i+j),[a,b,c]=ids.map(j=>projected[j]);
       if([a,b,c].some(v=>v[2]<-1||v[2]>1))continue;
       const area=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(area)<1e-8)continue;
-      const normal=new T.Vector3();ids.forEach(j=>normal.add(new T.Vector3().fromBufferAttribute(n,j)));normal.normalize();
+      const normal=new T.Vector3();ids.forEach(j=>normal.add(new T.Vector3().fromBufferAttribute(n,j)));normal.applyMatrix3(new T.Matrix3().getNormalMatrix(mesh.matrixWorld)).normalize();
       const shade=Math.round(255*Math.min(.82,.29+.39*Math.max(0,normal.dot(key))+.08*(normal.y*.5+.5)));
       const x0=Math.max(0,Math.floor(Math.min(a[0],b[0],c[0]))),x1=Math.min(width-1,Math.ceil(Math.max(a[0],b[0],c[0])));
       const y0=Math.max(0,Math.floor(Math.min(a[1],b[1],c[1]))),y1=Math.min(height-1,Math.ceil(Math.max(a[1],b[1],c[1])));

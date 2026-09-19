@@ -20,8 +20,14 @@ function mass(points,depth,name){
 }
 function slab(poly,z,depth,name){return mass(poly.map(([x,y])=>[x,y,z]),depth,name);}
 function column(x,y,w,h,z,d,name){return slab([[x,y],[x+w,y],[x+w,y+h],[x,y+h]],z,d,name);}
-function portal(group,kind){
+function portal(group,kind,refined=false){
   const front=kind==='C'?1:-4;
+  if(refined){
+    group.add(column(26,19,5,23,1,12,'deep-left-pier'));
+    group.add(column(42,19,5,18,-2,8,'recessed-right-pier'));
+    group.add(mass([[31,35,1],[47,35,-2],[47,40,-2],[31,42,1]],8,'tapered-lintel'));
+    return;
+  }
   group.add(column(26,19,5,23,front,kind==='A'?12:7,'left-pier'));
   group.add(column(42,19,5,19,front-3,8,'right-pier'));
   group.add(mass([[30,34,front],[47,34,front-3],[47,41,front-3],[30,41,front]],kind==='A'?12:7,'lintel'));
@@ -47,12 +53,8 @@ export function makeModel(kind,refined=false){
     const web=refined?9:7;
     two.add(mass([[19,15,1],[19-web,15,1],[-25,-21,7],[-25+web,-21,7]],refined?9:6,'diagonal-web'));
     two.add(column(-25,-31,49,10,8,22,'deep-footing'));
-    if(refined){
-      // The web lands inside a stepped bearing, not on a floating font baseline.
-      two.add(column(-25,-23,14,3,7,16,'bearing-seat'));
-    }
   }
-  portal(n,kind);
+  portal(n,kind,refined);
   if(kind==='B')n.rotation.y=-.06;
   return root;
 }
