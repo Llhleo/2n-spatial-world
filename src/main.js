@@ -4,6 +4,7 @@ import { createMonument, createLighting } from './monument.js';
 import { atmosphere } from './atmosphere.js';
 import { pose } from './journey.js';
 import {stableViewport,scrollProgress} from './viewport.js';
+import {createRevealLight} from './reveal-light.js';
 
 const canvas = document.querySelector('#world');
 let renderer;
@@ -17,6 +18,7 @@ if (renderer) {
   const scene = new THREE.Scene();
   scene.add(createMonument());
   createLighting(scene, renderer);
+  createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
