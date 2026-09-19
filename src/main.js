@@ -17,7 +17,7 @@ if (renderer) {
   const scene = new THREE.Scene();
   scene.add(createMonument());
   createLighting(scene, renderer);
-  atmosphere(scene, matchMedia('(max-width: 700px)').matches);
+  const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   const arrival = document.querySelector('#arrival');
@@ -48,6 +48,7 @@ if (renderer) {
     progress += (target-progress)*(1-Math.exp(-dt*5));
     if(reduced.matches) progress=1;
     const state=pose(progress,camera,view.width<view.height);
+    atmosphereRig.update(camera,progress);
     const text = THREE.MathUtils.smoothstep(progress,.93,.995);
     arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;
     arrival.setAttribute('aria-hidden',String(text<.5));
