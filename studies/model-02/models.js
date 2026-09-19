@@ -31,12 +31,12 @@ export function makeModel(kind,refined=false){
   if(kind==='A'){
     // Carved monolith: broad cap and load-bearing foot enclose a diagonal void.
     two.add(slab([[-24,20],[-24,35],[13,35],[22,28],[22,15],[-8,-18],[23,-18],[23,-31],[-26,-31],[-26,-19],[8,18],[8,23],[-11,23],[-11,20]],3,18,'carved-monolith'));
-    two.add(column(-26,-31,49,7,4,24,'foundation-plinth'));
+  two.add(column(-26,-35,49,4,3,24,'foundation-plinth'));
   }else if(kind==='B'){
     // A folded solid blade: clean planes deliberately turn in depth at each fold.
     two.add(mass([[-24,24,6],[-24,34,6],[18,34,-1],[18,24,-1]],7,'cantilever-cap'));
     two.add(mass([[9,24,-1],[18,24,-1],[18,15,1],[9,11,1]],7,'return'));
-    two.add(mass([[18,15,1],[9,11,1],[-24,-20,7],[-12,-20,7]],7,'diagonal-blade'));
+  two.add(mass([[18,15,1],[9,15,1],[-24,-20,7],[-12,-20,7]],7,'diagonal-blade'));
     two.add(mass([[-24,-20,7],[-12,-20,7],[22,-20,7],[22,-29,3],[-24,-29,3]],10,'folded-foot'));
     two.add(column(-24,20,7,4,6,7,'cut-terminal'));
   }else{
