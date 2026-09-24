@@ -68,6 +68,7 @@ if (renderer) {
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
     canvas.dataset.biome=worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.gardenAssets=world.gardenStatus;
     renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);

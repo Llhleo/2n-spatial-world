@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {createStoneGarden} from './garden-art.js';
 import {createGardenAssets} from './garden-assets.js';
+import {loadGardenGate} from './garden-gate.js';
 
 const saturate=x=>Math.max(0,Math.min(1,x));
 const smooth=(x,a,b)=>{const t=saturate((x-a)/(b-a));return t*t*(3-2*t);};
@@ -18,10 +19,11 @@ export function groundHeight(x,z){
 }
 function terrainPart(x0,x1){
   const nx=56,nz=68,geo=new T.BufferGeometry();
-  const positions=[],normals=[],colors=[],indices=[],c=new T.Color();
+  const positions=[],normals=[],colors=[],uvs=[],indices=[],c=new T.Color();
   for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++){
     const x=x0+(x1-x0)*i/nx,z=-300+j*570/nz,y=groundHeight(x,z);
     positions.push(x,y,z);
+    uvs.push(x/900,z/900);
     // A world-space derivative shares the same normals across every region seam.
     const dx=(groundHeight(x+.3,z)-groundHeight(x-.3,z))/.6;
     const dz=(groundHeight(x,z+.3)-groundHeight(x,z-.3))/.6;
@@ -37,6 +39,7 @@ function terrainPart(x0,x1){
   }
   geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
   geo.setAttribute('normal',new T.Float32BufferAttribute(normals,3));
+  geo.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));
   geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);
   const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}));
   mesh.name='continuous-3d-ground';mesh.frustumCulled=true;return mesh;
@@ -44,16 +47,50 @@ function terrainPart(x0,x1){
 
 export function createBiomes(scene,mobile){
   const spans=[[45,188],[188,296],[296,404],[404,520]],regions=new Array(spans.length);
+  let gardenGate,gardenStatus='pending';
+  function installGarden(i){
+    const region=regions[i];
+    if(!region||!gardenGate||region.userData.gardenInstalled)return;
+    for(const child of [...region.children]){
+      if(child.name!=='garden-sculpted-landscape'&&!child.name.startsWith('planted-strata-'))continue;
+      region.remove(child);
+      child.traverse(part=>{
+        if(!part.isMesh)return;
+        part.geometry.dispose();
+        if(Array.isArray(part.material))part.material.forEach(material=>material.dispose());
+        else part.material.dispose();
+      });
+    }
+    const ground=region.getObjectByName('continuous-3d-ground');
+    ground.material.dispose();
+    ground.material=new T.MeshStandardMaterial({
+      map:gardenGate.diffuse,normalMap:gardenGate.normal,
+      color:0xa5b2a3,roughness:1,side:T.DoubleSide
+    });
+    if(i===0)region.add(gardenGate.group);
+    region.userData.gardenInstalled=true;
+  }
+  function loadGarden(){
+    if(gardenStatus!=='pending')return;
+    gardenStatus='loading';
+    loadGardenGate(groundHeight,mobile).then(assets=>{
+      gardenGate=assets;gardenStatus='ready';
+      installGarden(0);installGarden(1);
+    }).catch(error=>{gardenStatus='error';console.error('Garden asset loading failed',error);});
+  }
   const build=i=>{
     if(regions[i])return;
     const [a,b]=spans[i],group=new T.Group();
     group.add(terrainPart(a,b));
-    if(i===0)group.add(createStoneGarden(groundHeight));
-    group.add(createGardenAssets(a,b,groundHeight,desertBlend,mobile));group.visible=false;
+    if(i===0&&gardenStatus!=='ready')group.add(createStoneGarden(groundHeight));
+    if(i>=2||gardenStatus!=='ready')group.add(createGardenAssets(a,b,groundHeight,desertBlend,mobile));
+    group.visible=false;
     scene.add(group);regions[i]=group;
+    if(i<2)installGarden(i);
   };
   let preparing=false;
   function prepare(){
+    loadGarden();
     if(preparing)return;preparing=true;
     let i=0;
     const step=()=>{
@@ -70,6 +107,7 @@ export function createBiomes(scene,mobile){
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
   const gardenAir=new T.Color(0x11151a),desertAir=new T.Color(0x342b25);
   return {prepare,update(camera,t){
+    if(t>0)loadGarden();
     sun.intensity=1.4*T.MathUtils.smoothstep(t,.02,.25);
     const shift=desertBlend(camera.position.x+42)*t;
     sun.color.set(0xd7cbb8).lerp(new T.Color(0xe2ba8b),shift*.42);
@@ -84,5 +122,5 @@ export function createBiomes(scene,mobile){
     for(let i=0;i<regions.length;i++){
       if(regions[i])regions[i].visible=t>0;
     }
-  },stats:{groundTriangles:spans.length*56*68*2}};
+  },get gardenStatus(){return gardenStatus;},stats:{groundTriangles:spans.length*56*68*2}};
 }
