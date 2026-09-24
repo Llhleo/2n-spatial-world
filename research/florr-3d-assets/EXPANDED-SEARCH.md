@@ -10,6 +10,20 @@ The eight [3dflorr public GLBs](https://github.com/meh-a/florr3d-public/tree/mai
 
 Located the five original uploads from 2026-09-05 and identified them visually: Garden (bright green), Desert (sand/beige), Ocean (blue), Jungle (deep teal-green), Hel (red). The earlier 2n repository also contains processed `dist/assets/{garden,desert,ocean,jungle,hell}.png` images (1504 × 1046). These are the primary user-provided visual *references* for subsequent art direction; they are screenshots of Florr, not a license to redistribute game artwork. Do not assume every original 2D background can be used as a public site texture without checking rights. The screenshots and production site remain untouched.
 
+### 2026-09-25 correction: source screenshots are not the clean generated backgrounds
+
+The Library has **five separately model-generated, clean background images**, each 1504 × 1046 PNG, without the game's UI or player identifier. Original Library names and intended grouping, confirmed by visual inspection:
+
+| Biome | Model-generated Library image | Size | What it depicts |
+| --- | --- | ---: | --- |
+| Garden | `清新绿意抽象叶花图案背景.png` | 979,129 B | bright green, flower/leaf shapes |
+| Desert | `米色流沙波纹与方块背景.png` | 979,996 B | sand beige, broad curved bands and blocks |
+| Ocean | `蓝色海洋波纹鹅卵石图案背景.png` | 1,045,066 B | blue bands with pebble shapes |
+| Jungle | `绿色几何图案壁纸.png` | 984,659 B | dark green triangles and circles |
+| Hel | `红色波纹几何背景.png` | 1,041,223 B | dark red curved bands and squares |
+
+These are owned Library images from the previous image-generation request, **not the original screenshot PNGs** and not verified exact reproductions of the game's 3D environments. Their size is raw PNG transfer size, not GPU texture memory. No image was copied into production or the review gallery in this audit. For an eventual website use, consider provenance and applicable generated-image terms separately from the underlying Florr art direction.
+
 ## High-value research candidates
 
 | Source / author | Verified contents / format | Role | License / public website reuse | iPhone Safari |
@@ -62,6 +76,16 @@ Furaken's alternative previews: [transparent Cactus Petal](https://github.com/Fu
 ## Screening decision, not asset selection
 
 **HIGH VALUE for art direction:** user screenshots, the five fan map layouts and 115 SVG tile vocabulary, broad Petal/Mob silhouette atlas. **POSSIBLE for conditional direct use:** the eight Garden/ant GLBs under repository CC BY-NC 4.0 only if upstream provenance and site noncommercial status are resolved. **REFERENCE ONLY:** all screenshot/map/tile/icon art with unresolved original game rights. **REJECT for adoption:** empty/same-content forks as separate model sources, unrelated generic realistic biome packs as Florr identity, client extraction, and any claim that a 2D icon is already a mobile-ready GLB.
+
+The user explicitly confirms the 2n website will always be nonprofit/noncommercial. This removes the **site's commercial-intent issue** for CC BY-NC candidates, but does not remove attribution, source provenance, downstream game-art rights, or the need to check a model creator's authority to license their work. Do not infer a license for unrelated repositories from 3dflorr's license.
+
+### Small review shortlist for the user's next decision
+
+1. **Foundation — 2D generated backgrounds:** show all five above as the approved review baseline, especially Garden versus Jungle color separation. Distinct user-generated art, **not GLB**, technically easy to display later but actual site performance and rights still not tested.
+2. **Florr identity — Flower + member Petal orbit:** the 3dflorr `models.js` procedural Flower is an implementation reference, not a discrete Flower GLB. Select 6 iconic shapes ([Basic](https://github.com/meh-a/florr3d-public/blob/main/client/assets/basic.svg), [Rose](https://github.com/meh-a/florr3d-public/blob/main/client/assets/rose.svg), [Wing](https://github.com/meh-a/florr3d-public/blob/main/client/assets/wing.svg), [Bubble](https://github.com/meh-a/florr3d-public/blob/main/client/assets/bubble.svg), [Light](https://github.com/meh-a/florr3d-public/blob/main/client/assets/light.svg), [Stinger](https://github.com/meh-a/florr3d-public/blob/main/client/assets/stinger.svg)) before considering the rest of the 112-icon reference catalog. Paths confirmed against the source inventory; individual art provenance remains unresolved.
+3. **Garden 3D — Ladybug and Bee GLB:** the most direct 3D Florr recognition cue, respectively 65,152 B / 15,205 tris and 63,332 B / 8,813 tris. [Ladybug](https://github.com/meh-a/florr3d-public/blob/main/client/assets/ladybug.glb), [Bee](https://github.com/meh-a/florr3d-public/blob/main/client/assets/bee.glb); inspect visually in the independent gallery. Conditional CC BY-NC, not fully provenance-cleared.
+4. **Non-Garden identity — custom-model briefs, not reusable models:** [Scorpion](https://github.com/NautikalTwilight/florr/blob/main/florrio_resources/florrio_icons/mobs/Common/AS/scorpion.png) for Desert, [Ocean Crab](https://github.com/NautikalTwilight/florr/blob/main/florrio_resources/florrio_icons/mobs/Common/AS/ocean_crab.png) for Ocean, [Mantis](https://github.com/NautikalTwilight/florr/blob/main/florrio_resources/florrio_icons/mobs/Common/AS/mantis.png) for Jungle and [Hel Beetle](https://github.com/NautikalTwilight/florr/blob/main/florrio_resources/florrio_icons/mobs/Common/AS/hel_beetle.png) for Hel. All are 2D, license unclear and performance unassessed; selection would decide *which shapes to explore*, not permission for integration.
+5. **Structural reference — five TMJ maps + a few biome tiles:** use as visual/layout comparison; never load whole tiled worlds directly into the narrative scene.
 
 No new preview deployment was created. Existing separate review preview: https://florr-3d-asset-review-2n.llhleo.chatgpt.site/ (the previous Garden-only set, **not** the expanded findings).
 
