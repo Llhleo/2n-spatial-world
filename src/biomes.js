@@ -1,9 +1,10 @@
 import * as T from 'three';
+import {createStoneGarden} from './garden-art.js';
 
 const saturate=x=>Math.max(0,Math.min(1,x));
 const smooth=(x,a,b)=>{const t=saturate((x-a)/(b-a));return t*t*(3-2*t);};
 const rand=(x,z)=>{const n=Math.sin(x*127.1+z*311.7)*43758.5453;return n-Math.floor(n);};
-const green=new T.Color(0x34443b), sand=new T.Color(0x736351);
+const green=new T.Color(0x23322b), sand=new T.Color(0x655748);
 const stoneGreen=new T.Color(0x59635d),stoneSand=new T.Color(0x897864);
 const foliage=new T.Color(0x566d58),dry=new T.Color(0x797357);
 export const desertBlend=x=>smooth(x,255,330);
@@ -14,7 +15,8 @@ export function groundHeight(x,z){
   const ridge=Math.sin(x*.021+Math.sin(z*.028)*1.7)*4.8+Math.cos(z*.033+x*.008)*3.4;
   const close=Math.sin(x*.073+z*.045)*1.05+Math.cos(z*.088-x*.052)*.7;
   const long=Math.sin(z*.014+x*.012)*3.6;
-  return -36+ridge+close+(dune*long);
+  const edge=smooth(x,42,77)*smooth(z,-300,-235)*(1-smooth(z,170,270));
+  return -85+edge*(49+ridge+close+dune*long);
 }
 const clay=(color,roughness=1)=>new T.MeshStandardMaterial({color,roughness,metalness:0});
 
@@ -22,11 +24,13 @@ function terrainPart(x0,x1){
   const nx=30,nz=44,geo=new T.BufferGeometry();
   const positions=[],colors=[],indices=[],c=new T.Color();
   for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++){
-    const x=x0+(x1-x0)*i/nx,z=-170+j*260/nz,y=groundHeight(x,z);
+    const x=x0+(x1-x0)*i/nx,z=-300+j*570/nz,y=groundHeight(x,z);
     positions.push(x,y,z);
     c.copy(green).lerp(sand,desertBlend(x));
-    const fleck=(rand(i+x0,j)-.5)*.065+.07*Math.sin(x*.12+z*.05);
+    const fleck=.024*Math.sin(x*.12+z*.05)+.012*Math.sin(x*.24-z*.08);
     c.offsetHSL(0,0,fleck);
+    const rim=smooth(x,42,77)*smooth(z,-300,-235)*(1-smooth(z,170,270));
+    c.multiplyScalar(.015+rim*.985);
     colors.push(c.r,c.g,c.b);
     if(i<nx&&j<nz){const p=i*(nz+1)+j;indices.push(p,p+1,p+nz+1,p+1,p+nz+2,p+nz+1);}
   }
@@ -93,7 +97,9 @@ export function createBiomes(scene,mobile){
   const build=i=>{
     if(regions[i])return;
     const [a,b]=spans[i],group=new T.Group();
-    group.add(terrainPart(a,b),populate(a,b,mobile));group.visible=false;
+    group.add(terrainPart(a,b));
+    if(i===0)group.add(createStoneGarden(groundHeight));
+    group.add(populate(a,b,mobile));group.visible=false;
     scene.add(group);regions[i]=group;
   };
   let preparing=false;
