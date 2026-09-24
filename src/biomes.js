@@ -4,7 +4,6 @@ import {createGardenAssets} from './garden-assets.js';
 
 const saturate=x=>Math.max(0,Math.min(1,x));
 const smooth=(x,a,b)=>{const t=saturate((x-a)/(b-a));return t*t*(3-2*t);};
-const rand=(x,z)=>{const n=Math.sin(x*127.1+z*311.7)*43758.5453;return n-Math.floor(n);};
 const green=new T.Color(0x23322b), sand=new T.Color(0x655748);
 export const desertBlend=x=>smooth(x,223,385);
 
@@ -18,11 +17,16 @@ export function groundHeight(x,z){
   return -85+edge*(49+ridge+close+dune*long);
 }
 function terrainPart(x0,x1){
-  const nx=30,nz=44,geo=new T.BufferGeometry();
-  const positions=[],colors=[],indices=[],c=new T.Color();
+  const nx=56,nz=68,geo=new T.BufferGeometry();
+  const positions=[],normals=[],colors=[],indices=[],c=new T.Color();
   for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++){
     const x=x0+(x1-x0)*i/nx,z=-300+j*570/nz,y=groundHeight(x,z);
     positions.push(x,y,z);
+    // A world-space derivative shares the same normals across every region seam.
+    const dx=(groundHeight(x+.3,z)-groundHeight(x-.3,z))/.6;
+    const dz=(groundHeight(x,z+.3)-groundHeight(x,z-.3))/.6;
+    const normal=new T.Vector3(-dx,1,-dz).normalize();
+    normals.push(normal.x,normal.y,normal.z);
     c.copy(green).lerp(sand,desertBlend(x));
     const fleck=.024*Math.sin(x*.12+z*.05)+.012*Math.sin(x*.24-z*.08);
     c.offsetHSL(0,0,fleck);
@@ -32,7 +36,8 @@ function terrainPart(x0,x1){
     if(i<nx&&j<nz){const p=i*(nz+1)+j;indices.push(p,p+1,p+nz+1,p+1,p+nz+2,p+nz+1);}
   }
   geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
-  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);geo.computeVertexNormals();
+  geo.setAttribute('normal',new T.Float32BufferAttribute(normals,3));
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);
   const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}));
   mesh.name='continuous-3d-ground';mesh.frustumCulled=true;return mesh;
 }
@@ -68,12 +73,16 @@ export function createBiomes(scene,mobile){
     sun.intensity=1.4*T.MathUtils.smoothstep(t,.02,.25);
     const shift=desertBlend(camera.position.x+42)*t;
     sun.color.set(0xd7cbb8).lerp(new T.Color(0xe2ba8b),shift*.42);
-    scene.fog?.color.copy(gardenAir).lerp(desertAir,shift*.16);
+    if(t>0){
+      // Do not touch the proven Hero atmosphere until the camera has entered the world.
+      scene.fog?.color.copy(gardenAir).lerp(desertAir,shift*.16);
+      if(scene.fog)scene.fog.density=T.MathUtils.lerp(scene.fog.density,.0036,T.MathUtils.smoothstep(t,0,.38));
+    }
     // The complete small Gate is ready before the camera can see a region seam.
     // Runtime visibility follows the whole world, never an individual tile edge.
     if(t>0)for(let i=0;i<regions.length;i++)build(i);
     for(let i=0;i<regions.length;i++){
       if(regions[i])regions[i].visible=t>0;
     }
-  },stats:{groundTriangles:spans.length*30*44*2}};
+  },stats:{groundTriangles:spans.length*56*68*2}};
 }

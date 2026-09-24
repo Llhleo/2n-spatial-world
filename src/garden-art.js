@@ -12,7 +12,7 @@ export function createStoneGarden(groundHeight){
     [132,255,36,-.08,18,13,1],
     [190,287,-115,.07,28,11,2]
   ]){
-    const positions=[],colors=[],indices=[],steps=64,cross=9,c=new T.Color();
+    const positions=[],colors=[],indices=[],steps=80,cross=20,c=new T.Color();
     for(let i=0;i<=steps;i++){
       const t=i/steps,x=x0+(x1-x0)*t;
       const envelope=Math.pow(Math.sin(Math.PI*t),.7),center=z0+zSlope*(x-x0)+Math.sin(t*Math.PI*2+seed)*3;
@@ -35,8 +35,9 @@ export function createStoneGarden(groundHeight){
   // The single vertical landmark anchors the long shot and the near pass.
   // Its changing section reads as layered weathered stone rather than a primitive.
   const x=211,z=-78,rings=[
-    [0,10,0],[2,10.7,.5],[5,10.2,-.3],[8,8.5,1.1],
-    [12,8.8,-.4],[16,7,1.4],[20,6.1,1],[23,5.4,.3],[24.5,3.7,0]
+    [0,11,0],[2,12,.5],[6,11.3,-.3],[9,10.8,1.1],
+    [14,10.1,-.4],[18,9.3,1.4],[23,9.6,1],[27,7.9,.3],
+    [32,8.3,-.8],[36,7.4,-1.2],[40,6.6,-1.6],[44,4.8,-2]
   ];
   const points=[],colors=[],index=[],sides=18,col=new T.Color();
   for(let i=0;i<rings.length;i++)for(let j=0;j<sides;j++){

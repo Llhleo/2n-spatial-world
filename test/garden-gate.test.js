@@ -11,6 +11,11 @@ test('Hero passes position and orientation continuously into Garden on both layo
     pose(1,from,portrait);gardenPose(0,to,portrait);
     assert.ok(from.position.distanceTo(to.position)<1e-5);
     assert.ok(from.quaternion.angleTo(to.quaternion)<1e-5);
+    const back=new T.PerspectiveCamera(),ahead=new T.PerspectiveCamera();
+    pose(.999,back,portrait);gardenPose(.001,ahead,portrait);
+    const outgoing=from.position.clone().sub(back.position).multiplyScalar(1/.001/(6/14));
+    const incoming=ahead.position.clone().sub(to.position).multiplyScalar(1/.001/(8/14));
+    assert.ok(outgoing.distanceTo(incoming)/outgoing.length()<.035);
   }
 });
 test('Garden to Desert remains one sampled surface and material transition',()=>{
@@ -20,6 +25,8 @@ test('Garden to Desert remains one sampled surface and material transition',()=>
   }
   const scene=new T.Scene(),world=createBiomes(scene,true);
   const camera=new T.PerspectiveCamera(48,1,.2,900);
+  gardenPose(.01,camera,true);world.update(camera,.01);
+  assert.equal(scene.children.filter(o=>o.type==='Group'&&o.visible).length,4);
   gardenPose(.65,camera,true);world.update(camera,.65);
   assert.ok(scene.children.filter(o=>o.type==='Group'&&o.visible).length>=2);
   let instances=0,triangles=0;
