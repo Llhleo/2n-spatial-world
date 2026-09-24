@@ -3,7 +3,7 @@ export function changed(a,b) {
   return !a || ['width','height','safeHeight','orientation'].some(k=>Math.abs(a[k]-b[k])>1);
 }
 export const scrollProgress=(y,range)=>Math.max(0,Math.min(1,y/range));
-export function stableViewport(onResize) {
+export function stableViewport(onResize, storyUnits=6) {
   const probe=document.createElement('div');
   probe.style.cssText='position:fixed;left:0;top:0;width:100%;height:100lvh;min-height:100svh;visibility:hidden;pointer-events:none;contain:strict;';
   document.body.append(probe);
@@ -22,7 +22,7 @@ export function stableViewport(onResize) {
       const locked=touch&&state&&Math.abs(width-state.width)<=1&&orientation===state.orientation;
       height=locked?state.height:innerHeight;safeHeight=height;
     }
-    const next={width,height,safeHeight,orientation,range:6*safeHeight};
+    const next={width,height,safeHeight,orientation,range:storyUnits*safeHeight};
     if(!changed(state,next))return;
     const previous=state;state=next;
     document.documentElement.style.setProperty('--scene-height',height+'px');
