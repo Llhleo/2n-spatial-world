@@ -16,7 +16,10 @@ const focus=new T.Vector3();
 export function gardenPose(t,camera,portrait=false){
   const u=T.MathUtils.clamp(t,0,1);
   position.getPoint(u,camera.position);target.getPoint(u,focus);
-  if(portrait)camera.position.y+=5;
+  if(portrait){
+    camera.position.z+=22*(1-T.MathUtils.smoothstep(u,0,.35));
+    camera.position.y+=5*T.MathUtils.smoothstep(u,0,.3);
+  }
   camera.lookAt(focus);
   return {position:camera.position.toArray(),target:focus.toArray()};
 }
