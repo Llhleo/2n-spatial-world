@@ -25,6 +25,8 @@ if (renderer) {
   createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const world=createBiomes(scene,matchMedia('(max-width: 700px)').matches);
+  if(typeof requestIdleCallback==='function')requestIdleCallback(()=>world.prepare(),{timeout:500});
+  else setTimeout(()=>world.prepare(),80);
   const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   const arrival = document.querySelector('#arrival');

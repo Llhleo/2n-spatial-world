@@ -22,5 +22,12 @@ test('Garden to Desert remains one sampled surface and material transition',()=>
   const camera=new T.PerspectiveCamera(48,1,.2,900);
   gardenPose(.65,camera,true);world.update(camera,.65);
   assert.ok(scene.children.filter(o=>o.type==='Group'&&o.visible).length>=2);
-  assert.ok(world.stats.instances<1250 && world.stats.groundTriangles<11000);
+  let instances=0,triangles=0;
+  scene.traverse(o=>{
+    if(!o.isMesh)return;
+    const count=o.isInstancedMesh?o.count:1;
+    instances+=count;
+    triangles+=(o.geometry.index?.count??o.geometry.attributes.position.count)/3*count;
+  });
+  assert.ok(instances<250&&triangles<100000);
 });
