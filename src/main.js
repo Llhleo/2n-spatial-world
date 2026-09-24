@@ -58,6 +58,7 @@ if (renderer) {
     const worldProgress=THREE.MathUtils.clamp((progress-HERO_END)/(1-HERO_END),0,1);
     const state=progress<=HERO_END ? pose(heroProgress,camera,view.width<view.height) : gardenPose(worldProgress,camera,view.width<view.height);
     atmosphereRig.update(camera,heroProgress);
+    if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
     const text = THREE.MathUtils.smoothstep(heroProgress,.93,.995)*(1-THREE.MathUtils.smoothstep(progress,HERO_END+.025,HERO_END+.09));
     arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;

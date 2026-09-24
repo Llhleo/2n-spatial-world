@@ -54,8 +54,10 @@ function populate(x0,x1,mobile){
   rockGeo.computeVertexNormals();
   const rocks=new T.InstancedMesh(rockGeo,clay(0xffffff),rockCount);
   const trunk=new T.InstancedMesh(new T.CylinderGeometry(.22,.45,1.0,6),clay(0x343a33),treeCount);
-  const crowns=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),clay(0xffffff),treeCount);
-  const brush=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),clay(0xffffff),count);
+  const leaves=new T.SphereGeometry(1,12,8),brushShape=new T.SphereGeometry(1,8,6);
+  // Three offset canopies read as a grove, not a sphere on a stick.
+  const crowns=[0,1,2].map(()=>new T.InstancedMesh(leaves,clay(0xffffff),treeCount));
+  const brush=new T.InstancedMesh(brushShape,clay(0xffffff),count);
   for(let i=0;i<rockCount;i++){
     const x=x0+rand(i+13,x0)*(x1-x0),z=-145+rand(i+33,x0)*225;
     const s=.8+rand(i+57,x0)*2.7,d=desertBlend(x);
@@ -68,7 +70,12 @@ function populate(x0,x1,mobile){
     const height=(5+rand(i+20,x0)*7)*(alive?1:.15),y=groundHeight(x,z),angle=rand(i+25,x0)*6.28;
     place(trunk,i,x,y+height*.5,z,[.55,height,.55],angle,new T.Color(0x363c35));
     color.copy(foliage).lerp(dry,desertBlend(x)).multiplyScalar(.77+rand(i+3,x0)*.4);
-    place(crowns,i,x,y+height*.87,z,alive?[2.1+height*.12,height*.36,1.8+height*.11]:[.01,.01,.01],angle,color);
+    for(let layer=0;layer<3;layer++){
+      const theta=angle+layer*2.399,offset=layer===0?0:1.5;
+      const cx=x+Math.cos(theta)*offset,cz=z+Math.sin(theta)*offset;
+      const size=(layer===0?1:.72)*(2.1+height*.12);
+      place(crowns[layer],i,cx,y+height*(.73+layer*.10),cz,alive?[size,height*.25,size*.83]:[.01,.01,.01],theta,color);
+    }
   }
   for(let i=0;i<count;i++){
     const x=x0+rand(i+131,x0)*(x1-x0),z=-140+rand(i+151,x0)*215;
@@ -77,20 +84,41 @@ function populate(x0,x1,mobile){
     color.copy(foliage).lerp(dry,b).multiplyScalar(.7+rand(i+91,x0)*.5);
     place(brush,i,x,groundHeight(x,z)+s*.55,z,[s*1.4,s*.8,s],rand(i+41,x0)*6.28,color);
   }
-  for(const inst of [rocks,trunk,crowns,brush]){inst.instanceMatrix.needsUpdate=true;inst.instanceColor.needsUpdate=true;inst.frustumCulled=false;region.add(inst);}
+  for(const inst of [rocks,trunk,...crowns,brush]){inst.instanceMatrix.needsUpdate=true;inst.instanceColor.needsUpdate=true;inst.frustumCulled=false;region.add(inst);}
   return region;
 }
 
 export function createBiomes(scene,mobile){
-  const spans=[[45,188],[188,296],[296,404],[404,520]],regions=spans.map(([a,b])=>{
-    const group=new T.Group();group.add(terrainPart(a,b),populate(a,b,mobile));scene.add(group);return group;
-  });
+  const spans=[[45,188],[188,296],[296,404],[404,520]],regions=new Array(spans.length);
+  const build=i=>{
+    if(regions[i])return;
+    const [a,b]=spans[i],group=new T.Group();
+    group.add(terrainPart(a,b),populate(a,b,mobile));group.visible=false;
+    scene.add(group);regions[i]=group;
+  };
+  let preparing=false;
+  function prepare(){
+    if(preparing)return;preparing=true;
+    let i=0;
+    const step=()=>{
+      if(i>=spans.length)return;
+      build(i++);
+      if(i<spans.length){
+        if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:1800});
+        else setTimeout(step,32);
+      }
+    };
+    if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:1800});
+    else setTimeout(step,32);
+  }
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
-  return {update(camera,t){
+  return {prepare,update(camera,t){
     sun.intensity=1.4*T.MathUtils.smoothstep(t,.02,.25);
     for(let i=0;i<regions.length;i++){
       const [a,b]=spans[i];
-      regions[i].visible=t>.015&&camera.position.x>=a-95&&camera.position.x<=b+130;
+      const visible=t>.015&&camera.position.x>=a-95&&camera.position.x<=b+130;
+      if(visible)build(i);
+      if(regions[i])regions[i].visible=visible;
     }
-  },stats:{groundTriangles:spans.length*30*44*2,instances:spans.length*((mobile?95:170)+(mobile?25:44)*2+(mobile?95:180))}};
+  },stats:{groundTriangles:spans.length*30*44*2,instances:spans.length*((mobile?95:170)+(mobile?25:44)*4+(mobile?95:180))}};
 }
