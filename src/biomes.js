@@ -28,7 +28,7 @@ function terrainPart(x0,x1){
     const fleck=(rand(i+x0,j)-.5)*.065+.07*Math.sin(x*.12+z*.05);
     c.offsetHSL(0,0,fleck);
     colors.push(c.r,c.g,c.b);
-    if(i<nx&&j<nz){const p=i*(nz+1)+j;indices.push(p,p+nz+1,p+1,p+1,p+nz+1,p+nz+2);}
+    if(i<nx&&j<nz){const p=i*(nz+1)+j;indices.push(p,p+1,p+nz+1,p+1,p+nz+2,p+nz+1);}
   }
   geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
   geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);geo.computeVertexNormals();
@@ -82,7 +82,7 @@ function populate(x0,x1,mobile){
 }
 
 export function createBiomes(scene,mobile){
-  const spans=[[80,188],[188,296],[296,404]],regions=spans.map(([a,b])=>{
+  const spans=[[45,188],[188,296],[296,404],[404,520]],regions=spans.map(([a,b])=>{
     const group=new T.Group();group.add(terrainPart(a,b),populate(a,b,mobile));scene.add(group);return group;
   });
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
