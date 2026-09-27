@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {pose} from './journey.js';
+import {beamWeight} from './reveal-light.js';
 const clamp=x=>Math.max(0,Math.min(1,x));
 const smooth=(x,a,b)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t);};
 export function fogVisibility(progress) {
@@ -40,7 +41,10 @@ export function dustData(mobile) {
 export function atmosphere(scene, mobile) {
   const {positions,sizes}=dustData(mobile);
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(positions,3));g.setAttribute('aSize',new T.BufferAttribute(sizes,1));
-  const dust=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uPixel:{value:Math.min(devicePixelRatio,1.5)}},vertexShader:`attribute float aSize; uniform float uPixel; varying float fade; varying float brightness; void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(aSize*165.*uPixel/max(1.,-p.z),1.35*uPixel,7.*uPixel);fade=smoothstep(.3,2.2,-p.z)*(1.-smoothstep(150.,320.,-p.z));brightness=mix(.55,.88,smoothstep(.7,1.5,aSize));}`,fragmentShader:`varying float fade;varying float brightness;void main(){vec2 p=(gl_PointCoord-.5)*vec2(1.,1.15);float r=length(p);float a=(1.-smoothstep(.12,.5,r))*.72*fade;gl_FragColor=vec4(vec3(brightness),a);}`});
+  const illumination=new Float32Array(sizes.length),sample=new T.Vector3();
+  for(let i=0;i<sizes.length;i++)illumination[i]=beamWeight(sample.fromArray(positions,i*3));
+  g.setAttribute('aBeam',new T.BufferAttribute(illumination,1));
+  const dust=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uPixel:{value:Math.min(devicePixelRatio,1.5)}},vertexShader:`attribute float aSize; attribute float aBeam; uniform float uPixel; varying float fade; varying float brightness; void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(aSize*165.*uPixel/max(1.,-p.z),1.35*uPixel,7.*uPixel);fade=smoothstep(.3,2.2,-p.z)*(1.-smoothstep(150.,320.,-p.z));brightness=mix(.30,.52,smoothstep(.7,1.5,aSize))+aBeam*.46;}`,fragmentShader:`varying float fade;varying float brightness;void main(){vec2 p=(gl_PointCoord-.5)*vec2(1.,1.15);float r=length(p);float a=(1.-smoothstep(.12,.5,r))*mix(.52,.85,brightness)*fade;gl_FragColor=vec4(vec3(brightness),a);}`});
   scene.add(new T.Points(g,dust));
   scene.fog=new T.FogExp2(0x11151a,.004);
   // Several world-fixed banks create one long passage. Each fades before the
