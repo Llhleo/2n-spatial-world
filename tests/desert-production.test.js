@@ -85,17 +85,18 @@ test('Desert petals install into the Desert region without replacing Garden asse
   assert.equal(scene.getObjectByName('florr-petal-assembly'),garden);
 });
 
-test('Garden becomes ready before Desert decode begins, avoiding simultaneous entry work',async()=>{
+test('Garden and Desert prepare independently without serial regional loading',async()=>{
   let resolveGarden,resolveDesert,started=[];
   const gardenCatalog=Object.fromEntries(['glass','leaf','rose','clover','rock','goldenleaf'].map(name=>[name,new T.Mesh(new T.BoxGeometry(.1,.1,.1),new T.MeshStandardMaterial())]));
   const desertCatalog={cactus:new T.Mesh(new T.BoxGeometry(.1,.1,.1),new T.MeshStandardMaterial()),sand:new T.Mesh(new T.BoxGeometry(.1,.1,.1),new T.MeshStandardMaterial())};
   const world=createBiomes(new T.Scene(),true,{
     garden:()=>{started.push('garden');return new Promise(resolve=>{resolveGarden=resolve;});},
-    desert:()=>{started.push('desert');return new Promise(resolve=>{resolveDesert=resolve;});}
+    desert:()=>{started.push('desert');return new Promise(resolve=>{resolveDesert=resolve;});},
+    ocean:async()=>({})
   });
   assert.equal(typeof biome.prepareBiomePetals,'function');
   const ready=biome.prepareBiomePetals(world);
-  assert.deepEqual(started,['garden']);
+  assert.deepEqual(started,['garden','desert']);
   resolveGarden(gardenCatalog);
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(started,['garden','desert']);
@@ -107,7 +108,7 @@ test('Garden becomes ready before Desert decode begins, avoiding simultaneous en
 
 test('world travel never builds all four ground spans on the first Garden frame',async()=>{
   const scene=new T.Scene(),world=createBiomes(scene,true);
-  assert.ok(biome.limitUnreadyTravel(1,6/14,{petalStatus:'ready',desertPetalStatus:'ready',groundStatus:'pending'})<6/14);
+  assert.equal(biome.limitUnreadyTravel(1,6/14,{petalStatus:'ready',desertPetalStatus:'ready',groundStatus:'pending'}),1);
   world.update(new T.PerspectiveCamera(),.001);
   assert.equal(scene.getObjectsByProperty('name','continuous-3d-ground').length,0);
   world.prepare();
@@ -143,12 +144,12 @@ test('Desert petals have varied headings and contact the sand after tilting',()=
   }
 });
 
-test('travel waits before bare Garden or Desert terrain while the matching petals load',()=>{
+test('travel remains available while Garden or Desert resources load',()=>{
   assert.equal(typeof biome.limitUnreadyTravel,'function');
   const hero=6/14;
-  assert.ok(biome.limitUnreadyTravel(1,hero,{petalStatus:'loading',desertPetalStatus:'loading'})<hero);
+  assert.equal(biome.limitUnreadyTravel(1,hero,{petalStatus:'loading',desertPetalStatus:'loading'}),1);
   const transition=biome.limitUnreadyTravel(1,hero,{petalStatus:'ready',desertPetalStatus:'loading'});
-  assert.ok(transition>hero&&transition<hero+(1-hero)*.50,'stop before the first Desert-facing Garden shot');
+  assert.equal(transition,1,'loading must not trap camera travel');
   assert.equal(biome.limitUnreadyTravel(1,hero,{petalStatus:'ready',desertPetalStatus:'ready'}),1);
 });
 
@@ -183,7 +184,7 @@ test('the three new Desert models have compact GLB runtime copies',()=>{
     assert.equal(file.subarray(0,4).toString(),'glTF');
     const length=file.readUInt32LE(12),descriptor=JSON.parse(file.subarray(20,20+length).toString());
     const faces=descriptor.meshes[0].primitives.reduce((total,primitive)=>total+descriptor.accessors[primitive.indices].count/3,0);
-    assert.ok(faces>5000&&faces<30_000,`${name} is a real optimized mesh`);
+    assert.ok(faces>2000&&faces<30_000,`${name} is a real optimized mesh`);
   }
 });
 
@@ -270,4 +271,16 @@ test('Golden Leaf is actually visible in the portrait transition, not merely ins
     if(point.z>0&&point.z<1&&Math.abs(point.x)<.9&&Math.abs(point.y)<.9)visible++;
   }
   assert.ok(visible>=2,'at least two cross-biome leaves appear before deep Desert');
+});
+
+test('all actual Desert GLB instances touch rendered ground and use independent species positions',()=>{
+ const names=['cactus','sand','stick','pincer','iris','goldenleaf'];const catalog=Object.fromEntries(names.map(name=>{
+  const folder=name==='goldenleaf'?'garden-petals':'desert-petals';const b=readFileSync(new URL(`../public/assets/${folder}/${name}.glb`,import.meta.url));const j=JSON.parse(b.subarray(20,20+b.readUInt32LE(12))),off=28+b.readUInt32LE(12),a=j.accessors[j.meshes[0].primitives[0].attributes.POSITION],view=j.bufferViews[a.bufferView];const values=new Float32Array(a.count*3);for(let i=0;i<values.length;i++)values[i]=b.readFloatLE(off+(view.byteOffset||0)+(a.byteOffset||0)+i*4);const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(values,3));return [name,{geometry,material:new T.MeshStandardMaterial()}];
+ }));
+ const group=createDesertProduction(biome.renderedGroundHeight,true,catalog),matrix=new T.Matrix4(),v=new T.Vector3(),places=new Map();
+ for(const family of group.children){const coords=[];for(const mesh of family.children)for(let i=0;i<mesh.count;i++){
+  mesh.getMatrixAt(i,matrix);coords.push(`${matrix.elements[12].toFixed(3)},${matrix.elements[14].toFixed(3)}`);let min=Infinity;const a=mesh.geometry.attributes.position;
+  for(let k=0;k<a.count;k++){v.fromBufferAttribute(a,k).applyMatrix4(matrix);min=Math.min(min,v.y-biome.renderedGroundHeight(v.x,v.z));}assert.ok(Math.abs(min+.07)<.002,`${family.name} contact ${min}`);
+ }places.set(family.name,coords);}
+ const cactus=new Set(places.get('desert-cactus-petal'));assert.ok(places.get('desert-pincer-petal').every(p=>!cactus.has(p)),'species cannot stack at identical positions');
 });

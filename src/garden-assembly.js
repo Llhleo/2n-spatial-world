@@ -1,3 +1,4 @@
+import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
 
 export const PETAL_NAMES=['glass','leaf','rose','clover','rock','goldenleaf'];
@@ -73,9 +74,10 @@ function surfaceContact(height,x,z,geometry,quaternion,scale){
 
 // One shared GPU geometry/material per type; three spatial batches keep distant
 // clearings outside the frustum without increasing the instance count.
-export function createPetalInstances(height,catalog,mobile=false){
+export function createPetalInstances(height,catalog,mobile=false,names=PETAL_NAMES){
   const garden=new T.Group();garden.name='florr-petal-assembly';
   PETAL_NAMES.forEach((name,speciesIndex)=>{
+    if(!names.includes(name))return;
     const asset=catalog[name],profile=PETAL_PROFILES[name];
     if(!asset?.geometry||!asset?.material)throw new Error(`Missing optimized petal ${name}`);
     asset.geometry.computeBoundingBox();
@@ -113,14 +115,6 @@ export function createPetalInstances(height,catalog,mobile=false){
   return garden;
 }
 
-export async function loadOptimizedPetals(){
-  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
-  const loader=new GLTFLoader(),catalog={};
-  await Promise.all(PETAL_NAMES.map(async name=>{
-    const gltf=await loader.loadAsync(`${import.meta.env.BASE_URL}assets/garden-petals/${name}.glb`);
-    const mesh=gltf.scene.getObjectByProperty('isMesh',true);
-    if(!mesh)throw new Error(`No mesh in ${name}.glb`);
-    catalog[name]=mesh;
-  }));
-  return catalog;
+export function loadOptimizedPetals(onAsset){
+  return loadPetalCatalog(PETAL_NAMES.map(name=>[name,`assets/garden-petals/${name}.glb`]),onAsset);
 }

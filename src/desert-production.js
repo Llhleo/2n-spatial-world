@@ -1,3 +1,4 @@
+import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
 
 // Broken color blocks follow world coordinates, so terrain spans stay seamless.
@@ -33,31 +34,20 @@ const POPULATION={
 const X_CLEARINGS=[[326,343,354],[370,383,396],[413,427,437]];
 const Z_CLEARINGS=[-116,-76,-35,8,52,97,130];
 const scatter=(n)=>{const v=Math.sin(n*91.17+5.4)*43758.5453;return v-Math.floor(v);};
-const contactNormal=new T.Vector3(),localNormal=new T.Vector3();
 const contactPoint=new T.Vector3();
 function surfaceContact(height,x,z,geometry,quaternion,size){
-  const sx=(height(x+.6,z)-height(x-.6,z))/1.2;
-  const sz=(height(x,z+.6)-height(x,z-.6))/1.2;
-  contactNormal.set(-sx,1,-sz);
-  localNormal.copy(contactNormal).applyQuaternion(quaternion.clone().invert());
-  const vertices=geometry.getAttribute('position').array;
-  let bottom=Infinity,lowest=0;
-  for(let i=0;i<vertices.length;i+=3){
-    const projection=vertices[i]*localNormal.x+vertices[i+1]*localNormal.y+vertices[i+2]*localNormal.z;
-    if(projection<bottom){bottom=projection;lowest=i;}
-  }
-  contactPoint.set(vertices[lowest],vertices[lowest+1],vertices[lowest+2]).applyQuaternion(quaternion).multiplyScalar(size);
-  // Contact the rendered triangle beneath the actual support point, not just
-  // the mesh pivot. A small embed avoids the bright gap at the skyline.
-  return height(x+contactPoint.x,z+contactPoint.z)-contactPoint.y-.045;
+ const positions=geometry.getAttribute('position');let support=-Infinity;
+ for(let i=0;i<positions.count;i++){contactPoint.fromBufferAttribute(positions,i).applyQuaternion(quaternion).multiplyScalar(size);support=Math.max(support,height(x+contactPoint.x,z+contactPoint.z)-contactPoint.y);}
+ return support-.07;
 }
 
-export function createDesertProduction(height,mobile,catalog){
+export function createDesertProduction(height,mobile,catalog,names=Object.keys(POPULATION)){
   // The heightfield stays continuous. These are user-provided petal models,
   // batched by species; never replace them with procedural stand-ins.
   const group=new T.Group();group.name='florr-desert';
   if(!catalog)return group;
   for(const [species,[phoneCount,desktopCount]] of Object.entries(POPULATION)){
+    if(!names.includes(species))continue;
     const name=species,count=mobile?phoneCount:desktopCount;
     const asset=catalog[name];
     if(!asset){if(name==='goldenleaf'||name==='iris'||name==='stick'||name==='pincer')continue;
@@ -79,7 +69,7 @@ export function createDesertProduction(height,mobile,catalog){
       batch.name=`${family.name}-sector-${sector}-${band}`;
       for(let slot=0;slot<selected.length;slot++){
         const i=selected[slot];
-        const key=(i+1)*43+name.length*131+sector*219;
+        const key=(i+1)*43+Object.keys(POPULATION).indexOf(name)*139+sector*219;
         const x=name==='goldenleaf'?[320,326,332,339,325,340][i]+scatter(key)*2:
           T.MathUtils.clamp(X_CLEARINGS[sector][i%3]+(scatter(key+1)-.5)*15,310,446);
         const z=name==='goldenleaf'?[-45,-40,-34,-26,-53,-25][i]:
@@ -91,7 +81,7 @@ export function createDesertProduction(height,mobile,catalog){
           // The pale-pink face of the supplied GLB points along local -Z.
           dummy.rotation.set(.67+(scatter(key+4)-.5)*.12,Math.PI/2+(scatter(key+5)-.5)*.30,(scatter(key+6)-.5)*.13,'YXZ');
         }else{
-          const pitch=i%5===0?-.30:i%5===1?-1.53:-.85+(scatter(key+4)-.5)*.55;
+          const pitch=i%5===0?-.40:i%5===1?-1.53:-1.10+(scatter(key+4)-.5)*.38;
           dummy.rotation.set(pitch,-Math.PI/2+(scatter(key+5)-.5)*1.7,(scatter(key+6)-.5)*.23,'YXZ');
         }
         dummy.position.set(x,surfaceContact(height,x,z,asset.geometry,dummy.quaternion,size),z);
@@ -107,15 +97,6 @@ export function createDesertProduction(height,mobile,catalog){
   return group;
 }
 
-export async function loadDesertPetals(){
-  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
-  const loader=new GLTFLoader(),catalog={};
-  await Promise.all(['cactus','sand','stick','pincer','iris','goldenleaf'].map(async name=>{
-    const subdirectory=name==='goldenleaf'?'garden-petals':'desert-petals';
-    const gltf=await loader.loadAsync(`${import.meta.env.BASE_URL}assets/${subdirectory}/${name}.glb`);
-    const mesh=gltf.scene.getObjectByProperty('isMesh',true);
-    if(!mesh)throw new Error(`No mesh in Desert ${name}.glb`);
-    catalog[name]=mesh;
-  }));
-  return catalog;
+export function loadDesertPetals(onAsset){
+ return loadPetalCatalog(['cactus','sand','stick','pincer','iris','goldenleaf'].map(name=>[name,`assets/${name==='goldenleaf'?'garden-petals':'desert-petals'}/${name}.glb`]),onAsset);
 }

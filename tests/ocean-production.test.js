@@ -15,3 +15,11 @@ test('Ocean uses the actual three supplied petal GLBs with varied poses and terr
  for(const mesh of world.children){total+=mesh.count;for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);yaw.add(matrix.elements[0].toFixed(3));const a=mesh.geometry.attributes.position;let min=Infinity;for(let k=0;k<a.count;k++){v.fromBufferAttribute(a,k).applyMatrix4(matrix);min=Math.min(min,v.y-oceanSurface(v.x,v.z));}assert.ok(Math.abs(min+.04)<.001,`${mesh.name} must contact terrain: ${min}`);}}
  assert.equal(total,165);assert.ok(yaw.size>100);
 });
+
+test('Shell and Pearl expose their broad faces rather than uniformly showing their edges',()=>{
+ const catalog=Object.fromEntries(Object.keys(OCEAN_POPULATION).map(n=>[n,readGeometry(n)]));const world=createOceanPetals(catalog,true),matrix=new T.Matrix4(),normal=new T.Vector3(),position=new T.Vector3();
+ for(const name of ['shell','pearl']){let broad=0,total=0;for(const mesh of world.children.filter(m=>m.name.includes(name)))for(let i=0;i<mesh.count;i++){
+  mesh.getMatrixAt(i,matrix);normal.set(0,0,1).transformDirection(matrix);position.setFromMatrixPosition(matrix);
+  const towardCamera=new T.Vector3(-75,45,0).normalize();if(normal.dot(towardCamera)>.75)broad++;total++;
+ }assert.ok(broad/total>.7,`${name} broad face should be readable`);}
+});
