@@ -30,7 +30,9 @@ export function* junglePetalSteps(catalog,mobile,names=Object.keys(JUNGLE_POPULA
  for(const [species,counts] of Object.entries(JUNGLE_POPULATION)){
   if(!names.includes(species)||!catalog[species])continue;const index=Object.keys(JUNGLE_POPULATION).indexOf(species),total=counts[mobile?0:1];
   for(let zone=0;zone<3;zone++){const n=Math.floor((total+2-zone)/3);group.add(yield* petalPlacementSteps(catalog[species],n,species==='tomato'?3.1:species==='bur'?3.3:species==='goldenleaf'?2.7:species==='rock'?3.1:species==='compass'?3.6:4.0,i=>{
-   const key=i*67+zone*317+index*191;return {x:zone===0?828+hash(key+1)*100:884+zone*110+hash(key+1)*85,z:[-88,-43,9,53,93][i%5]+(hash(key+2)-.5)*40,scale:.8+hash(key+3)*.4,pitch:i%5===0?-1.4:-.55-hash(key+4)*.5,yaw:-Math.PI/2+(hash(key+5)-.5)*1.0,roll:(hash(key+6)-.5)*.28};
+   // Overlapping scatter ranges cover the camera's entire middle journey.
+   // Retain the early entry population so Jungle is readable from Ocean.
+   const key=i*67+zone*317+index*191;return {x:zone===0?828+hash(key+1)*100:zone===1?922+hash(key+1)*170:1045+hash(key+1)*178,z:[-88,-43,9,53,93][i%5]+(hash(key+2)-.5)*40,scale:.8+hash(key+3)*.4,pitch:i%5===0?-1.4:-.55-hash(key+4)*.5,yaw:-Math.PI/2+(hash(key+5)-.5)*1.0,roll:(hash(key+6)-.5)*.28};
   },jungleSurface,`jungle-${species}-${zone}`));}
  }
  return group;

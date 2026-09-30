@@ -6,7 +6,7 @@ import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
 const places=[['Garden',133,-12,88,182],['Desert',352,-18,295,424],['Ocean',586,-12,475,707],['Jungle',975,-10,845,1092],['Hell',1400,-12,1245,1540]];
 // Entry poses selected from the actual camera paths, not arbitrary map centres.
-const entryShots=[[gardenPose,.38,110],[gardenPose,.96,70],[oceanPose,.19,110],[junglePose,.13,70],[hellPose,.13,70]];
+const entryShots=[[gardenPose,.38,110],[gardenPose,.96,70],[oceanPose,.56,110],[junglePose,.13,70],[hellPose,.13,70]];
 function textTexture(name){
  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');ctx.font='500 144px Georgia, serif';canvas.width=Math.ceil(ctx.measureText(name).width)+64;canvas.height=192;
  ctx.font='500 144px Georgia, serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#faf5e9';ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=9;ctx.shadowOffsetY=3;ctx.fillText(name,canvas.width/2,96);
@@ -26,6 +26,9 @@ export function createRegionNames(textureFactory=textTexture){
    const image=label.material.map.image;label.scale.set(width,width*(image?image.height/image.width:.32),1);
    label.position.y=Math.max(label.position.y,worldHeight(label.position.x,label.position.z)+label.scale.y/2+6);
    label.userData.entryX=ref.position.x;
+   // Ocean is introduced after the coastal palette has become blue, including
+   // the foreground. Keep the fixed world anchor and its usual safe-area fade.
+   label.userData.minimumX=i===2?560:-Infinity;
   }
  }
  return {group,update(input){
@@ -36,7 +39,7 @@ export function createRegionNames(textureFactory=textTexture){
    const halfY=label.scale.y/(2*depth*tan),halfX=label.scale.x/(2*depth*tan*camera.aspect);
    const margin=Math.min(.90-Math.abs(p.x)-halfX,.80-Math.abs(p.y)-halfY);
    const x=camera.position.x,start=label.userData.entryX-60,end=label.userData.entryX+120;
-   label.material.opacity=T.MathUtils.smoothstep(margin,0,.13)*T.MathUtils.smoothstep(x,start,start+12)*(1-T.MathUtils.smoothstep(x,end-22,end));
+   label.material.opacity=T.MathUtils.smoothstep(margin,0,.13)*T.MathUtils.smoothstep(x,Math.max(start,label.userData.minimumX),Math.max(start,label.userData.minimumX)+12)*(1-T.MathUtils.smoothstep(x,end-22,end));
    label.visible=depth>0&&p.z>-1&&p.z<1&&label.material.opacity>.001;
   }
  }};
