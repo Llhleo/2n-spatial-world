@@ -1,3 +1,4 @@
+import {createOceanGround,createOceanPetals,loadOceanPetals} from './ocean-production.js';
 import * as T from 'three';
 import {createDesertProduction,desertGroundColor,loadDesertPetals} from './desert-production.js';
 import {createGardenProduction,gardenGroundColor} from './garden-production.js';
@@ -81,6 +82,21 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     group.visible=false;
     scene.add(group);regions[i]=group;
   };
+  const ocean=new T.Group();ocean.name='florr-ocean';ocean.visible=false;scene.add(ocean);
+  let oceanPetalStatus='pending',oceanLoad;
+  function preloadOceanPetals(){
+    if(oceanPetalStatus!=='pending')return oceanLoad;
+    oceanPetalStatus='loading';
+    oceanLoad=loadOceanPetals().then(async catalog=>{
+      ocean.add(createOceanGround());
+      for(const name of ['pearl','shell','starfish']){
+        await new Promise(resolve=>{if(typeof requestIdleCallback==='function')requestIdleCallback(resolve,{timeout:250});else setTimeout(resolve,20);});
+        const assembly=createOceanPetals(catalog,mobile,[name]);for(const batch of [...assembly.children])ocean.add(batch);
+      }
+      oceanPetalStatus='ready';
+    }).catch(error=>{oceanPetalStatus='error';console.error('Ocean petals unavailable',error);});
+    return oceanLoad;
+  }
   let preparing=false;
   let groundStatus='pending';
   let petalStatus='pending',petalAssembly;
@@ -133,7 +149,7 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
   }
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
   const gardenAir=new T.Color(0x11151a),desertAir=new T.Color(0x342b25);
-  return {prepare,preloadPetals,installPetals,preloadDesertPetals,installDesertPetals,update(camera,t){
+  return {prepare,preloadOceanPetals,preloadPetals,installPetals,preloadDesertPetals,installDesertPetals,update(camera,t){
     sun.intensity=1.4*T.MathUtils.smoothstep(t,.02,.25);
     const shift=desertBlend(camera.position.x+42)*t;
     sun.color.set(0xd7cbb8).lerp(new T.Color(0xe2ba8b),shift*.42);
@@ -142,10 +158,12 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
       scene.fog?.color.copy(gardenAir).lerp(new T.Color(0x263d2c),smooth(t,.01,.3)*.55).lerp(desertAir,shift*.16);
       if(scene.fog)scene.fog.density=T.MathUtils.lerp(scene.fog.density,.0036,T.MathUtils.smoothstep(t,0,.38));
     }
+    ocean.visible=t>0&&camera.position.x>385;
+    if(camera.position.x>470){const oceanShift=smooth(camera.position.x,470,640);scene.fog?.color.lerp(new T.Color(0x1d485d),oceanShift);sun.color.lerp(new T.Color(0xbde5ef),oceanShift*.7);}
     // The complete small Gate is ready before the camera can see a region seam.
     // Runtime visibility follows the whole world, never an individual tile edge.
     for(let i=0;i<regions.length;i++){
       if(regions[i])regions[i].visible=t>0;
     }
-  },get gardenStatus(){return 'ready';},get groundStatus(){return groundStatus;},get petalStatus(){return petalStatus;},get desertPetalStatus(){return desertPetalStatus;},stats:{groundTriangles:spans.length*56*68*2}};
+  },get oceanPetalStatus(){return oceanPetalStatus;},get gardenStatus(){return 'ready';},get groundStatus(){return groundStatus;},get petalStatus(){return petalStatus;},get desertPetalStatus(){return desertPetalStatus;},stats:{groundTriangles:spans.length*56*68*2}};
 }
