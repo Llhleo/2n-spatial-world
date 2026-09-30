@@ -1,5 +1,6 @@
 import {oceanPose} from './ocean-production.js';
 import {junglePose} from './jungle-production.js';
+import {hellPose} from './hell-production.js';
 import {createLoadingIntro,attachIntroInput} from './loading-intro.js';
 import * as THREE from 'three';
 import './style.css';
@@ -11,7 +12,7 @@ import {createRevealLight} from './reveal-light.js';
 import {gardenPose} from './garden-path.js';
 import {createBiomes,prepareBiomePetals} from './biomes.js';
 
-const HERO_END=6/24, DESERT_END=14/24, OCEAN_END=20/24;
+const HERO_END=6/28, DESERT_END=14/28, OCEAN_END=20/28, JUNGLE_END=24/28;
 
 const canvas = document.querySelector('#world');
 let renderer;
@@ -48,7 +49,7 @@ if (renderer) {
     renderer.setSize(next.width,next.height);
     camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
     if(old&&controlled)scrollTo({top:retained*next.range,behavior:'instant'});
-  },24);
+  },28);
   const takeControl = () => {
     if(introLocked)return;
     if (!controlled) {
@@ -76,7 +77,7 @@ if (renderer) {
     const heroProgress=Math.min(1,progress/HERO_END);
     const worldProgress=THREE.MathUtils.clamp((progress-HERO_END)/(DESERT_END-HERO_END),0,1);
     const portrait=view.width<view.height;
-    const state=progress<=HERO_END ? pose(heroProgress,camera,portrait) : progress<=DESERT_END?gardenPose(worldProgress,camera,portrait):progress<=OCEAN_END?oceanPose((progress-DESERT_END)/(OCEAN_END-DESERT_END),camera,portrait):junglePose((progress-OCEAN_END)/(1-OCEAN_END),camera);
+    const state=progress<=HERO_END ? pose(heroProgress,camera,portrait) : progress<=DESERT_END?gardenPose(worldProgress,camera,portrait):progress<=OCEAN_END?oceanPose((progress-DESERT_END)/(OCEAN_END-DESERT_END),camera,portrait):progress<=JUNGLE_END?junglePose((progress-OCEAN_END)/(JUNGLE_END-OCEAN_END),camera):hellPose((progress-JUNGLE_END)/(1-JUNGLE_END),camera);
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
@@ -85,16 +86,17 @@ if (renderer) {
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
-    canvas.dataset.biome=progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.biome=progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.hellPetals=world.hellPetalStatus;
     canvas.dataset.loadingIntro=String(introLocked);canvas.dataset.junglePetals=world.junglePetalStatus;
     canvas.dataset.gardenAssets=world.gardenStatus;
     canvas.dataset.oceanPetals=world.oceanPetalStatus;
     canvas.dataset.desertPetals=world.desertPetalStatus;
     const counts=world.loading.counts;
-    const kind=progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress>.65?'desert':'garden';
-    const expected=kind==='ocean'||kind==='jungle'?3:6;const pending=counts[kind]<expected;
+    const kind=progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress>.65?'desert':'garden';
+    const expected=kind==='hell'?2:kind==='jungle'?5:kind==='ocean'?3:6;const pending=counts[kind]<expected;
     loading.hidden=!pending&&!failed;
-    const loadingText=failed?'部分花瓣未能加载，可重试':`${introLocked?'慢播中，准备好即可滑动 · ':''}正在准备${{garden:'花园',desert:'沙漠',ocean:'海洋',jungle:'丛林'}[kind]}花瓣 · ${counts[kind]}/${expected}`;
+    const loadingText=failed?'部分花瓣未能加载，可重试':`${introLocked?'慢播中，准备好即可滑动 · ':''}正在准备${{garden:'花园',desert:'沙漠',ocean:'海洋',jungle:'丛林',hell:'地狱'}[kind]}花瓣 · ${counts[kind]}/${expected}`;
     if(loadingText!==lastLoadingText){loading.querySelector('span').textContent=loadingText;lastLoadingText=loadingText;}
     retry.hidden=!failed;
     renderer.render(scene, camera);

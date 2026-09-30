@@ -70,7 +70,7 @@ test('Garden ground extends into broad green margins without changing Desert san
   assert.ok(Math.max(...Array.from({length:attr.count},(_,i)=>attr.getZ(i)))>=320,'terrain opens wider');
 });
 
-test('Desert petals install into the Desert region without replacing Garden assets',()=>{
+test('Desert petals install into the Desert region without replacing Garden assets',async()=>{
   const scene=new T.Scene(),world=createBiomes(scene,true),camera=new T.PerspectiveCamera();
   world.update(camera,.95);
   const garden=scene.getObjectByName('florr-petal-assembly');
@@ -79,7 +79,7 @@ test('Desert petals install into the Desert region without replacing Garden asse
     sand:new T.Mesh(new T.SphereGeometry(.05,8,6),new T.MeshStandardMaterial())
   };
   assert.equal(typeof world.installDesertPetals,'function');
-  world.installDesertPetals(catalog);
+  await world.installDesertPetals(catalog);
   const desert=scene.getObjectByName('florr-desert');
   assert.equal(desert.children.length,2);
   assert.equal(scene.getObjectByName('florr-petal-assembly'),garden);

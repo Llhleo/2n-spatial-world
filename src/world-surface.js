@@ -7,8 +7,9 @@ export function worldHeight(x,z){
  const sea=smooth(x,500,660),land=49+ridge+close+dune*long;
  const seabed=43+Math.sin(x*.028+z*.013)*2.1+Math.cos(z*.043-x*.012)*1.3;
  const jungle=smooth(x,820,1000),forest=48+Math.sin(x*.023+z*.017)*3.8+Math.cos(z*.034-x*.01)*2.4;
- const edge=smooth(x,42,77)*(1-smooth(x,1250,1340))*smooth(z,-350,-290)*(1-smooth(z,250,320));
- return -85+edge*((land*(1-sea)+seabed*sea)*(1-jungle)+forest*jungle);
+ const hell=smooth(x,1220,1400),embers=48+Math.sin(x*.025+Math.sin(z*.017))*3.7+Math.cos(z*.031-x*.009)*2.2;
+ const edge=smooth(x,42,77)*(1-smooth(x,1700,1800))*smooth(z,-350,-290)*(1-smooth(z,250,320));
+ return -85+edge*(((land*(1-sea)+seabed*sea)*(1-jungle)+forest*jungle)*(1-hell)+embers*hell);
 }
 export function desertSurface(x,z){
  if(x<296||x>520||z< -365||z>330)return worldHeight(x,z);

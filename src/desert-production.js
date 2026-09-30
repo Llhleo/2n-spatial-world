@@ -1,5 +1,6 @@
 import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
+import {finishSteps,runSteps} from './petal-placement.js';
 
 // Broken color blocks follow world coordinates, so terrain spans stay seamless.
 const hash=(x,z)=>{
@@ -34,14 +35,15 @@ const POPULATION={
 const X_CLEARINGS=[[326,343,354],[370,383,396],[413,427,437]];
 const Z_CLEARINGS=[-116,-76,-35,8,52,97,130];
 const scatter=(n)=>{const v=Math.sin(n*91.17+5.4)*43758.5453;return v-Math.floor(v);};
-const contactPoint=new T.Vector3();
-function surfaceContact(height,x,z,geometry,quaternion,size){
+function* surfaceContact(height,x,z,geometry,quaternion,size){
  const positions=geometry.getAttribute('position');let support=-Infinity;
- for(let i=0;i<positions.count;i++){contactPoint.fromBufferAttribute(positions,i).applyQuaternion(quaternion).multiplyScalar(size);support=Math.max(support,height(x+contactPoint.x,z+contactPoint.z)-contactPoint.y);}
+ // Local scratch vector: generator jobs can interleave safely.
+ const contactPoint=new T.Vector3();
+ for(let i=0;i<positions.count;i++){contactPoint.fromBufferAttribute(positions,i).applyQuaternion(quaternion).multiplyScalar(size);support=Math.max(support,height(x+contactPoint.x,z+contactPoint.z)-contactPoint.y);if(i%256===255)yield;}
  return support-.07;
 }
 
-export function createDesertProduction(height,mobile,catalog,names=Object.keys(POPULATION)){
+export function* desertPetalSteps(height,mobile,catalog,names=Object.keys(POPULATION)){
   // The heightfield stays continuous. These are user-provided petal models,
   // batched by species; never replace them with procedural stand-ins.
   const group=new T.Group();group.name='florr-desert';
@@ -84,7 +86,7 @@ export function createDesertProduction(height,mobile,catalog,names=Object.keys(P
           const pitch=i%5===0?-.40:i%5===1?-1.53:-1.10+(scatter(key+4)-.5)*.38;
           dummy.rotation.set(pitch,-Math.PI/2+(scatter(key+5)-.5)*1.7,(scatter(key+6)-.5)*.23,'YXZ');
         }
-        dummy.position.set(x,surfaceContact(height,x,z,asset.geometry,dummy.quaternion,size),z);
+        dummy.position.set(x,yield* surfaceContact(height,x,z,asset.geometry,dummy.quaternion,size),z);
         dummy.scale.setScalar(size);
         dummy.updateMatrix();batch.setMatrixAt(slot,dummy.matrix);
       }
@@ -96,6 +98,8 @@ export function createDesertProduction(height,mobile,catalog,names=Object.keys(P
   }
   return group;
 }
+export const createDesertProduction=(...args)=>finishSteps(desertPetalSteps(...args));
+export const createDesertProductionAsync=(...args)=>runSteps(desertPetalSteps(...args));
 
 export function loadDesertPetals(onAsset){
  return loadPetalCatalog(['cactus','sand','stick','pincer','iris','goldenleaf'].map(name=>[name,`assets/${name==='goldenleaf'?'garden-petals':'desert-petals'}/${name}.glb`]),onAsset);

@@ -1,10 +1,12 @@
 import {worldHeight} from './world-surface.js';
-import {createOceanGround,createOceanPetals,loadOceanPetals,coastalColor,createCoastSand} from './ocean-production.js';
-import {createJungleGround,createJunglePetals,loadJunglePetals} from './jungle-production.js';
+import {createOceanGround,createOceanPetalsAsync,loadOceanPetals,coastalColor,createCoastSandAsync} from './ocean-production.js';
+import {createJungleGround,createJunglePetalsAsync,loadJunglePetals} from './jungle-production.js';
 import * as T from 'three';
-import {createDesertProduction,desertGroundColor,loadDesertPetals} from './desert-production.js';
+import {createDesertProduction,createDesertProductionAsync,desertGroundColor,loadDesertPetals} from './desert-production.js';
 import {createGardenProduction,gardenGroundColor} from './garden-production.js';
 import {createPetalInstances,loadOptimizedPetals} from './garden-assembly.js';
+import {applyRegionalFog} from './regional-fog.js';
+import {createHellGround,createHellPetalsAsync,loadHellPetals} from './hell-production.js';
 
 const saturate=x=>Math.max(0,Math.min(1,x));
 const smooth=(x,a,b)=>{const t=saturate((x-a)/(b-a));return t*t*(3-2*t);};
@@ -55,12 +57,12 @@ function terrainPart(x0,x1){
   mesh.name='continuous-3d-ground';mesh.frustumCulled=true;return mesh;
 }
 
-export const prepareBiomePetals=world=>Promise.all([world.preloadPetals(),world.preloadDesertPetals(),world.preloadOceanPetals?.(),world.preloadJunglePetals?.()]);
+export const prepareBiomePetals=world=>Promise.all([world.preloadPetals(),world.preloadDesertPetals(),world.preloadOceanPetals?.(),world.preloadJunglePetals?.(),world.preloadHellPetals?.()]);
 // Resource state never clamps navigation. Slow/failed resources are surfaced
 // by the loading UI and may be retried without trapping scroll progress.
 export function limitUnreadyTravel(target){return target;}
 
-export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,desert:loadDesertPetals,ocean:loadOceanPetals,jungle:loadJunglePetals}){
+export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,desert:loadDesertPetals,ocean:loadOceanPetals,jungle:loadJunglePetals,hell:loadHellPetals}){
   const spans=[[45,188],[188,296],[296,404],[404,520]],regions=new Array(spans.length);
   const garden=createGardenProduction(groundHeight,mobile);
   const build=i=>{
@@ -74,10 +76,12 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
   };
   const ocean=new T.Group();ocean.name='florr-ocean';ocean.visible=false;scene.add(ocean);
   const jungle=new T.Group();jungle.name='florr-jungle';jungle.visible=false;scene.add(jungle);
+  const hell=new T.Group();hell.name='florr-hell';hell.visible=false;scene.add(hell);
+  let hellLoad,hellPetalStatus='pending';
   let preparing=false,groundStatus='pending';
   let petalStatus='pending',desertPetalStatus='pending',oceanPetalStatus='pending';
   let gardenLoad,desertLoad,oceanLoad,jungleLoad,junglePetalStatus='pending',petalAssembly;
-  const installed={garden:new Set(),desert:new Set(),ocean:new Set(),jungle:new Set()},failures={garden:[],desert:[],ocean:[],jungle:[]};
+  const installed={garden:new Set(),desert:new Set(),ocean:new Set(),jungle:new Set(),hell:new Set()},failures={garden:[],desert:[],ocean:[],jungle:[],hell:[]};
   let onPrepared=()=>{};
   function installPetals(catalog){
     const names=Object.keys(catalog).filter(n=>!installed.garden.has(n));if(!names.length)return;
@@ -88,35 +92,46 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     for(const name of names){installed.garden.add(name);onPrepared(catalog[name]);}
     if(installed.garden.size===6)petalStatus='ready';
   }
-  function installDesertPetals(catalog){
+  async function installDesertPetals(catalog){
     const names=Object.keys(catalog).filter(n=>!installed.desert.has(n));if(!names.length)return;
     build(2);const desert=scene.getObjectByName('florr-desert');
-    const addition=createDesertProduction(renderedGroundHeight,mobile,catalog,names);
+    const addition=await createDesertProductionAsync(renderedGroundHeight,mobile,catalog,names);
     for(const child of [...addition.children])desert.add(child);
-    if(names.includes('sand')&&!ocean.getObjectByName('coast-sand-petals'))ocean.add(createCoastSand(catalog.sand,mobile));
+    if(names.includes('sand')&&!ocean.getObjectByName('coast-sand-petals'))ocean.add(await createCoastSandAsync(catalog.sand,mobile));
     for(const name of names){installed.desert.add(name);onPrepared(catalog[name]);}
     if(installed.desert.size===6)desertPetalStatus='ready';
   }
-  function installOceanPetals(catalog){
+  async function installOceanPetals(catalog){
     const names=Object.keys(catalog).filter(n=>!installed.ocean.has(n));if(!names.length)return;
-    if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(createOceanGround());
-    const addition=createOceanPetals(catalog,mobile,names);for(const child of [...addition.children])ocean.add(child);
+    if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(applyRegionalFog(createOceanGround()));
+    const addition=applyRegionalFog(await createOceanPetalsAsync(catalog,mobile,names));for(const child of [...addition.children])ocean.add(child);
     for(const name of names){installed.ocean.add(name);onPrepared(catalog[name]);}
   }
   function start(kind,loader,install){
     failures[kind]=[];
-    return loader((name,mesh)=>install({[name]:mesh})).then(catalog=>{install(catalog);failures[kind]=catalog.failures||[];return failures[kind].length?'error':'ready';}).catch(error=>{failures[kind]=[{message:error.message}];console.error(`${kind} petals unavailable`,error);return 'error';});
+    return loader((name,mesh)=>install({[name]:mesh})).then(async catalog=>{await install(catalog);failures[kind]=catalog.failures||[];return failures[kind].length?'error':'ready';}).catch(error=>{failures[kind]=[{message:error.message}];console.error(`${kind} petals unavailable`,error);return 'error';});
   }
-  function installJunglePetals(catalog){
+  async function installJunglePetals(catalog){
     const names=Object.keys(catalog).filter(n=>!installed.jungle.has(n));if(!names.length)return;
-    if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(createJungleGround());
-    const addition=createJunglePetals(catalog,mobile,names);for(const child of [...addition.children])jungle.add(child);
+    if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(applyRegionalFog(createJungleGround()));
+    const addition=applyRegionalFog(await createJunglePetalsAsync(catalog,mobile,names));for(const child of [...addition.children])jungle.add(child);
     for(const name of names){installed.jungle.add(name);onPrepared(catalog[name]);}
   }
   function preloadJunglePetals(){
     if(!loaders.jungle)return Promise.resolve();
     if(junglePetalStatus==='loading'||junglePetalStatus==='ready')return jungleLoad;
     junglePetalStatus='loading';jungleLoad=start('jungle',loaders.jungle,installJunglePetals).then(status=>{junglePetalStatus=status;});return jungleLoad;
+  }
+  async function installHellPetals(catalog){
+    const names=Object.keys(catalog).filter(n=>!installed.hell.has(n));if(!names.length)return;
+    if(!hell.getObjectByName('florr-hell-ground'))hell.add(applyRegionalFog(createHellGround()));
+    const addition=applyRegionalFog(await createHellPetalsAsync(catalog,mobile,names));for(const child of [...addition.children])hell.add(child);
+    for(const name of names){installed.hell.add(name);onPrepared(catalog[name]);}
+  }
+  function preloadHellPetals(){
+    if(!loaders.hell)return Promise.resolve();
+    if(hellPetalStatus==='loading'||hellPetalStatus==='ready')return hellLoad;
+    hellPetalStatus='loading';hellLoad=start('hell',loaders.hell,installHellPetals).then(status=>{hellPetalStatus=status;});return hellLoad;
   }
   function preloadPetals(){if(petalStatus==='loading'||petalStatus==='ready')return gardenLoad;petalStatus='loading';gardenLoad=start('garden',loaders.garden,installPetals).then(status=>{petalStatus=status;});return gardenLoad;}
   function preloadDesertPetals(){if(desertPetalStatus==='loading'||desertPetalStatus==='ready')return desertLoad;desertPetalStatus='loading';desertLoad=start('desert',loaders.desert,installDesertPetals).then(status=>{desertPetalStatus=status;});return desertLoad;}
@@ -130,14 +145,14 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
       if(i<spans.length){
         if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:250});
         else setTimeout(step,32);
-      }else {if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(createOceanGround());setTimeout(()=>{if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(createJungleGround());groundStatus='ready';},32);}
+      }else {if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(applyRegionalFog(createOceanGround()));setTimeout(()=>{if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(applyRegionalFog(createJungleGround()));setTimeout(()=>{if(!hell.getObjectByName('florr-hell-ground'))hell.add(applyRegionalFog(createHellGround()));groundStatus='ready';},32);},32);}
     };
     if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:250});
     else setTimeout(step,32);
   }
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
   const gardenAir=new T.Color(0x11151a),desertAir=new T.Color(0x342b25);
-  return {set onAssetPrepared(fn){onPrepared=fn;},get loading(){return {counts:{garden:installed.garden.size,desert:installed.desert.size,ocean:installed.ocean.size,jungle:installed.jungle.size},failures};},prepare,preloadJunglePetals,preloadOceanPetals,preloadPetals,installPetals,preloadDesertPetals,installDesertPetals,update(camera,t){
+  return {set onAssetPrepared(fn){onPrepared=fn;},get hellPetalStatus(){return hellPetalStatus;},get loading(){return {counts:{garden:installed.garden.size,desert:installed.desert.size,ocean:installed.ocean.size,jungle:installed.jungle.size,hell:installed.hell.size},failures};},prepare,preloadHellPetals,preloadJunglePetals,preloadOceanPetals,preloadPetals,installPetals,preloadDesertPetals,installDesertPetals,update(camera,t){
     sun.intensity=1.4*T.MathUtils.smoothstep(t,.02,.25);
     const shift=desertBlend(camera.position.x+42)*t;
     sun.color.set(0xd7cbb8).lerp(new T.Color(0xe2ba8b),shift*.42);
@@ -147,9 +162,11 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
       if(scene.fog)scene.fog.density=T.MathUtils.lerp(scene.fog.density,.0036,T.MathUtils.smoothstep(t,0,.38));
     }
     ocean.visible=t>0&&camera.position.x>235;
-    jungle.visible=t>0&&camera.position.x>610;
+    jungle.visible=t>0&&camera.position.x>280;
+    hell.visible=t>0&&camera.position.x>735;
     if(camera.position.x>470){const oceanShift=smooth(camera.position.x,470,640);scene.fog?.color.lerp(new T.Color(0x1d485d),oceanShift);sun.color.lerp(new T.Color(0xbde5ef),oceanShift*.7);}
     if(camera.position.x>775){const jungleShift=smooth(camera.position.x,775,990);scene.fog?.color.lerp(new T.Color(0x163b2c),jungleShift);sun.color.lerp(new T.Color(0xd4edbd),jungleShift*.65);}
+    if(camera.position.x>1150){const hellShift=smooth(camera.position.x,1150,1390);scene.fog?.color.lerp(new T.Color(0x63282e),hellShift);sun.color.lerp(new T.Color(0xffd0bc),hellShift*.55);}
     // The complete small Gate is ready before the camera can see a region seam.
     // Runtime visibility follows the whole world, never an individual tile edge.
     for(let i=0;i<regions.length;i++){

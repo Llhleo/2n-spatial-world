@@ -5,7 +5,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtk
 from PIL import Image,ImageDraw
 spec=importlib.util.spec_from_file_location('optimizer',Path(__file__).with_name('optimize-petals.py'));o=importlib.util.module_from_spec(spec);spec.loader.exec_module(o)
-names=['pearl','shell','starfish','compass','bur','peas','tomato']
+names=sys.argv[3:] or ['pearl','shell','starfish','compass','bur','peas','tomato']
 o.VIEWS.update({'back':(0,0,-1),'back-three-quarter':(-1,.45,-1)})
 root=Path(sys.argv[1]);dest=Path(sys.argv[2]);dest.mkdir(parents=True,exist_ok=True);reports=[]
 for name in names:

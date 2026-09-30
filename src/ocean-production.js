@@ -1,7 +1,7 @@
 import {worldHeight,desertSurface} from './world-surface.js';
 import {gardenPose} from './garden-path.js';
 import {motionPath} from './motion-path.js';
-import {placedPetals} from './petal-placement.js';
+import {petalPlacementSteps,finishSteps,runSteps} from './petal-placement.js';
 import {desertGroundColor} from './desert-production.js';
 import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
@@ -16,7 +16,8 @@ export function coastalColor(x,z){
  const blue=new T.Color(0x478eb4).lerp(new T.Color(0x64a9c5),variation*.65);
  const color=desertGroundColor(x,z).lerp(blue,blend);
  const forest=new T.Color(0x168b56).lerp(new T.Color(0x29b373),variation*.75);
- return color.lerp(forest,smooth(x+wave,820,1000));
+ const ember=new T.Color(0x653138).lerp(new T.Color(0x92414a),variation*.8);
+ return color.lerp(forest,smooth(x+wave,795,900)).lerp(ember,smooth(x+wave,1220,1400));
 }
 export const oceanColor=coastalColor;
 const X0=520,X1=900,Z0=-365,Z1=330,NX=80,NZ=68;
@@ -38,7 +39,7 @@ export function createOceanGround(){
  const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}));mesh.name='florr-ocean-ground';return mesh;
 }
 export const OCEAN_POPULATION={pearl:[60,82],shell:[55,75],starfish:[50,70]};
-export function createOceanPetals(catalog,mobile,names=Object.keys(OCEAN_POPULATION)){
+export function* oceanPetalSteps(catalog,mobile,names=Object.keys(OCEAN_POPULATION)){
  const group=new T.Group();group.name='florr-ocean-petals';const dummy=new T.Object3D(),v=new T.Vector3();
  for(const [name,counts] of Object.entries(OCEAN_POPULATION)){
   if(!names.includes(name))continue;
@@ -53,7 +54,7 @@ export function createOceanPetals(catalog,mobile,names=Object.keys(OCEAN_POPULAT
     dummy.rotation.set(i%6===0?-1.42:-.62+(hash(seed+4)-.5)*.44,-Math.PI/2+(hash(seed+5)-.5)*.55,(hash(seed+6)-.5)*.25,'YXZ');dummy.scale.setScalar(size);
     // Fit the entire transformed support footprint to the actual terrain triangles.
     const a=asset.geometry.getAttribute('position');let y=-Infinity;
-    for(let j=0;j<a.count;j++){v.fromBufferAttribute(a,j).applyQuaternion(dummy.quaternion).multiplyScalar(size);y=Math.max(y,oceanSurface(x+v.x,z+v.z)-v.y);}
+    for(let j=0;j<a.count;j++){v.fromBufferAttribute(a,j).applyQuaternion(dummy.quaternion).multiplyScalar(size);y=Math.max(y,oceanSurface(x+v.x,z+v.z)-v.y);if(j%256===255)yield;}
     dummy.position.set(x,y-.04,z);dummy.updateMatrix();batch.setMatrixAt(i,dummy.matrix);
    }
    batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();group.add(batch);
@@ -61,6 +62,8 @@ export function createOceanPetals(catalog,mobile,names=Object.keys(OCEAN_POPULAT
  }
  return group;
 }
+export const createOceanPetals=(...args)=>finishSteps(oceanPetalSteps(...args));
+export const createOceanPetalsAsync=(...args)=>runSteps(oceanPetalSteps(...args));
 export function loadOceanPetals(onAsset){
  return loadPetalCatalog(Object.keys(OCEAN_POPULATION).map(name=>[name,`assets/ocean-petals/${name}.glb`]),onAsset);
 }
@@ -69,6 +72,8 @@ const oceanShots=[[[305,3,-9],[380,-34,-25]],[[430,0,-7],[525,-36,-20]],[[570,-7
 const exit=gardenPose(1,new T.PerspectiveCamera()),near=gardenPose(.99999,new T.PerspectiveCamera());
 const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,exit[key].map((v,i)=>(v-near[key][i])/.00001*6/8)]));
 export const oceanPose=motionPath(oceanShots.map(([p,target],i)=>({t:i/4,p,target})),incoming);
-export function createCoastSand(asset,mobile){
- return placedPetals(asset,mobile?18:26,3.4,i=>{const s=i*71+401;return {x:448+hash(s)*70,z:[-79,-32,26,76][i%4]+(hash(s+1)-.5)*32,scale:.85+hash(s+2)*.3,pitch:-.65-hash(s+3)*.7,yaw:-Math.PI/2+(hash(s+4)-.5),roll:(hash(s+5)-.5)*.2};},oceanSurface,'coast-sand-petals',.07);
+export function* coastSandSteps(asset,mobile){
+ return yield* petalPlacementSteps(asset,mobile?18:26,3.4,i=>{const s=i*71+401;return {x:448+hash(s)*70,z:[-79,-32,26,76][i%4]+(hash(s+1)-.5)*32,scale:.85+hash(s+2)*.3,pitch:-.65-hash(s+3)*.7,yaw:-Math.PI/2+(hash(s+4)-.5),roll:(hash(s+5)-.5)*.2};},oceanSurface,'coast-sand-petals',.07);
 }
+export const createCoastSand=(...args)=>finishSteps(coastSandSteps(...args));
+export const createCoastSandAsync=(...args)=>runSteps(coastSandSteps(...args));
