@@ -13,7 +13,7 @@ test('Ocean camera begins at the existing Desert shot',()=>{const a=gardenPose(1
 test('Ocean uses the actual three supplied petal GLBs with varied poses and terrain contact',()=>{
  const catalog=Object.fromEntries(Object.keys(OCEAN_POPULATION).map(n=>[n,readGeometry(n)]));const world=createOceanPetals(catalog,true);let total=0;const matrix=new T.Matrix4(),v=new T.Vector3(),yaw=new Set();
  for(const mesh of world.children){total+=mesh.count;for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);yaw.add(matrix.elements[0].toFixed(3));const a=mesh.geometry.attributes.position;let min=Infinity;for(let k=0;k<a.count;k++){v.fromBufferAttribute(a,k).applyMatrix4(matrix);min=Math.min(min,v.y-oceanSurface(v.x,v.z));}assert.ok(Math.abs(min+.04)<.001,`${mesh.name} must contact terrain: ${min}`);}}
- assert.equal(total,165);assert.ok(yaw.size>100);
+ assert.equal(total,300);assert.ok(yaw.size>200);
 });
 
 test('Shell and Pearl expose their broad faces rather than uniformly showing their edges',()=>{

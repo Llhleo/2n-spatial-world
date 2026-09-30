@@ -7,3 +7,4 @@ html{overflow-anchor:none}body{min-height:var(--story-height)}
 @media(max-width:600px){#arrival{bottom:auto;top:calc(var(--safe-height)*.90)}}
 
 #loading-status{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));max-width:calc(100vw - 32px);padding:10px 14px;border-radius:18px;background:#111c;font:12px/1.5 system-ui;color:#e8e9e7;z-index:3}#loading-status[hidden],#retry-models[hidden]{display:none}#retry-models{margin-left:10px;padding:5px 10px;border:1px solid #888;border-radius:12px;color:inherit;background:transparent}
+html.loading-intro,html.loading-intro body{overflow:hidden;touch-action:pinch-zoom}#skip-loading{margin-left:8px;min-height:40px;padding:6px 10px;border:1px solid #888;border-radius:12px;color:inherit;background:transparent;font:14px system-ui}#skip-loading[hidden]{display:none}
