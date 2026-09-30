@@ -19,6 +19,6 @@ export function loadPetal(url,priority=0){
 }
 export async function loadPetalCatalog(entries,onAsset){
  const catalog={},failures=[];
- await Promise.all(entries.map(async([name,path],index)=>{try{const mesh=await loadPetal(`${import.meta.env.BASE_URL}${path}`,index*3+(path.includes("ocean-petals")?2:path.includes("desert-petals")?1:0));catalog[name]=mesh;if(onAsset){await later();onAsset(name,mesh);}}catch(error){failures.push({name,message:error.message});}}));
+ await Promise.all(entries.map(async([name,path],index)=>{try{const mesh=await loadPetal(`${import.meta.env.BASE_URL}${path}`,index*4+(path.includes("jungle-petals")?3:path.includes("ocean-petals")?2:path.includes("desert-petals")?1:0));catalog[name]=mesh;if(onAsset){await later();await onAsset(name,mesh);}}catch(error){failures.push({name,message:error.message});}}));
  Object.defineProperty(catalog,'failures',{value:failures});return catalog;
 }

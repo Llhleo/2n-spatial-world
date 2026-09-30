@@ -1,4 +1,7 @@
-import {worldHeight} from './world-surface.js';
+import {worldHeight,desertSurface} from './world-surface.js';
+import {gardenPose} from './garden-path.js';
+import {motionPath} from './motion-path.js';
+import {placedPetals} from './petal-placement.js';
 import {desertGroundColor} from './desert-production.js';
 import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
@@ -11,11 +14,14 @@ export function coastalColor(x,z){
  const blend=smooth(x+wave,438,625);
  const variation=Math.sin(x*.057+Math.sin(z*.035)*2.8)*Math.cos(z*.063)*.5+.5;
  const blue=new T.Color(0x478eb4).lerp(new T.Color(0x64a9c5),variation*.65);
- return desertGroundColor(x,z).lerp(blue,blend);
+ const color=desertGroundColor(x,z).lerp(blue,blend);
+ const forest=new T.Color(0x168b56).lerp(new T.Color(0x29b373),variation*.75);
+ return color.lerp(forest,smooth(x+wave,820,1000));
 }
 export const oceanColor=coastalColor;
 const X0=520,X1=900,Z0=-365,Z1=330,NX=80,NZ=68;
 export function oceanSurface(x,z){
+ if(x<520)return desertSurface(x,z);
  const dx=(X1-X0)/NX,dz=(Z1-Z0)/NZ,ix=clamp(Math.floor((x-X0)/dx),0,NX-1),iz=clamp(Math.floor((z-Z0)/dz),0,NZ-1);
  const X=X0+ix*dx,Z=Z0+iz*dz,u=(x-X)/dx,v=(z-Z)/dz;
  return u+v<=1?(1-u-v)*oceanHeight(X,Z)+u*oceanHeight(X+dx,Z)+v*oceanHeight(X,Z+dz):
@@ -42,7 +48,7 @@ export function createOceanPetals(catalog,mobile,names=Object.keys(OCEAN_POPULAT
    const count=Math.floor((n+2-zone)/3),batch=new T.InstancedMesh(asset.geometry,asset.material,count);batch.name=`ocean-${name}-${zone}`;
    for(let i=0;i<count;i++){
     const seed=(i+1)*57+zone*347+Object.keys(OCEAN_POPULATION).indexOf(name)*173;
-    const x=clamp(551+zone*115+(hash(seed+1)-.5)*68+(i%3)*10,524,843),z=clamp([-74,-25,29,79][i%4]+(hash(seed+2)-.5)*44,-110,120);
+    const x=zone===0?470+hash(seed+1)*148:clamp(551+zone*115+(hash(seed+1)-.5)*68+(i%3)*10,524,843),z=clamp([-74,-25,29,79][i%4]+(hash(seed+2)-.5)*44,-110,120);
     const width=(name==='pearl'?3.1:name==='shell'?4.4:4.1)*(.82+hash(seed+3)*.30),size=width/natural;
     dummy.rotation.set(i%6===0?-1.42:-.62+(hash(seed+4)-.5)*.44,-Math.PI/2+(hash(seed+5)-.5)*.55,(hash(seed+6)-.5)*.25,'YXZ');dummy.scale.setScalar(size);
     // Fit the entire transformed support footprint to the actual terrain triangles.
@@ -60,8 +66,9 @@ export function loadOceanPetals(onAsset){
 }
 // These continue the existing Desert exit; the earlier Garden camera is unchanged.
 const oceanShots=[[[305,3,-9],[380,-34,-25]],[[430,0,-7],[525,-36,-20]],[[570,-7,10],[647,-41,-10]],[[685,-6,18],[755,-42,-9]],[[786,-5,6],[845,-42,-5]]];
-const paths=[0,1].map(k=>new T.CatmullRomCurve3(oceanShots.map(s=>new T.Vector3(...s[k])),false,'catmullrom',.5));
-const position=new T.Vector3(),focus=new T.Vector3();
-export function oceanPose(t,camera){
- const u=clamp(t,0,1);paths[0].getPoint(u,position);paths[1].getPoint(u,focus);camera.position.copy(position);camera.lookAt(focus);return {position:camera.position.toArray(),target:focus.toArray()};
+const exit=gardenPose(1,new T.PerspectiveCamera()),near=gardenPose(.99999,new T.PerspectiveCamera());
+const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,exit[key].map((v,i)=>(v-near[key][i])/.00001*6/8)]));
+export const oceanPose=motionPath(oceanShots.map(([p,target],i)=>({t:i/4,p,target})),incoming);
+export function createCoastSand(asset,mobile){
+ return placedPetals(asset,mobile?18:26,3.4,i=>{const s=i*71+401;return {x:448+hash(s)*70,z:[-79,-32,26,76][i%4]+(hash(s+1)-.5)*32,scale:.85+hash(s+2)*.3,pitch:-.65-hash(s+3)*.7,yaw:-Math.PI/2+(hash(s+4)-.5),roll:(hash(s+5)-.5)*.2};},oceanSurface,'coast-sand-petals',.07);
 }
