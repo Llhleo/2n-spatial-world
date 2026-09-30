@@ -7,7 +7,7 @@ export async function warmBiomeResources(renderer,scene,nextFrame=frame){
  scene.traverse(object=>{
   if(object.isLight)warm.add(object.clone());
   if(object.isInstancedMesh){const copy=new T.InstancedMesh(object.geometry,object.material,1),matrix=new T.Matrix4();object.getMatrixAt(0,matrix);copy.setMatrixAt(0,matrix);copy.frustumCulled=false;warm.add(copy);}
-  else if(object.isMesh&&object.name.includes('ground')){const copy=new T.Mesh(object.geometry,object.material);copy.frustumCulled=false;warm.add(copy);}
+  else if(object.isMesh&&(object.name.includes('ground')||object.userData.warmup)){const copy=new T.Mesh(object.geometry,object.material);copy.frustumCulled=false;warm.add(copy);}
  });
  const meshes=warm.children.filter(o=>o.isMesh),target=new T.WebGLRenderTarget(4,4,{depthBuffer:true});
  try{
