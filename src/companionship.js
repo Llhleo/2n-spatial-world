@@ -132,7 +132,7 @@ export function createCompanionship(mobile=true,textureFactory=textTexture){
    const v=T.MathUtils.clamp(t,0,1);group.visible=t>0;
    if(!group.visible)return;
    if(Math.abs(v-lastT)>1e-7){writeMatrices(v);lastT=v;}
-   const opacity=T.MathUtils.smoothstep(v,.78,.87);
+   const opacity=T.MathUtils.smoothstep(v,.845,.90);
    for(const label of labels.children)label.material.opacity=opacity;
    if(scene?.fog){const blend=T.MathUtils.smoothstep(v,.14,.67);scene.fog.density=T.MathUtils.lerp(scene.fog.density,.00055,blend);scene.fog.color.lerp(lookbackColor,blend);}
   }};
