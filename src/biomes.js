@@ -89,7 +89,7 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     const addition=createPetalInstances(groundHeight,catalog,mobile,names);
     for(const child of [...addition.children])petalAssembly.add(child);
     petalAssembly.userData.instanceCount+=(mobile?36:50)*names.length;
-    for(const name of names){installed.garden.add(name);onPrepared(catalog[name]);}
+    for(const name of names){installed.garden.add(name);onPrepared(catalog[name],'garden',name);}
     if(installed.garden.size===6)petalStatus='ready';
   }
   async function installDesertPetals(catalog){
@@ -98,14 +98,14 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     const addition=await createDesertProductionAsync(renderedGroundHeight,mobile,catalog,names);
     for(const child of [...addition.children])desert.add(child);
     if(names.includes('sand')&&!ocean.getObjectByName('coast-sand-petals'))ocean.add(await createCoastSandAsync(catalog.sand,mobile));
-    for(const name of names){installed.desert.add(name);onPrepared(catalog[name]);}
+    for(const name of names){installed.desert.add(name);onPrepared(catalog[name],'desert',name);}
     if(installed.desert.size===6)desertPetalStatus='ready';
   }
   async function installOceanPetals(catalog){
     const names=Object.keys(catalog).filter(n=>!installed.ocean.has(n));if(!names.length)return;
     if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(applyRegionalFog(createOceanGround()));
     const addition=applyRegionalFog(await createOceanPetalsAsync(catalog,mobile,names));for(const child of [...addition.children])ocean.add(child);
-    for(const name of names){installed.ocean.add(name);onPrepared(catalog[name]);}
+    for(const name of names){installed.ocean.add(name);onPrepared(catalog[name],'ocean',name);}
   }
   function start(kind,loader,install){
     failures[kind]=[];
@@ -115,7 +115,7 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     const names=Object.keys(catalog).filter(n=>!installed.jungle.has(n));if(!names.length)return;
     if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(applyRegionalFog(createJungleGround()));
     const addition=applyRegionalFog(await createJunglePetalsAsync(catalog,mobile,names));for(const child of [...addition.children])jungle.add(child);
-    for(const name of names){installed.jungle.add(name);onPrepared(catalog[name]);}
+    for(const name of names){installed.jungle.add(name);onPrepared(catalog[name],'jungle',name);}
   }
   function preloadJunglePetals(){
     if(!loaders.jungle)return Promise.resolve();
@@ -126,7 +126,7 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
     const names=Object.keys(catalog).filter(n=>!installed.hell.has(n));if(!names.length)return;
     if(!hell.getObjectByName('florr-hell-ground'))hell.add(applyRegionalFog(createHellGround()));
     const addition=applyRegionalFog(await createHellPetalsAsync(catalog,mobile,names));for(const child of [...addition.children])hell.add(child);
-    for(const name of names){installed.hell.add(name);onPrepared(catalog[name]);}
+    for(const name of names){installed.hell.add(name);onPrepared(catalog[name],'hell',name);}
   }
   function preloadHellPetals(){
     if(!loaders.hell)return Promise.resolve();
