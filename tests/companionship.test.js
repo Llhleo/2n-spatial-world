@@ -61,3 +61,29 @@ test('world text stays within phone reading margins at visible progress',()=>{
   }
  }
 });
+
+test('opening installation reuses all five existing catalogs and is ready before GPU warmup',async()=>{
+ const {createBiomes,prepareBiomePetals}=await import('../src/biomes.js');
+ const names={garden:['glass','leaf','rose','clover','rock','goldenleaf'],desert:['cactus','sand','stick','pincer','iris','goldenleaf'],ocean:['pearl','shell','starfish'],jungle:['peas','tomato','bur','goldenleaf','rock','compass'],hell:['darkmark','corruption']};
+ const catalogs=Object.fromEntries(Object.entries(names).map(([kind,list])=>[kind,Object.fromEntries(list.map(n=>[n,{geometry:new T.BoxGeometry(1,2,.3),material:new T.MeshStandardMaterial()}]))]));
+ const loaders=Object.fromEntries(Object.keys(names).map(kind=>[kind,async callback=>{for(const [name,mesh] of Object.entries(catalogs[kind]))await callback(name,mesh);return catalogs[kind];}]));
+ const scene=new T.Scene(),rig=createCompanionship(true,()=>new T.Texture());scene.add(rig.group);
+ const world=createBiomes(scene,true,loaders);
+ world.onAssetPrepared=(mesh,kind,name)=>rig.install(kind,name,mesh);
+ await prepareBiomePetals(world);
+ assert.equal(rig.ready,true);assert.equal(rig.instanceCount,15);
+ for(const p of COMPANION_PETALS){
+  const batch=rig.group.getObjectByName('companion-'+p.name),asset=catalogs[p.biome][p.name];
+  assert.equal(batch.geometry,asset.geometry);assert.notEqual(batch.material,asset.material);
+  assert.equal(asset.material.opacity,1);
+ }
+});
+test('opening GPU warmup includes hidden companionship petals and both world text materials',async()=>{
+ const {warmBiomeResources}=await import('../src/biome-warmup.js');
+ const scene=new T.Scene(),rig=createCompanionship(true,()=>new T.Texture());scene.add(rig.group);
+ for(const p of COMPANION_PETALS)rig.install(p.biome,p.name,{geometry:new T.BoxGeometry(),material:new T.MeshStandardMaterial()});
+ let current=null,draws=0,labels=0;
+ const renderer={getRenderTarget:()=>current,setRenderTarget:t=>current=t,compileAsync:async warm=>{labels=warm.children.filter(m=>m.material?.isMeshBasicMaterial).length;},render:warm=>{draws+=warm.children.filter(m=>m.isMesh&&m.visible).length;}};
+ await warmBiomeResources(renderer,scene,async()=>{});
+ assert.equal(labels,2);assert.equal(draws,7);assert.equal(current,null);assert.equal(rig.group.visible,false);
+});
