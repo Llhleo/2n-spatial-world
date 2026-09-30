@@ -1,0 +1,19 @@
+name: Validate companionship extension
+on:
+  push:
+    branches: [feature/hell-companionship]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock
+      - run: node --test test/*.test.js tests/*.test.js
+      - run: npm run build -- --base=/2n-spatial-world/
