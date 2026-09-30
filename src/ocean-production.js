@@ -15,9 +15,10 @@ export function coastalColor(x,z){
  const variation=Math.sin(x*.057+Math.sin(z*.035)*2.8)*Math.cos(z*.063)*.5+.5;
  const blue=new T.Color(0x478eb4).lerp(new T.Color(0x64a9c5),variation*.65);
  const color=desertGroundColor(x,z).lerp(blue,blend);
- const forest=new T.Color(0x168b56).lerp(new T.Color(0x29b373),variation*.75);
- const ember=new T.Color(0x653138).lerp(new T.Color(0x92414a),variation*.8);
- return color.lerp(forest,smooth(x+wave,795,900)).lerp(ember,smooth(x+wave,1220,1400));
+ // Ground palette sampled from supplied game screenshots, without copying the image.
+ const forest=new T.Color(0x379843).lerp(new T.Color(0x3da84d),variation*.75);
+ const ember=new T.Color(0x963333).lerp(new T.Color(0xa52b2b),variation*.8);
+ return color.lerp(forest,smooth(x+wave,795,900)).lerp(ember,smooth(x+wave,1195,1305));
 }
 export const oceanColor=coastalColor;
 const X0=520,X1=900,Z0=-365,Z1=330,NX=80,NZ=68;
@@ -71,7 +72,14 @@ export function loadOceanPetals(onAsset){
 const oceanShots=[[[305,3,-9],[380,-34,-25]],[[430,0,-7],[525,-36,-20]],[[570,-7,10],[647,-41,-10]],[[685,-6,18],[755,-42,-9]],[[786,-5,6],[845,-42,-5]]];
 const exit=gardenPose(1,new T.PerspectiveCamera()),near=gardenPose(.99999,new T.PerspectiveCamera());
 const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,exit[key].map((v,i)=>(v-near[key][i])/.00001*6/8)]));
-export const oceanPose=motionPath(oceanShots.map(([p,target],i)=>({t:i/4,p,target})),incoming);
+const baseOceanPose=motionPath(oceanShots.map(([p,target],i)=>({t:i/4,p,target})),incoming);
+export function oceanPose(t,camera,portrait=false){
+ const state=baseOceanPose(t,camera,portrait),u=clamp(t,0,1),envelope=smooth(u,.10,.24)*(1-smooth(u,.78,.96));
+ state.position[1]+=26*Math.sin(Math.PI*u)**2*envelope;
+ state.position[2]+=40*Math.sin(Math.PI*2*u)*envelope;
+ state.target[2]-=16*Math.sin(Math.PI*2*u)*envelope;
+ camera.position.fromArray(state.position);camera.lookAt(new T.Vector3(...state.target));return state;
+}
 export function* coastSandSteps(asset,mobile){
  return yield* petalPlacementSteps(asset,mobile?18:26,3.4,i=>{const s=i*71+401;return {x:448+hash(s)*70,z:[-79,-32,26,76][i%4]+(hash(s+1)-.5)*32,scale:.85+hash(s+2)*.3,pitch:-.65-hash(s+3)*.7,yaw:-Math.PI/2+(hash(s+4)-.5),roll:(hash(s+5)-.5)*.2};},oceanSurface,'coast-sand-petals',.07);
 }

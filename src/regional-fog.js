@@ -1,6 +1,6 @@
 import * as T from 'three';
-const forest=new T.Color(0x37694a),hell=new T.Color(0x63282e);
-export function regionalFogColor(x,base){return base.clone().lerp(forest,T.MathUtils.smoothstep(x,795,930)).lerp(hell,T.MathUtils.smoothstep(x,1230,1400));}
+const forest=new T.Color(0x306d38),hell=new T.Color(0x963333);
+export function regionalFogColor(x,base){return base.clone().lerp(forest,T.MathUtils.smoothstep(x,795,930)).lerp(hell,T.MathUtils.smoothstep(x,1195,1305));}
 export const regionalFogWeight=(x,factor)=>Math.min(factor,T.MathUtils.lerp(1,.78,T.MathUtils.smoothstep(x,795,930)));
 // Clone materials: Golden Leaf/Rock still share their unchanged Garden originals.
 export function withRegionalFog(original){
@@ -22,7 +22,7 @@ export function withRegionalFog(original){
  float fogFactor=smoothstep(fogNear,fogFar,vFogDepth);
  #endif
  vec3 biomeFog=mix(fogColor,forestFog,smoothstep(795.0,930.0,vBiomeX));
- biomeFog=mix(biomeFog,hellFog,smoothstep(1230.0,1400.0,vBiomeX));
+ biomeFog=mix(biomeFog,hellFog,smoothstep(1195.0,1305.0,vBiomeX));
  fogFactor=min(fogFactor,mix(1.0,.78,smoothstep(795.0,930.0,vBiomeX)));
  gl_FragColor.rgb=mix(gl_FragColor.rgb,biomeFog,fogFactor);
  #endif`);

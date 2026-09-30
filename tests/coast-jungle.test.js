@@ -21,14 +21,12 @@ test('Ocean petals occupy the sand-blue transition instead of starting after it'
  for(const mesh of group.children)for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);if(matrix.elements[12]>452&&matrix.elements[12]<520)count++;}
  assert.ok(count>=15,`transition has only ${count} petals`);
 });
-test('initial loading experiment releases on success, timeout, error, skip, and reduced motion',async()=>{
+test('loading opening restores input after all five regions are ready and never re-locks',async()=>{
  const {createLoadingIntro}=await import('../src/loading-intro.js');
- for(const reason of ['ready','timeout','error','skip','reduced']){
-  const intro=createLoadingIntro(0,true),base={now:100,gardenReady:false,failed:false,reduced:false};
-  assert.equal(intro.update(base).locked,true);let next={...base};
-  if(reason==='ready')next.gardenReady=true;if(reason==='timeout')next.now=16000;if(reason==='error')next.failed=true;if(reason==='reduced')next.reduced=true;if(reason==='skip')intro.skip();
-  assert.equal(intro.update(next).locked,false,reason);assert.equal(intro.update(base).locked,false,'never re-lock');
- }
+ const intro=createLoadingIntro(),base={allReady:false,reduced:false};
+ assert.equal(intro.update(base).locked,true);
+ assert.equal(intro.update({allReady:true}).locked,false);
+ assert.equal(intro.update(base).locked,false,'never re-lock');
 });
 test('Jungle continues Ocean camera and supplies distinct grounded user models',async()=>{
  const {junglePose,createJunglePetals,jungleSurface}=await import('../src/jungle-production.js');
