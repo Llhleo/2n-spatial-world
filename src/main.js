@@ -47,7 +47,7 @@ if (renderer) {
   void prepareEverything();
   if(typeof requestIdleCallback==='function')requestIdleCallback(()=>world.prepare(),{timeout:500});
   else setTimeout(()=>world.prepare(),80);
-  const camera = new THREE.PerspectiveCamera(48, 1, .2, 900);
+  const camera = new THREE.PerspectiveCamera(48, 1, .2, 2400);
   const names=createRegionNames();scene.add(names.group);
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   const arrival = document.querySelector('#arrival');
@@ -95,7 +95,7 @@ if (renderer) {
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    names.update(progress>HERO_END?camera.position.x:-1);
+    names.update(progress>HERO_END?camera:-1);
     const text = THREE.MathUtils.smoothstep(heroProgress,.93,.995)*(1-THREE.MathUtils.smoothstep(progress,HERO_END+.025*DESERT_END,HERO_END+.09*DESERT_END));
     arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;
     arrival.setAttribute('aria-hidden',String(text<.5));
@@ -110,7 +110,7 @@ if (renderer) {
     const counts=world.loading.counts;
     loading.hidden=!introLocked;
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
-    const loadingText=failed?'部分资源未能准备好，请重试':warming?'即将准备好，稍候即可滑动':`慢播中，正在准备五境花瓣 · ${total}/22`;
+    const loadingText=failed?'部分资源未能准备好，请重试':warming?'即将准备好，稍候即可滑动':`慢播中，正在准备五境花瓣 · ${total}/23`;
     if(loadingText!==lastLoadingText){loading.querySelector('span').textContent=loadingText;lastLoadingText=loadingText;}
     retry.hidden=!failed;retry.disabled=warming;
     renderer.render(scene, camera);

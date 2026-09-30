@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {createGroundMaterial} from './ground-material.js';
 import {worldHeight} from './world-surface.js';
 import {coastalColor,oceanPose} from './ocean-production.js';
 import {loadPetalCatalog} from './petal-loader.js';
@@ -21,15 +22,14 @@ export function createRegionGround(X0,X1,name){
   if(i<NX&&j<NZ){const k=i*(NZ+1)+j;indices.push(k,k+1,k+NZ+1,k+1,k+NZ+2,k+NZ+1);}
  }
  geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setAttribute('normal',new T.Float32BufferAttribute(normals,3));geometry.setIndex(indices);
- // Direct graphic palette avoids ACES + white lights bleaching green to mint.
- const mesh=new T.Mesh(geometry,new T.MeshBasicMaterial({vertexColors:true,toneMapped:false,side:T.DoubleSide}));mesh.name=name;return mesh;
+ const mesh=new T.Mesh(geometry,createGroundMaterial());mesh.name=name;return mesh;
 }
-export const JUNGLE_POPULATION={peas:[66,90],tomato:[52,72],bur:[48,66],goldenleaf:[10,14],rock:[10,14]};
+export const JUNGLE_POPULATION={peas:[78,108],tomato:[64,88],bur:[56,78],goldenleaf:[12,16],rock:[12,16],compass:[42,60]};
 export function* junglePetalSteps(catalog,mobile,names=Object.keys(JUNGLE_POPULATION)){
  const group=new T.Group();group.name='florr-jungle-petals';
  for(const [species,counts] of Object.entries(JUNGLE_POPULATION)){
   if(!names.includes(species)||!catalog[species])continue;const index=Object.keys(JUNGLE_POPULATION).indexOf(species),total=counts[mobile?0:1];
-  for(let zone=0;zone<3;zone++){const n=Math.floor((total+2-zone)/3);group.add(yield* petalPlacementSteps(catalog[species],n,species==='tomato'?3.1:species==='bur'?3.3:species==='goldenleaf'?2.7:species==='rock'?3.1:4.0,i=>{
+  for(let zone=0;zone<3;zone++){const n=Math.floor((total+2-zone)/3);group.add(yield* petalPlacementSteps(catalog[species],n,species==='tomato'?3.1:species==='bur'?3.3:species==='goldenleaf'?2.7:species==='rock'?3.1:species==='compass'?3.6:4.0,i=>{
    const key=i*67+zone*317+index*191;return {x:zone===0?828+hash(key+1)*100:884+zone*110+hash(key+1)*85,z:[-88,-43,9,53,93][i%5]+(hash(key+2)-.5)*40,scale:.8+hash(key+3)*.4,pitch:i%5===0?-1.4:-.55-hash(key+4)*.5,yaw:-Math.PI/2+(hash(key+5)-.5)*1.0,roll:(hash(key+6)-.5)*.28};
   },jungleSurface,`jungle-${species}-${zone}`));}
  }
@@ -37,7 +37,7 @@ export function* junglePetalSteps(catalog,mobile,names=Object.keys(JUNGLE_POPULA
 }
 export const createJunglePetals=(...args)=>finishSteps(junglePetalSteps(...args));
 export const createJunglePetalsAsync=(...args)=>runSteps(junglePetalSteps(...args));
-export const loadJunglePetals=onAsset=>loadPetalCatalog(Object.keys(JUNGLE_POPULATION).map(n=>[n,`assets/${['goldenleaf','rock'].includes(n)?'garden':'jungle'}-petals/${n}.glb`]),onAsset);
+export const loadJunglePetals=onAsset=>loadPetalCatalog(Object.keys(JUNGLE_POPULATION).map(n=>[n,n==='compass'?'assets/jungle-petals/compass.glb':`assets/${['goldenleaf','rock'].includes(n)?'garden':'jungle'}-petals/${n}.glb`]),onAsset);
 const end=oceanPose(1,new T.PerspectiveCamera()),near=oceanPose(.99999,new T.PerspectiveCamera());
 const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,end[key].map((v,i)=>(v-near[key][i])/.00001*4/6)]));
 export const junglePose=motionPath([{t:0,p:end.position,target:end.target},{t:.34,p:[916,16,32],target:[981,-35,-18]},{t:.67,p:[1040,-2,-28],target:[1114,-34,20]},{t:1,p:[1165,5,-2],target:[1227,-34,6]}],incoming);

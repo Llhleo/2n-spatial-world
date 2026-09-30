@@ -1,7 +1,7 @@
 // All chapters are prepared before travel; errors stay at the retryable opening.
 export function createLoadingIntro(){
  let released=false;
- return {update({allReady,reduced}){if(allReady)released=true;return {locked:!released,speed:reduced?0:released?1:.4};}};
+ return {update({allReady,reduced}){if(allReady)released=true;return {locked:!released,speed:reduced?0:released?1:.18};}};
 }
 export const allBiomesReady=world=>world.groundStatus==='ready'&&['petalStatus','desertPetalStatus','oceanPetalStatus','junglePetalStatus','hellPetalStatus'].every(k=>world[k]==='ready');
 export function attachIntroInput(target,isLocked,onSkip){

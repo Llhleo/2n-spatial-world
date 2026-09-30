@@ -5,7 +5,7 @@ import {petalPlacementSteps,finishSteps,runSteps} from './petal-placement.js';
 import {loadPetalCatalog} from './petal-loader.js';
 import {motionPath} from './motion-path.js';
 const hash=n=>{const a=Math.sin(n*89.17+41.3)*43758.5453;return a-Math.floor(a);};
-export const HELL_POPULATION={darkmark:[72,96],corruption:[54,72]};
+export const HELL_POPULATION={darkmark:[120,168],corruption:[96,132]};
 export const createHellGround=()=>createRegionGround(1280,1740,'florr-hell-ground');
 export function hellSurface(x,z){
  if(x<1280)return jungleSurface(x,z);

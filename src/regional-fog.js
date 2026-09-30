@@ -4,8 +4,9 @@ export function regionalFogColor(x,base){return base.clone().lerp(forest,T.MathU
 export const regionalFogWeight=(x,factor)=>Math.min(factor,T.MathUtils.lerp(1,.78,T.MathUtils.smoothstep(x,795,930)));
 // Clone materials: Golden Leaf/Rock still share their unchanged Garden originals.
 export function withRegionalFog(original){
- const material=original.clone();material.customProgramCacheKey=()=> 'regional-biome-fog-v1';
+ const material=original.clone();material.customProgramCacheKey=()=> original.customProgramCacheKey()+'-regional-biome-fog-v1';
  material.onBeforeCompile=shader=>{
+  original.onBeforeCompile(shader);
   shader.uniforms.forestFog={value:forest};shader.uniforms.hellFog={value:hell};
   shader.vertexShader='varying float vBiomeX;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>

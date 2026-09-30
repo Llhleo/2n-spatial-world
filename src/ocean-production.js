@@ -5,6 +5,7 @@ import {petalPlacementSteps,finishSteps,runSteps} from './petal-placement.js';
 import {desertGroundColor} from './desert-production.js';
 import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
+import {createGroundMaterial} from './ground-material.js';
 const clamp=T.MathUtils.clamp;
 const smooth=(v,a,b)=>T.MathUtils.smoothstep(v,a,b);
 const hash=n=>{const x=Math.sin(n*127.17+14.3)*43758.5453;return x-Math.floor(x);};
@@ -37,9 +38,9 @@ export function createOceanGround(){
   if(i<NX&&j<NZ){const k=i*(NZ+1)+j;idx.push(k,k+1,k+NZ+1,k+1,k+NZ+2,k+NZ+1);}
  }
  geo.setAttribute('position',new T.Float32BufferAttribute(p,3));geo.setAttribute('color',new T.Float32BufferAttribute(c,3));geo.setIndex(idx);geo.setAttribute('normal',new T.Float32BufferAttribute(normals,3));
- const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}));mesh.name='florr-ocean-ground';return mesh;
+ const mesh=new T.Mesh(geo,createGroundMaterial());mesh.name='florr-ocean-ground';return mesh;
 }
-export const OCEAN_POPULATION={pearl:[60,82],shell:[55,75],starfish:[50,70]};
+export const OCEAN_POPULATION={pearl:[100,140],shell:[100,140],starfish:[100,140]};
 export function* oceanPetalSteps(catalog,mobile,names=Object.keys(OCEAN_POPULATION)){
  const group=new T.Group();group.name='florr-ocean-petals';const dummy=new T.Object3D(),v=new T.Vector3();
  for(const [name,counts] of Object.entries(OCEAN_POPULATION)){
@@ -52,7 +53,9 @@ export function* oceanPetalSteps(catalog,mobile,names=Object.keys(OCEAN_POPULATI
     const seed=(i+1)*57+zone*347+Object.keys(OCEAN_POPULATION).indexOf(name)*173;
     const x=zone===0?470+hash(seed+1)*148:clamp(551+zone*115+(hash(seed+1)-.5)*68+(i%3)*10,524,843),z=clamp([-74,-25,29,79][i%4]+(hash(seed+2)-.5)*44,-110,120);
     const width=(name==='pearl'?3.1:name==='shell'?4.4:4.1)*(.82+hash(seed+3)*.30),size=width/natural;
-    dummy.rotation.set(i%6===0?-1.42:-.62+(hash(seed+4)-.5)*.44,-Math.PI/2+(hash(seed+5)-.5)*.55,(hash(seed+6)-.5)*.25,'YXZ');dummy.scale.setScalar(size);
+    // Front normal stays readable for Shell/Pearl; full local-face rotation
+    // varies their silhouettes without turning every shell onto its edge.
+    dummy.rotation.set(i%6===0?-1.42:-.62+(hash(seed+4)-.5)*.44,-Math.PI/2+(hash(seed+5)-.5)*(name==='starfish'?2.8:.65),hash(seed+6)*Math.PI*2,'YXZ');dummy.scale.setScalar(size);
     // Fit the entire transformed support footprint to the actual terrain triangles.
     const a=asset.geometry.getAttribute('position');let y=-Infinity;
     for(let j=0;j<a.count;j++){v.fromBufferAttribute(a,j).applyQuaternion(dummy.quaternion).multiplyScalar(size);y=Math.max(y,oceanSurface(x+v.x,z+v.z)-v.y);if(j%256===255)yield;}

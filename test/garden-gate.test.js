@@ -27,7 +27,7 @@ test('Garden to Desert remains one sampled surface and material transition',asyn
   const scene=new T.Scene(),world=await preparedWorld(scene,true);
   const camera=new T.PerspectiveCamera(48,1,.2,900);
   gardenPose(.01,camera,true);world.update(camera,.01);
-  assert.equal(scene.children.filter(o=>o.type==='Group'&&o.visible).length,4);
+  assert.equal(scene.children.filter(o=>o.type==='Group'&&o.visible).length,7,'all completed distant ground is visible from entry');
   gardenPose(.65,camera,true);world.update(camera,.65);
   assert.ok(scene.children.filter(o=>o.type==='Group'&&o.visible).length>=2);
   let instances=0,triangles=0;

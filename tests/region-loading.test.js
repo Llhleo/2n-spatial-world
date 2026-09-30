@@ -34,7 +34,7 @@ test('small reused petals add gold and grey accents without replacing Jungle spe
  const catalog=Object.fromEntries(names.map(n=>[n,{geometry:new T.BoxGeometry(1,1,.2),material:new T.MeshStandardMaterial()}]));
  const group=createJunglePetals(catalog,true),counts={};
  for(const m of group.children){const n=m.name.split('-')[1];counts[n]=(counts[n]||0)+m.count;}
- assert.ok(counts.goldenleaf>=6&&counts.rock>=6);assert.equal(counts.peas,66);
+ assert.ok(counts.goldenleaf>=6&&counts.rock>=6);assert.equal(counts.peas,78);
  assert.ok(counts.goldenleaf+counts.rock<30,'accents stay secondary');
 });
 test('regional fog keeps distant Jungle green without tinting nearby Ocean green',async()=>{
@@ -74,5 +74,5 @@ test('Hell uses real petal meshes grounded in three spatial batches per species'
  const group=createHellPetals(catalog,true),m=new T.Matrix4(),v=new T.Vector3();let total=0;
  assert.equal(group.children.length,6);
  for(const mesh of group.children)for(let i=0;i<mesh.count;i++){total++;mesh.getMatrixAt(i,m);let contact=Infinity;const a=mesh.geometry.attributes.position;for(let j=0;j<a.count;j++){v.fromBufferAttribute(a,j).applyMatrix4(m);contact=Math.min(contact,v.y-hellSurface(v.x,v.z));}assert.ok(Math.abs(contact+.05)<.002,mesh.name);}
- assert.ok(total>=100);assert.ok(total<=160);
+ assert.ok(total>=210);assert.ok(total<=240);
 });

@@ -161,9 +161,11 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
       scene.fog?.color.copy(gardenAir).lerp(new T.Color(0x263d2c),smooth(t,.01,.3)*.55).lerp(desertAir,shift*.16);
       if(scene.fog)scene.fog.density=T.MathUtils.lerp(scene.fog.density,.0036,T.MathUtils.smoothstep(t,0,.38));
     }
-    ocean.visible=t>0&&camera.position.x>235;
-    jungle.visible=t>0&&camera.position.x>280;
-    hell.visible=t>0&&camera.position.x>735;
+    // Geometry is ready at the opening. Never switch a visible mountain range
+    // on at an arbitrary camera threshold; normal fog and the frustum reveal it.
+    ocean.visible=t>0;
+    jungle.visible=t>0;
+    hell.visible=t>0;
     if(camera.position.x>470){const oceanShift=smooth(camera.position.x,470,640);scene.fog?.color.lerp(new T.Color(0x1d485d),oceanShift);sun.color.lerp(new T.Color(0xbde5ef),oceanShift*.7);}
     if(camera.position.x>775){const jungleShift=smooth(camera.position.x,775,990);scene.fog?.color.lerp(new T.Color(0x163b2c),jungleShift);sun.color.lerp(new T.Color(0xd4edbd),jungleShift*.65);}
     if(camera.position.x>1150){const hellShift=smooth(camera.position.x,1150,1390);scene.fog?.color.lerp(new T.Color(0x63282e),hellShift);sun.color.lerp(new T.Color(0xffd0bc),hellShift*.55);}
