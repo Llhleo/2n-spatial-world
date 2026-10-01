@@ -92,7 +92,7 @@ def compare(original, candidate):
     return score
 
 
-def pack_glb(positions, faces, uv, normals, color):
+def pack_glb(positions, faces, uv, normals, color, texture_size=768, lossless=False):
     payload = bytearray()
     views = []
 
@@ -112,8 +112,11 @@ def pack_glb(positions, faces, uv, normals, color):
     normal_view = append(normals.astype('<f4').tobytes(), 34962)
     uv_view = append(uv.astype('<f4').tobytes(), 34962)
     output = io.BytesIO()
-    color.thumbnail((768, 768), Image.Resampling.LANCZOS)
-    color.save(output, format='JPEG', quality=91, subsampling=0)
+    color.thumbnail((texture_size, texture_size), Image.Resampling.LANCZOS)
+    if lossless:
+        color.save(output, format='PNG', optimize=True)
+    else:
+        color.save(output, format='JPEG', quality=91, subsampling=0)
     image_view = append(output.getvalue())
     accessors = [
         {'bufferView': indices_view, 'componentType': 5125, 'count': len(indices), 'type': 'SCALAR'},
@@ -129,7 +132,7 @@ def pack_glb(positions, faces, uv, normals, color):
                                    'indices': 0, 'material': 0}]}],
         'materials': [{'pbrMetallicRoughness': {'baseColorTexture': {'index': 0},
                                                 'metallicFactor': 0, 'roughnessFactor': .9}}],
-        'textures': [{'source': 0}], 'images': [{'bufferView': image_view, 'mimeType': 'image/jpeg'}],
+        'textures': [{'source': 0}], 'images': [{'bufferView': image_view, 'mimeType': 'image/png' if lossless else 'image/jpeg'}],
         'buffers': [{'byteLength': len(payload)}], 'bufferViews': views, 'accessors': accessors,
     }
     while len(payload) % 4:

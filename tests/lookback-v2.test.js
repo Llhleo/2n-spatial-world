@@ -67,12 +67,27 @@ test('companion rig takes distinct grounded instances and restores their exact m
  const labels=rig.group.children.filter(o=>o.userData.warmup);assert.equal(labels.map(o=>o.text).join(''),'每个地图，都有2n的足迹');
  rig.dispose();
 });
-test('lifted petals follow the return route rather than waiting at a distant origin',()=>{
- for(const [i,t] of [[12,.38],[9,.52],[6,.65]]){const cam=camera();api.lookbackPose(t,cam);cam.updateMatrixWorld();const p=api.flowerPose(i,t);assert.ok(p.distanceTo(cam.position)<130,'petal stayed behind');const screen=p.clone().project(cam);assert.ok(Math.abs(screen.x)<.95&&Math.abs(screen.y)<.85,'escort left phone frame');}
+test('lifted petals travel over their source region instead of attaching to the return camera',()=>{
+ const origin=new T.Vector3(1470,-30,10),early=api.flowerPose(12,.2,new T.Vector3(),origin),late=api.flowerPose(12,.38,new T.Vector3(),origin);
+ assert.ok(late.x>1200,'Hell petal has become a camera passenger');
+ assert.ok(early.distanceTo(late)>10,'petal is parked in the sky');
+ const camA=camera(),camB=camera();api.lookbackPose(.2,camA);api.lookbackPose(.38,camB);
+ const localA=early.clone().sub(camA.position).applyQuaternion(camA.quaternion.clone().invert()),localB=late.clone().sub(camB.position).applyQuaternion(camB.quaternion.clone().invert());
+ assert.ok(localA.distanceTo(localB)>100,'petal has a fixed camera-relative offset');
 });
-test('escort hands its velocity into gathering instead of abruptly freezing every petal',()=>{
- const h=1e-7;
- for(const i of [0,7,13]){const a=api.flowerPose(i,.76-h),b=api.flowerPose(i,.76),c=api.flowerPose(i,.76+h),incoming=b.clone().sub(a).divideScalar(h),outgoing=c.clone().sub(b).divideScalar(h);assert.ok(incoming.distanceTo(outgoing)<.2,'gather join dropped escort velocity');}
+test('late gathering maintains separated world paths and does not reverse toward its launch point',()=>{
+ for(let i=0;i<14;i++){
+  const origin=new T.Vector3(i<3?166:i<6?366:i<9?650:i<12?1000:1470,-30,10),end=api.flowerPose(i,.95,new T.Vector3(),origin);let previous=Infinity;
+  for(let k=0;k<=100;k++){const t=.88+k*.0007,p=api.flowerPose(i,t,new T.Vector3(),origin),d=p.distanceTo(end);assert.ok(d<previous+.1,'flower turns back during final approach');previous=d;}
+ }
+ for(let k=0;k<=100;k++){const t=.82+k*.0018,points=Array.from({length:14},(_,i)=>api.flowerPose(i,t));for(let i=0;i<14;i++)for(let j=0;j<i;j++)assert.ok(points[i].distanceTo(points[j])>5,'arrival paths collide');}
+});
+test('visible arrival petals remain separated in the portrait projection, not just in world depth',()=>{
+ for(let k=800;k<=1000;k++){
+  const t=k/1000,cam=camera();api.lookbackPose(t,cam);cam.updateMatrixWorld();
+  const points=api.FLOWER_SPECS.map((s,i)=>{const p=api.flowerPose(i,t).applyMatrix4(cam.matrixWorldInverse),depth=-p.z,r=s[3]/2;return {p:p.clone().applyMatrix4(cam.projectionMatrix),rx:r/(depth*Math.tan(Math.PI*24/180)*cam.aspect),ry:r/(depth*Math.tan(Math.PI*24/180))};});
+  for(let i=0;i<14;i++)for(let j=0;j<i;j++){const a=points[i],b=points[j];if(Math.abs(a.p.x)>1.05||Math.abs(b.p.x)>1.05||Math.abs(a.p.y)>1.05||Math.abs(b.p.y)>1.05)continue;assert.ok(Math.hypot((a.p.x-b.p.x)/(a.rx+b.rx),(a.p.y-b.p.y)/(a.ry+b.ry))>1.2,`projected overlap ${t}: ${i}/${j}`);}
+ }
 });
 test('prepared world text is warmed before entry with its render callback and live visibility preserved',async()=>{
  const {warmBiomeResources}=await import('../src/biome-warmup.js');
@@ -115,7 +130,28 @@ test('real GLB terrain installation can hand off every selected species before o
  const scene=new T.Scene(),rig=createCompanionship(scene),world=createBiomes(scene,true,Object.fromEntries(Object.keys(names).map(kind=>[kind,async()=>catalogs[kind]])));
  scene.add(rig.group);world.onAssetPrepared=rig.install;world.prepare();await prepareBiomePetals(world);
  while(world.groundStatus!=='ready')await new Promise(r=>setTimeout(r,10));rig.capture();
+ for(const [kind,name] of api.FLOWER_SPECS){const b=readFileSync(new URL(`../public/assets/companion-display/${name}.glb`,import.meta.url)),length=b.readUInt32LE(12),j=JSON.parse(b.subarray(20,20+length)),a=j.accessors[j.meshes[0].primitives[0].attributes.POSITION],v=j.bufferViews[a.bufferView],offset=28+length+(v.byteOffset||0)+(a.byteOffset||0),values=new Float32Array(a.count*3);for(let k=0;k<values.length;k++)values[k]=b.readFloatLE(offset+k*4);const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(values,3));rig.installDisplay(new T.Mesh(g,new T.MeshStandardMaterial()),kind,name);}
  const moving=rig.group.children.filter(o=>o.isInstancedMesh);assert.equal(moving.length,14);
  for(const mesh of moving){const index=api.FLOWER_SPECS.findIndex(([kind,name])=>mesh.name==='companion-'+kind+':'+name),t=api.flowerReveal(index),cam=camera();api.lookbackPose(t+.015,cam);cam.updateMatrixWorld();rig.update(t);const m=new T.Matrix4();mesh.getMatrixAt(0,m);const center=mesh.geometry.boundingBox.getCenter(new T.Vector3()).applyMatrix4(m),p=center.clone().project(cam);assert.ok(Math.abs(p.x)<.9&&Math.abs(p.y)<.9&&p.z<1,mesh.name+' has no visible grounded origin');}
+ for(let k=800;k<=1000;k++){
+  const t=k/1000,cam=camera();api.lookbackPose(t,cam);cam.updateMatrixWorld();rig.update(t);
+  const boxes=moving.map(mesh=>{const m=new T.Matrix4();mesh.getMatrixAt(0,m);const box=mesh.geometry.boundingBox,screen=new T.Box2();for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new T.Vector3(x,y,z).applyMatrix4(m).project(cam);screen.expandByPoint(new T.Vector2(p.x,p.y));}return screen;});
+  for(let i=0;i<14;i++)for(let j=0;j<i;j++){const a=boxes[i],b=boxes[j];if(a.min.x>1||a.max.x< -1||a.min.y>1||a.max.y< -1||b.min.x>1||b.max.x< -1||b.min.y>1||b.max.y< -1)continue;assert.ok(a.max.x+.015<b.min.x||b.max.x+.015<a.min.x||a.max.y+.015<b.min.y||b.max.y+.015<a.min.y,`real display bounds overlap ${t}: ${i}/${j}`);}
+ }
+ assert.equal(typeof rig.resize,'function','reading composition needs narrow-viewport adaptation');
+ rig.resize(320/896);
+ for(const t of [.952,.975,1]){const cam=new T.PerspectiveCamera(48,320/896,.2,2400);api.lookbackPose(t,cam);cam.updateMatrixWorld();rig.update(t);for(const mesh of moving){const m=new T.Matrix4();mesh.getMatrixAt(0,m);const box=mesh.geometry.boundingBox;for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new T.Vector3(x,y,z).applyMatrix4(m).project(cam);assert.ok(Math.abs(p.x)<.97&&Math.abs(p.y)<.85,mesh.name+' clips narrow viewport');}}}
+ rig.resize(414/896);
  rig.update(0);
+});
+test('reading orbit moves clockwise with preserved depth and a clear text opening',()=>{
+ const cam=camera();api.lookbackPose(1,cam);cam.updateMatrixWorld();
+ const a=api.flowerPose(0,1,new T.Vector3(),undefined,0),b=api.flowerPose(0,1,new T.Vector3(),undefined,.2);
+ assert.ok(a.distanceTo(b)>1,'reading petals remain fixed');
+ for(let angle=0;angle<Math.PI*2;angle+=.05){
+  const projected=Array.from({length:14},(_,i)=>api.flowerPose(i,1,new T.Vector3(),undefined,angle).project(cam));
+  for(const p of projected){assert.ok(Math.abs(p.x)<.95&&Math.abs(p.y)<.85);assert.ok(Math.abs(p.x)>.48||Math.abs(p.y)>.3,'orbit crosses text');}
+  for(let i=0;i<14;i++)for(let j=i+1;j<14;j++)assert.ok(projected[i].distanceTo(projected[j])>.12,'orbit slots collide');
+ }
+ assert.deepEqual(api.flowerPose(0,.7,new T.Vector3(),undefined,.4).toArray(),api.flowerPose(0,.7).toArray(),'orbit leaks into gathering');
 });

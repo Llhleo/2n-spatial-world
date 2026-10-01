@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {hellPose} from './hell-production.js';
-export const HELL_EXIT=.8, RETURN_UNITS=22;
+export const HELL_EXIT=.8, RETURN_UNITS=28;
 export const RETURN_START=(24+4*HELL_EXIT)/28;
 export const STORY_UNITS=24+4*HELL_EXIT+RETURN_UNITS;
 const entry=hellPose(HELL_EXIT,new T.PerspectiveCamera());
@@ -19,8 +19,8 @@ const shots=[
  {t:.66,p:[165,94,94],target:[166,-35,10]},
  {t:.70,p:[145,94,94],target:[166,-35,10]},
  {t:.76,p:[245,142,165],target:[355,-35,15]},
- {t:.88,p:[305,138,140],target:[450,60,20]},
- {t:1,p:[305,138,140],target:[450,60,20]},
+ {t:.88,p:[305,138,140],target:[450,90,20]},
+ {t:1,p:[305,138,140],target:[450,90,20]},
 ];
 const tracks={};
 for(const [key,source] of [['p','position'],['target','target']]){
@@ -45,25 +45,46 @@ export const FLOWER_SPECS=[
  ['jungle','peas',.253,4.6],['jungle','tomato',.263,4.0],['jungle','compass',.273,4.0],
  ['hell','darkmark',.08,4.2],['hell','corruption',.094,4.2],
 ];
-const arrangement=[[-15,24,-94],[15,22,-110],[-15,-20,-98],[17,-23,-112],[-17,3,-104],[15,1,-94],[-11,30,-108],[10,29,-102],[-13,-28,-110],[12,-29,-104],[-16,14,-106],[16,12,-110],[-17,-12,-114],[16,-12,-106]];
 const origins=[[166,-30,10],[366,-30,10],[650,-36,10],[1000,-30,10],[1470,-30,10]];
-const escortCamera=new T.PerspectiveCamera(),offset=new T.Vector3();let sampledTime=NaN;
-function escort(i,t,out){
- if(t!==sampledTime){lookbackPose(t,escortCamera);sampledTime=t;}
- offset.set((i%2?1:-1)*(10+(i%3)*1.4),6+(i%4)*3,-(72+(i%3)*10));
- return out.copy(offset).applyQuaternion(escortCamera.quaternion).add(escortCamera.position);
+// Authored world paths, never offsets from the moving camera. Region flight
+// remains over its source while the camera passes it; offscreen travel is valid.
+const flowers=FLOWER_SPECS.map((_,i)=>{
+ const angle=(i+.25)*Math.PI*2/14+(i%3-1)*.04,depth=92+i*4;
+ const x=Math.cos(angle)*(.70+(i%4)*.02)*depth*Math.tan(Math.PI*24/180)*414/896,y=Math.sin(angle)*(.60+(i%3)*.025)*depth*Math.tan(Math.PI*24/180);
+ return {start:new T.Vector3(...origins[Math.min(4,Math.floor(i/3))]),
+  x,y,depth,end:readingPoint(x,y,-depth),gate:readingPoint(x*2.2,y*2.2,-depth),
+  gather:.74+i*.002,arrive:.92+i*.002};
+});
+let readingAspectScale=1;
+export function setReadingAspect(aspect){
+ const scale=Math.min(1,Math.max(.4,aspect/(414/896)));readingAspectScale=scale;
+ for(const f of flowers){readingPoint(f.x*scale,f.y,-f.depth,f.end);readingPoint(f.x*scale*2.2,f.y*2.2,-f.depth,f.gate);}
+ return scale;
 }
-export function flowerHeading(t,out){if(t!==sampledTime){lookbackPose(t,escortCamera);sampledTime=t;}return out.copy(escortCamera.quaternion);}
-const flowers=arrangement.map((v,i)=>({start:new T.Vector3(...origins[Math.floor(i/3)]),end:readingPoint(...v),angle:i*Math.PI*2/14,depth:-84-(i%3)*12}));
-const gatheringTarget=new T.Vector3();
+const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3();
+const ease=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
+function bezier(u,a,b,c,d,out){const v=1-u;return out.copy(a).multiplyScalar(v*v*v).addScaledVector(b,3*v*v*u).addScaledVector(c,3*v*u*u).addScaledVector(d,u*u*u);}
 export const flowerReveal=i=>FLOWER_SPECS[i][2];
-export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start){
- const f=flowers[i],phase=flowerReveal(i);
- if(t<.76){
-  const lift=T.MathUtils.smoothstep(t,phase,phase+.035),join=T.MathUtils.smoothstep(t,phase+.035,phase+.08);
-  escort(i,t,out).multiplyScalar(join);out.addScaledVector(origin,1-join);out.y+=18*lift*(1-join);return out;
+export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start,orbitAngle=0){
+ const f=flowers[i],phase=flowerReveal(i),lane=i%3-1;
+ if(t<=phase)return out.copy(origin);
+ a.copy(origin);a.x+=lane*13;a.y+=30+(i%3)*8;a.z-=18+(i%3)*18;
+ if(t<phase+.04)return out.copy(origin).lerp(a,ease((t-phase)/.04));
+ b.set(origin.x-60-(i%3)*20,100+(i%5)*12,-150-i*12);
+ if(t<f.gather)return out.copy(a).lerp(b,ease((t-phase-.04)/(f.gather-phase-.04)));
+ // One arc directly to a distinct perimeter slot: no contraction, crossing
+ // weave, angle wrap or camera-facing rotation during the return traversal.
+ a.copy(b);c.copy(f.gate);c.y+=650+i*4;b.copy(a).lerp(f.gate,.5);b.y+=650+i*4;
+ const gateTime=.84+i*.002;
+ if(t<gateTime)return bezier(ease((t-f.gather)/(gateTime-f.gather)),a,b,c,f.gate,out);
+ if(t<f.arrive)return out.copy(f.gate).lerp(f.end,ease((t-gateTime)/(f.arrive-gateTime)));
+ const drift=ease((t-f.arrive)/(1-f.arrive));
+ out.copy(f.end).addScaledVector(d.set((i%2?1:-1)*.35,.5,-.3),drift);
+ const orbitBlend=T.MathUtils.smoothstep(t,.97,.99);
+ if(orbitBlend&&orbitAngle){
+  const angle=(i+.25)*Math.PI*2/14-orbitAngle,depth=f.depth,tan=Math.tan(Math.PI*24/180);
+  readingPoint(Math.cos(angle)*.74*depth*tan*414/896*readingAspectScale,Math.sin(angle)*.64*depth*tan,-depth,d);
+  out.lerp(d,orbitBlend);
  }
- if(t<.8){const u=T.MathUtils.smoothstep(t,.76,.8);readingPoint(Math.cos(f.angle)*9,Math.sin(f.angle)*12,f.depth,gatheringTarget);return escort(i,t,out).lerp(gatheringTarget,u);}
- const u=T.MathUtils.smoothstep(t,.8,.85),angle=f.angle+(i%2?1:-1)*u*1.1;
- return readingPoint(Math.cos(angle)*(9+u*3),Math.sin(angle)*(12+u*3),f.depth+Math.sin(u*Math.PI)*(i%2?8:-8),out).lerp(f.end,T.MathUtils.smoothstep(t,.85,.9));
+ return out;
 }

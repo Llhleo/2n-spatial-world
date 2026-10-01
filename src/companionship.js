@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {Text} from 'troika-three-text';
-import {flowerPose,flowerReveal,flowerHeading,readingPoint,readingQuaternion,lookbackPose,FLOWER_SPECS} from './lookback.js';
+import {loadPetal} from './petal-loader.js';
+import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
 // A sync callback is not re-fired when Troika is already syncing. Listen for
 // completion instead, so a timeout and retry can adopt the original work.
@@ -16,15 +17,15 @@ export function prepareWorldText(text,timeoutMs=20000){
 }
 export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
- const batches=new Map(),assets=new Map(),labels=[];
+ const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
- let previous=NaN,prepared=false;
+ let previous=NaN,prepared=false,layoutScale=1,orbitAngle=0;
  for(const [content,size,y] of [['每个地图，',3.6,3],['都有2n的足迹',3.6,-3]]){
-  const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc.woff?v=footprints-1`;
+  const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc-semibold.woff?v=footprints-sdf256-4`;
   text.fontSize=size;text.color=0xf4f0df;text.anchorX='center';text.anchorY='middle';
   text.position.copy(readingPoint(0,y));text.quaternion.copy(readingQuaternion);
   text.material.depthWrite=false;text.material.transparent=true;text.material.toneMapped=false;
-  text.sdfGlyphSize=64;text.gpuAccelerateSDF=false;text.userData.warmup=true;
+  text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.userData.warmup=true;
   text.visible=false;labels.push(text);group.add(text);
  }
  function install(source,kind,name){
@@ -49,28 +50,45 @@ export function createCompanionship(scene){
   mesh.name='companion-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   const twist=new T.Quaternion().setFromEuler(new T.Euler((index%3-1)*.13,(index%4-1.5)*.06,(index-6)*.075));
   const finalScale=new T.Vector3().setScalar(FLOWER_SPECS[index][3]/Math.max(size.x,size.y,size.z));
-  batches.set(key,{mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center,taken:false});group.add(mesh);previous=NaN;
+  batches.set(key,{mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center,taken:false,displayOwned:false});group.add(mesh);previous=NaN;
+  if(displayAssets.has(key))installDisplay(displayAssets.get(key),kind,name);
  }
- function update(t){
-  if(t===previous)return;previous=t;
+ function installDisplay(source,kind,name){
+  const key=kind+':'+name;if(!selected.includes(key))return;
+  displayAssets.set(key,source);const batch=batches.get(key);if(!batch||batch.displayOwned)return;
+  const geometry=source.geometry.clone();geometry.computeBoundingBox();
+  const center=geometry.boundingBox.getCenter(new T.Vector3()),size=geometry.boundingBox.getSize(new T.Vector3()),nativeSize=batch.mesh.geometry.boundingBox.getSize(new T.Vector3());
+  const ratio=Math.max(nativeSize.x,nativeSize.y,nativeSize.z)/Math.max(size.x,size.y,size.z);
+  geometry.translate(-center.x,-center.y,-center.z);geometry.scale(ratio,ratio,ratio);geometry.translate(batch.center.x,batch.center.y,batch.center.z);geometry.computeBoundingBox();
+  batch.mesh.material.dispose();batch.mesh.geometry=geometry;batch.mesh.material=source.material.clone();
+  const dimensions=geometry.boundingBox.getSize(size),normal=dimensions.y<Math.min(dimensions.x,dimensions.z)?new T.Vector3(0,1,0):dimensions.x<dimensions.z?new T.Vector3(1,0,0):new T.Vector3(0,0,1);
+  batch.face.setFromUnitVectors(normal,new T.Vector3(0,0,1));
+  batch.finalScale.setScalar(FLOWER_SPECS[batch.index][3]/Math.max(dimensions.x,dimensions.y,dimensions.z));
+  batch.displayOwned=true;previous=NaN;
+ }
+ function update(t,dt=0){
+  if(t<.97)orbitAngle=0;
+  const orbitStep=Math.min(.05,Math.max(0,dt))*.10*T.MathUtils.smoothstep(t,.97,.99);
+  orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
+  if(t===previous&&!orbitStep)return;previous=t;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
    mesh.visible=taken;
    if(taken!==batch.taken){original.batch.setMatrixAt(original.slot,taken?matrix.makeScale(0,0,0):original.local);original.batch.instanceMatrix.needsUpdate=true;batch.taken=taken;}
-   flowerPose(index,t,point,original.position);
-   const orient=T.MathUtils.smoothstep(t,phase,phase+.075),final=T.MathUtils.smoothstep(t,.76,.9);
-   flowerHeading(t,heading);heading.slerp(readingQuaternion,final).multiply(twist).multiply(face);
+   flowerPose(index,t,point,original.position,orbitAngle);
+   const orient=T.MathUtils.smoothstep(t,phase,phase+.09);
+   heading.copy(readingQuaternion).multiply(twist).multiply(face);
    rotation.copy(nativeRotation).slerp(heading,orient);
-   scale.copy(nativeScale).lerp(finalScale,orient);
+   scale.copy(nativeScale).lerp(finalScale,orient).multiplyScalar(1+(layoutScale-1)*orient);
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
   }
-  const opacity=T.MathUtils.smoothstep(t,.9,.92);
+  const opacity=T.MathUtils.smoothstep(t,.952,.962);
   for(const label of labels){label.visible=opacity>0;label.material.opacity=opacity;}
  }
- return {group,install,update,capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(){
+ return {group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{}){
   if(prepared)return;
-  await Promise.all(labels.map(text=>prepareWorldText(text)));prepared=true;
- },dispose(){for(const {mesh} of batches.values()){mesh.material.dispose();mesh.dispose();}for(const label of labels)label.dispose();}};
+  await Promise.all([...labels.map(text=>prepareWorldText(text)),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`${import.meta.env?.BASE_URL||'/'}assets/companion-display/${name}.glb`,100);onPrepared(source);installDisplay(source,kind,name);})]);prepared=true;
+ },dispose(){for(const {mesh,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();}for(const label of labels)label.dispose();}};
 }

@@ -1,0 +1,47 @@
+# 2n Spatial World — Codex 交接
+
+更新时间：2026-10-01。从现有成果继续，不重做。
+
+## 仓库与保护边界
+- 仓库：Llhleo/2n-spatial-world。
+- 工作分支：experiment/lookback-v2；不合并 main，不触发 GitHub Pages。
+- main 必须保持 0b5d6921bb7f794a5c10ff7150b6cb1618825c5d。
+- Sites：https://twon-dark-spatial-world.llhleo.chatgpt.site。
+- 已上线 v37，Sites 源码提交 b001e90a1ab8ab27d3232c0bd1d25452eb6dac98。
+- 不修改开场 2n、既有五境地形/纹理/花瓣/前进镜头、Safari 视口稳定与雾过渡。
+
+## 当前成果
+- 五境回望；Garden/Desert 有独立观察窗口。
+- 14 种真实地面花瓣起飞、独立世界空间飞行、错峰围合；倒滑恢复原地实例。
+- Garden: Rose/Clover/Golden Leaf；Desert: Cactus/Sand/Iris；Ocean: Pearl/Shell/Starfish；Jungle: Peas/Tomato/Compass；Hell: Darkmark/Corruption。不加入 Blood Stinger/Mob。
+- 独立展示 GLB 位于 public/assets/companion-display/，14 个模型约各 3.2 万三角面、1024 贴图；地面仍用轻量版。
+- 文案两行：每个地图， / 都有2n的足迹。独立中文 650 字重字体。
+- 用户已确认 v37 文字正常；此前方块由不合法的 SDF 尺寸 96 引起，已修正为 128。
+
+## 最新未部署 checkpoint
+- 本地提交：4df9f3d8a62a697aaa75470b65e51606c28b80ff。
+- SDF 提升为 256；仅阅读段渲染像素比上限从 1.5 提高至 2。
+- 围合后缓慢顺时针公转（约 0.10 rad/s），保持展示朝向、纵深、中央留白；不自转、不反向交织。
+- update(t,dt) 驱动环绕，reduced-motion 禁用公转；倒滑退出阅读段重置。
+- 107 项测试通过，Vite 构建成功；尚无新版本实际 Safari 验收，不得将测试通过等同视觉通过。
+- 这批修改没有部署；Sites 仍 v37。
+
+## 接续顺序
+1. 核对分支、文件、commit、GLB 数量；保留全部成果。GitHub API 同步提交与本地 SHA 可以不同，以 tree/文件内容一致为准。
+2. 重跑 node --test test/*.test.js tests/*.test.js 与 npm run build。
+3. 用手机竖屏真实渲染检查文字清晰度、公转间距/速度/遮挡、倒滑、加载与 Safari 帧率。
+4. 用户允许后只更新 Sites，不合并 main，不改 Pages。
+5. 然后设计全 3D 管理层/成员章节，先提交方案供确认；该章节尚未实现。
+
+## 名单来源
+旧站 Llhleo/2n 的 main:dist/index.html 为已查到的名单来源；交接后重新读取并核对，不能凭记忆编名单。
+已读到管理层：awdc（会长）、flowerwsr（副会长）、CNFlyDream（副会长）、sschara、20180333。旧站还有完整成员名单，包含 LTJ。
+不要将旧成绩数值视为最新数据。
+
+## 技术与操作
+- Three.js 0.180.0 / troika-three-text 0.52.4 / Vite 6.1.0。
+- 重点文件：src/lookback.js、src/companionship.js、src/main.js、tests/lookback-v2.test.js、tests/display-assets.test.js。
+- 原工作区：/workspace/scratch/9d135a850972/lookback-v2；Sites checkout 为相邻 site-recovery。新 Codex 环境不要依赖这些路径存在；从 GitHub 分支恢复。
+- .openai/hosting.json 已记录原 Sites project_id，不能新建替代 Site 或曝光凭据。
+- 直接 git push 曾因缺少认证失败；GitHub 官方插件可上传二进制 blob、create_tree、create_commit、非强制更新独立分支。
+- 工具数分钟无返回就保存现场并换安全替代方式；每完成一个阶段报告；阶段完成即 checkpoint。

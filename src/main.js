@@ -40,7 +40,7 @@ if (renderer) {
     if(preparingAll)return;
     preparingAll=true;gpuReady=false;gpuError='';
     try{
-    await Promise.all([prepareBiomePetals(world),companionship.prepare()]);
+    await Promise.all([prepareBiomePetals(world),companionship.prepare(mesh=>{if(mesh.material.map)renderer.initTexture(mesh.material.map);})]);
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     while(world.groundStatus!=='ready')await new Promise(resolve=>setTimeout(resolve,16));
     companionship.capture();
@@ -66,6 +66,7 @@ if (renderer) {
     const retained=old?scrollProgress(scrollY,old.range):0;
     renderer.setSize(next.width,next.height);
     camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
+    companionship.resize(camera.aspect);
     if(old&&controlled)scrollTo({top:retained*next.range,behavior:'instant'});
   },STORY_UNITS);
   const takeControl = () => {
@@ -100,7 +101,9 @@ if (renderer) {
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress);
+    companionship.update(returnProgress,reduced.matches?0:dt);
+    const readingPixelRatio=Math.min(devicePixelRatio,returnProgress>.95?2:1.5);
+    if(renderer.getPixelRatio()!==readingPixelRatio)renderer.setPixelRatio(readingPixelRatio);
     if(returnProgress>0&&scene.fog){const blend=THREE.MathUtils.smoothstep(returnProgress,0,.12);scene.fog.density=THREE.MathUtils.lerp(scene.fog.density,.0015,blend);}
     names.update(progress>HERO_END&&progress<RETURN_START?camera:-1);
     const text = THREE.MathUtils.smoothstep(heroProgress,.93,.995)*(1-THREE.MathUtils.smoothstep(progress,HERO_END+.025*DESERT_END,HERO_END+.09*DESERT_END));
