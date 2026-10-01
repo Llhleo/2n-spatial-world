@@ -20,7 +20,7 @@ export function createCompanionship(scene){
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
  let previous=NaN,prepared=false;
  for(const [content,size,y] of [['每个地图，',3.6,3],['都有2n的足迹',3.6,-3]]){
-  const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc.woff`;
+  const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc.woff?v=footprints-1`;
   text.fontSize=size;text.color=0xf4f0df;text.anchorX='center';text.anchorY='middle';
   text.position.copy(readingPoint(0,y));text.quaternion.copy(readingQuaternion);
   text.material.depthWrite=false;text.material.transparent=true;text.material.toneMapped=false;
