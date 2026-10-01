@@ -2,6 +2,18 @@ import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion} from './lookback.js';
 const selected=['garden:clover','desert:cactus','ocean:shell','jungle:compass','hell:darkmark'];
+// A sync callback is not re-fired when Troika is already syncing. Listen for
+// completion instead, so a timeout and retry can adopt the original work.
+export function prepareWorldText(text,timeoutMs=20000){
+ if(text.textRenderInfo)return Promise.resolve();
+ return new Promise((resolve,reject)=>{
+  const cleanup=()=>{clearTimeout(timeout);text.removeEventListener('synccomplete',complete);};
+  const complete=()=>{cleanup();resolve();};
+  const timeout=setTimeout(()=>{cleanup();reject(new Error('同行文字准备超时'));},timeoutMs);
+  text.addEventListener('synccomplete',complete);
+  try{text.sync();}catch(error){cleanup();reject(error);}
+ });
+}
 export function createCompanionship(){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),labels=[];
@@ -43,9 +55,6 @@ export function createCompanionship(){
  }
  return {group,install,update,get ready(){return prepared&&batches.size===5;},async prepare(){
   if(prepared)return;
-  await Promise.all(labels.map(text=>new Promise((resolve,reject)=>{
-   const timeout=setTimeout(()=>reject(new Error('同行文字准备超时')),20000);
-   text.sync(()=>{clearTimeout(timeout);resolve();});
-  })));prepared=true;
+  await Promise.all(labels.map(text=>prepareWorldText(text)));prepared=true;
  },dispose(){for(const {mesh} of batches.values()){mesh.material.dispose();mesh.dispose();}for(const label of labels)label.dispose();}};
 }

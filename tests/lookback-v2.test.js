@@ -78,3 +78,10 @@ test('return viewing windows contain existing populated terrain, not just empty 
   assert.ok(count>=10,`return shot ${t} has only ${count} visible terrain petals`);
  }
 });
+test('font preparation recovers after timeout and late sync completion without restarting completed labels',async()=>{
+ const {prepareWorldText}=await import('../src/companionship.js');
+ const text=new T.EventDispatcher();let starts=0;text.textRenderInfo=null;text.sync=()=>{if(!starts)starts++;};
+ await assert.rejects(prepareWorldText(text,5),/超时/);
+ const retry=prepareWorldText(text,100);text.textRenderInfo={};text.dispatchEvent({type:'synccomplete'});await retry;
+ await prepareWorldText(text,5);assert.equal(starts,1);
+});
