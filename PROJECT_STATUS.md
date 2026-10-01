@@ -1,15 +1,19 @@
 # 2n Spatial World：项目进展与未来目标
 
-更新时间：2026-10-01（北京时间）。本文件区分「已保存」「已部署」「已视觉验收」，不以测试或部署成功代替视觉通过。
+更新时间：2026-10-02（北京时间）。本文件区分「已保存」「已部署」「已视觉验收」，不以测试或部署成功代替视觉通过。
 
 ## 2026-10-02 修复轮记录（优先于下方历史状态）
 
 开始核实：Sites 仍 v37，上一轮环绕及清晰度改动确实未部署。
 本轮已实现 Hell 出口填充、停滚时持续自由漂移、起飞渐长（最高原尺寸 1.7 倍，再平滑适配阅读围合）、下载/解码独立队列（6/2）。
 高精度模型、几何、1024 贴图未压缩或降级。下载调度回归证明解码等待不会阻止后续下载，但真实 Safari 首屏用时仍待实机测量，不承诺具体秒数或加速比例。
-上一轮 SDF256 / 阅读 DPR2 / 顺时针公转将随此次一起发布原 Sites。
+上一轮 SDF256 / 阅读 DPR2 / 顺时针公转已随此次一起发布原 Sites。
 成员/管理层章节暂停，先由用户实机验证 Hell 回头、飞行、尺寸、加载、围合公转，再按后续目标推进。
-发布状态：待本轮完整回归与部署；不得将历史 v37 或本地构建视为已上线。
+发布状态：Sites v38 发布成功，地址仍为 https://twon-dark-spatial-world.llhleo.chatgpt.site。
+Sites 源码提交：7da325b1ed5674958e7d30d08df36c7fac595ad7；部署 ID：appgdep_6abe91046ad0819189cb97acfcd02ab0。
+GitHub 修复提交：db7f907450843d9bc469d17acb6961bd5e53545d，完整 tree 已核对与本地一致。
+验证：112/112 测试通过，生产构建成功；保留原有大 chunk 警告，故障重试测试中的 offline 日志为预期测试输入。
+尚未完成：用户 Safari 视觉验收、实际首屏耗时/帧率测量、成员章节。没有将自动测试通过冒充实机通过。
 
 ## 一、项目定位与当前版本
 
@@ -21,11 +25,11 @@
 | 开发分支 | experiment/lookback-v2 |
 | 前次完整 GitHub 保存 | 3cf5849db8f111080db6a0a5b7b1bf3845493798 |
 | 本地代码 checkpoint | 4df9f3d8a62a697aaa75470b65e51606c28b80ff |
-| Sites 在线版本 | v37，https://twon-dark-spatial-world.llhleo.chatgpt.site |
-| 在线 Sites 源码提交 | b001e90a1ab8ab27d3232c0bd1d25452eb6dac98 |
+| Sites 在线版本 | v38，https://twon-dark-spatial-world.llhleo.chatgpt.site |
+| 在线 Sites 源码提交 | 7da325b1ed5674958e7d30d08df36c7fac595ad7 |
 | 受保护 main | 0b5d6921bb7f794a5c10ff7150b6cb1618825c5d |
 
-GitHub 保存版比 Sites 在线版更新。不同同步方式产生的 commit SHA 可以不同；已经核对本地与 GitHub 的完整 Git tree 一致，不能仅根据 SHA 不同判断丢失成果。
+GitHub 修复代码与 Sites v38 同步，GitHub 文档另补入上线结果。不同同步方式产生的 commit SHA 可以不同；已经核对本地与 GitHub 的完整 Git tree 一致，不能仅根据 SHA 不同判断丢失成果。
 
 ## 二、已经完成并保存的内容
 
@@ -66,11 +70,11 @@ GitHub 保存版比 Sites 在线版更新。不同同步方式产生的 commit S
 
 ## 三、验证与尚未完成项
 
-- 最新代码执行 node --test test/*.test.js tests/*.test.js：107/107 通过。
+- 最新代码执行 node --test test/*.test.js tests/*.test.js：112/112 通过。
 - npm run build：成功。构建仍有超过 500 kB 的 chunk 提示，不表示构建失败。
 - 已覆盖起飞接管/恢复、路线连续性、竖屏投影间距、中央文字留白、SDF 合规、公转等回归检查。
 - 用户确认的是 v37 文字已正常显示，不代表最新清晰度与环绕效果通过。
-- 最新 SDF 256 / 阅读 DPR 2 / 缓慢公转尚未部署到 Sites，也没有真实 Safari 视觉验收。
+- 最新 SDF 256 / 阅读 DPR 2 / 缓慢公转已部署 Sites v38，但尚无真实 Safari 视觉验收。
 - 全 3D 管理层与成员章节尚未实现；目前只查到旧站名单来源。
 - 没有自动创建新的 Codex 会话；仓库与 CODEX_HANDOFF.md 已准备好接续开发。
 
