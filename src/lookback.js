@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {hellPose} from './hell-production.js';
-export const HELL_EXIT=.8, RETURN_UNITS=18;
+export const HELL_EXIT=.8, RETURN_UNITS=22;
 export const RETURN_START=(24+4*HELL_EXIT)/28;
 export const STORY_UNITS=24+4*HELL_EXIT+RETURN_UNITS;
 const entry=hellPose(HELL_EXIT,new T.PerspectiveCamera());
@@ -37,14 +37,33 @@ const focus=new T.Vector3();
 export function lookbackPose(t,camera){t=T.MathUtils.clamp(t,0,1);sample(t,'p',camera.position);sample(t,'target',focus);camera.lookAt(focus);return {position:camera.position.toArray(),target:focus.toArray()};}
 const reading=new T.PerspectiveCamera();lookbackPose(1,reading);reading.updateMatrixWorld();
 export const readingQuaternion=reading.quaternion.clone();
-export const readingPoint=(x,y,z=-100)=>new T.Vector3(x,y,z).applyQuaternion(readingQuaternion).add(reading.position);
-const arrangement=[[-16,24,-92],[16,22,-108],[-15,-21,-96],[17,-24,-110],[-17,4,-100],[16,2,-94],[-11,30,-104],[10,29,-98],[-13,-29,-106],[12,-30,-100],[-16,15,-102],[16,13,-106],[-17,-12,-110],[16,-12,-102],[2,32,-110]];
+export const readingPoint=(x,y,z=-100,out=new T.Vector3())=>out.set(x,y,z).applyQuaternion(readingQuaternion).add(reading.position);
+export const FLOWER_SPECS=[
+ ['garden','rose',.653,4.3],['garden','clover',.663,4.2],['garden','goldenleaf',.673,3.8],
+ ['desert','cactus',.533,4.2],['desert','sand',.543,4.3],['desert','iris',.553,2.9],
+ ['ocean','pearl',.393,3.5],['ocean','shell',.403,4.4],['ocean','starfish',.413,4.5],
+ ['jungle','peas',.253,4.6],['jungle','tomato',.263,4.0],['jungle','compass',.273,4.0],
+ ['hell','darkmark',.08,4.2],['hell','corruption',.094,4.2],
+];
+const arrangement=[[-15,24,-94],[15,22,-110],[-15,-20,-98],[17,-23,-112],[-17,3,-104],[15,1,-94],[-11,30,-108],[10,29,-102],[-13,-28,-110],[12,-29,-104],[-16,14,-106],[16,12,-110],[-17,-12,-114],[16,-12,-106]];
 const origins=[[166,-30,10],[366,-30,10],[650,-36,10],[1000,-30,10],[1470,-30,10]];
-const reveal=[.66,.54,.40,.26,.08];
-const flowers=arrangement.map((v,i)=>{const kind=Math.floor(i/3),start=new T.Vector3(...origins[kind]).add(new T.Vector3((i%3-1)*9,0,(i%3-1)*8)),end=readingPoint(...v),lifted=start.clone();lifted.y+=45;return {kind,start,lifted,end,a:start.clone().add(new T.Vector3((i%2?1:-1)*35,85+i*2,30)),b:end.clone().add(new T.Vector3((i%2?1:-1)*40,30+i%3*12,-20))};});
-export const flowerReveal=i=>reveal[flowers[i].kind];
-export function flowerPose(i,t,out=new T.Vector3()){
- const f=flowers[i],r=T.MathUtils.smoothstep(t,reveal[f.kind],reveal[f.kind]+.055),u=T.MathUtils.smoothstep(t,.72+(i%3)*.009,.88),v=1-u;
- if(t<.72){out.copy(f.start);out.y+=r*45;return out;}
- return out.copy(f.lifted).multiplyScalar(v*v*v).addScaledVector(f.a,3*v*v*u).addScaledVector(f.b,3*v*u*u).addScaledVector(f.end,u*u*u);
+const escortCamera=new T.PerspectiveCamera(),offset=new T.Vector3();let sampledTime=NaN;
+function escort(i,t,out){
+ if(t!==sampledTime){lookbackPose(t,escortCamera);sampledTime=t;}
+ offset.set((i%2?1:-1)*(10+(i%3)*1.4),6+(i%4)*3,-(72+(i%3)*10));
+ return out.copy(offset).applyQuaternion(escortCamera.quaternion).add(escortCamera.position);
+}
+export function flowerHeading(t,out){if(t!==sampledTime){lookbackPose(t,escortCamera);sampledTime=t;}return out.copy(escortCamera.quaternion);}
+const flowers=arrangement.map((v,i)=>({start:new T.Vector3(...origins[Math.floor(i/3)]),end:readingPoint(...v),angle:i*Math.PI*2/14,depth:-84-(i%3)*12}));
+const gatheringTarget=new T.Vector3();
+export const flowerReveal=i=>FLOWER_SPECS[i][2];
+export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start){
+ const f=flowers[i],phase=flowerReveal(i);
+ if(t<.76){
+  const lift=T.MathUtils.smoothstep(t,phase,phase+.035),join=T.MathUtils.smoothstep(t,phase+.035,phase+.08);
+  escort(i,t,out).multiplyScalar(join);out.addScaledVector(origin,1-join);out.y+=18*lift*(1-join);return out;
+ }
+ if(t<.8){const u=T.MathUtils.smoothstep(t,.76,.8);readingPoint(Math.cos(f.angle)*9,Math.sin(f.angle)*12,f.depth,gatheringTarget);return escort(i,t,out).lerp(gatheringTarget,u);}
+ const u=T.MathUtils.smoothstep(t,.8,.85),angle=f.angle+(i%2?1:-1)*u*1.1;
+ return readingPoint(Math.cos(angle)*(9+u*3),Math.sin(angle)*(12+u*3),f.depth+Math.sin(u*Math.PI)*(i%2?8:-8),out).lerp(f.end,T.MathUtils.smoothstep(t,.85,.9));
 }

@@ -29,7 +29,7 @@ test('reading pose is stationary, and all flower endpoints leave a clear central
  const cam=camera(),last=api.lookbackPose(1,cam);cam.updateMatrixWorld();
  for(const t of [.88,.94,1])assert.deepEqual(api.lookbackPose(t,camera()),last);
  const depths=new Set();
- for(let i=0;i<15;i++){
+ for(let i=0;i<14;i++){
   const v=api.flowerPose(i,1),p=v.clone().project(cam);
   assert.ok(Math.abs(p.x)<.94&&Math.abs(p.y)<.8,'flower clips phone frame');
   assert.ok(Math.abs(p.x)>.48||Math.abs(p.y)>.3,'flower overlaps reading rectangle');
@@ -39,23 +39,40 @@ test('reading pose is stationary, and all flower endpoints leave a clear central
 });
 test('reverse seeks and pauses produce the same flower positions without accumulated simulation',()=>{
  assert.equal(typeof api.flowerPose,'function');
- const expected=Array.from({length:15},(_,i)=>api.flowerPose(i,.78).toArray());
- for(const t of [1,.5,.01,.9,0,.78,.78])for(let i=0;i<15;i++)api.flowerPose(i,t);
- assert.deepEqual(Array.from({length:15},(_,i)=>api.flowerPose(i,.78).toArray()),expected);
+ const expected=Array.from({length:14},(_,i)=>api.flowerPose(i,.78).toArray());
+ for(const t of [1,.5,.01,.9,0,.78,.78])for(let i=0;i<14;i++)api.flowerPose(i,t);
+ assert.deepEqual(Array.from({length:14},(_,i)=>api.flowerPose(i,.78).toArray()),expected);
 });
-test('companion rig reuses five prepared assets, bounds instance count and restores reverse-seek matrices',async()=>{
+test('companion rig takes distinct grounded instances and restores their exact matrices on reverse',async()=>{
  const {createCompanionship}=await import('../src/companionship.js');
- const rig=createCompanionship();
- for(const [kind,name] of [['garden','clover'],['desert','cactus'],['ocean','shell'],['jungle','compass'],['hell','darkmark']]){
+ const scene=new T.Scene(),rig=createCompanionship(scene),sources=[];
+ const choices=[['garden',['rose','clover','goldenleaf'],166],['desert',['cactus','sand','iris'],366],['ocean',['pearl','shell','starfish'],650],['jungle',['peas','tomato','compass'],1000],['hell',['darkmark','corruption'],1470]];
+ for(const [kind,names,x] of choices)for(const name of names){
   const geometry=new T.BoxGeometry(2,.2,2),mesh=new T.Mesh(geometry,new T.MeshStandardMaterial());
+  if(name==='rose')assert.doesNotThrow(()=>rig.install(mesh,kind,name),'fast asset preparation must not require terrain already attached');
+  const rootName=kind==='garden'?'florr-petal-assembly':'florr-'+kind;
+  let ground=scene.getObjectByName(rootName);if(!ground){ground=new T.Group();ground.name=rootName;scene.add(ground);}
+  const batch=new T.InstancedMesh(geometry,mesh.material,1),original=new T.Matrix4().compose(new T.Vector3(x,-33,10),new T.Quaternion().setFromEuler(new T.Euler(.2,.4,.1)),new T.Vector3(2,2,2));batch.setMatrixAt(0,original);ground.add(batch);sources.push({batch,original});
   rig.install(mesh,kind,name);
   assert.equal(rig.group.children.filter(o=>o.isInstancedMesh).at(-1).geometry,geometry);
  }
- assert.equal(rig.group.children.filter(o=>o.isInstancedMesh).reduce((n,o)=>n+o.count,0),15);
- rig.update(.9);const saved=rig.group.children.filter(o=>o.isInstancedMesh).map(o=>Array.from(o.instanceMatrix.array));
- rig.update(.05);rig.update(.9);
+ rig.capture();
+ assert.equal(rig.group.children.filter(o=>o.isInstancedMesh).reduce((n,o)=>n+o.count,0),14);
+ rig.update(0);for(const {batch,original} of sources){const m=new T.Matrix4();batch.getMatrixAt(0,m);assert.deepEqual(m.toArray(),original.toArray().map(Math.fround));}
+ rig.update(1);for(const {batch} of sources){const m=new T.Matrix4();batch.getMatrixAt(0,m);assert.equal(m.determinant(),0,'ground copy remained visible after takeoff');}
+ rig.update(.95);const saved=rig.group.children.filter(o=>o.isInstancedMesh).map(o=>Array.from(o.instanceMatrix.array));
+ rig.update(0);for(const {batch,original} of sources){const m=new T.Matrix4();batch.getMatrixAt(0,m);assert.deepEqual(m.toArray(),original.toArray().map(Math.fround));}
+ rig.update(.95);
  assert.deepEqual(rig.group.children.filter(o=>o.isInstancedMesh).map(o=>Array.from(o.instanceMatrix.array)),saved);
+ const labels=rig.group.children.filter(o=>o.userData.warmup);assert.equal(labels.map(o=>o.text).join(''),'每个地图，都有2n的足迹');
  rig.dispose();
+});
+test('lifted petals follow the return route rather than waiting at a distant origin',()=>{
+ for(const [i,t] of [[12,.38],[9,.52],[6,.65]]){const cam=camera();api.lookbackPose(t,cam);cam.updateMatrixWorld();const p=api.flowerPose(i,t);assert.ok(p.distanceTo(cam.position)<130,'petal stayed behind');const screen=p.clone().project(cam);assert.ok(Math.abs(screen.x)<.95&&Math.abs(screen.y)<.85,'escort left phone frame');}
+});
+test('escort hands its velocity into gathering instead of abruptly freezing every petal',()=>{
+ const h=1e-7;
+ for(const i of [0,7,13]){const a=api.flowerPose(i,.76-h),b=api.flowerPose(i,.76),c=api.flowerPose(i,.76+h),incoming=b.clone().sub(a).divideScalar(h),outgoing=c.clone().sub(b).divideScalar(h);assert.ok(incoming.distanceTo(outgoing)<.2,'gather join dropped escort velocity');}
 });
 test('prepared world text is warmed before entry with its render callback and live visibility preserved',async()=>{
  const {warmBiomeResources}=await import('../src/biome-warmup.js');
@@ -84,4 +101,21 @@ test('font preparation recovers after timeout and late sync completion without r
  await assert.rejects(prepareWorldText(text,5),/超时/);
  const retry=prepareWorldText(text,100);text.textRenderInfo={};text.dispatchEvent({type:'synccomplete'});await retry;
  await prepareWorldText(text,5);assert.equal(starts,1);
+});
+test('real GLB terrain installation can hand off every selected species before opening',async()=>{
+ const {readFileSync}=await import('node:fs'),{createBiomes,prepareBiomePetals}=await import('../src/biomes.js'),{createCompanionship}=await import('../src/companionship.js');
+ const names={garden:['glass','leaf','rose','clover','rock','goldenleaf'],desert:['cactus','sand','stick','pincer','iris','goldenleaf'],ocean:['pearl','shell','starfish'],jungle:['peas','tomato','bur','goldenleaf','rock','compass'],hell:['darkmark','corruption']};
+ const cache=new Map(),catalogs={};
+ for(const [kind,list] of Object.entries(names))catalogs[kind]=Object.fromEntries(list.map(name=>{
+  const folder=['goldenleaf','rock'].includes(name)?'garden':kind,path=`../public/assets/${folder}-petals/${name}.glb`;
+  if(!cache.has(path)){const b=readFileSync(new URL(path,import.meta.url)),length=b.readUInt32LE(12),j=JSON.parse(b.subarray(20,20+length)),a=j.accessors[j.meshes[0].primitives[0].attributes.POSITION],v=j.bufferViews[a.bufferView],offset=28+length+(v.byteOffset||0)+(a.byteOffset||0),values=new Float32Array(a.count*3);
+   for(let k=0;k<values.length;k++)values[k]=b.readFloatLE(offset+k*4);const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(values,3));cache.set(path,new T.Mesh(g,new T.MeshStandardMaterial()));}
+  return [name,cache.get(path)];
+ }));
+ const scene=new T.Scene(),rig=createCompanionship(scene),world=createBiomes(scene,true,Object.fromEntries(Object.keys(names).map(kind=>[kind,async()=>catalogs[kind]])));
+ scene.add(rig.group);world.onAssetPrepared=rig.install;world.prepare();await prepareBiomePetals(world);
+ while(world.groundStatus!=='ready')await new Promise(r=>setTimeout(r,10));rig.capture();
+ const moving=rig.group.children.filter(o=>o.isInstancedMesh);assert.equal(moving.length,14);
+ for(const mesh of moving){const index=api.FLOWER_SPECS.findIndex(([kind,name])=>mesh.name==='companion-'+kind+':'+name),t=api.flowerReveal(index),cam=camera();api.lookbackPose(t+.015,cam);cam.updateMatrixWorld();rig.update(t);const m=new T.Matrix4();mesh.getMatrixAt(0,m);const center=mesh.geometry.boundingBox.getCenter(new T.Vector3()).applyMatrix4(m),p=center.clone().project(cam);assert.ok(Math.abs(p.x)<.9&&Math.abs(p.y)<.9&&p.z<1,mesh.name+' has no visible grounded origin');}
+ rig.update(0);
 });

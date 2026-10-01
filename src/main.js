@@ -33,7 +33,7 @@ if (renderer) {
   createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const world=createBiomes(scene,matchMedia('(max-width: 700px)').matches);
-  const companionship=createCompanionship();scene.add(companionship.group);
+  const companionship=createCompanionship(scene);scene.add(companionship.group);
   world.onAssetPrepared=(mesh,kind,name)=>{if(mesh.material.map)renderer.initTexture(mesh.material.map);companionship.install(mesh,kind,name);};
   let gpuReady=false,gpuError='',warming=false,preparingAll=false;
   async function prepareEverything(){
@@ -43,6 +43,7 @@ if (renderer) {
     await Promise.all([prepareBiomePetals(world),companionship.prepare()]);
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     while(world.groundStatus!=='ready')await new Promise(resolve=>setTimeout(resolve,16));
+    companionship.capture();
     warming=true;
     await warmBiomeResources(renderer,scene);gpuReady=true;
     }catch(error){gpuError=error.message;}finally{warming=false;preparingAll=false;}
