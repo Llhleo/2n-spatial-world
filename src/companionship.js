@@ -3,6 +3,7 @@ import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
+export const flightGrowth=age=>1+.7*T.MathUtils.smoothstep(age,0,.18);
 // A sync callback is not re-fired when Troika is already syncing. Listen for
 // completion instead, so a timeout and retry can adopt the original work.
 export function prepareWorldText(text,timeoutMs=20000){
@@ -19,7 +20,7 @@ export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
- let previous=NaN,prepared=false,layoutScale=1,orbitAngle=0;
+ let previous=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
  for(const [content,size,y] of [['每个地图，',3.6,3],['都有2n的足迹',3.6,-3]]){
   const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc-semibold.woff?v=footprints-sdf256-4`;
   text.fontSize=size;text.color=0xf4f0df;text.anchorX='center';text.anchorY='middle';
@@ -67,20 +68,24 @@ export function createCompanionship(scene){
   batch.displayOwned=true;previous=NaN;
  }
  function update(t,dt=0){
+  const step=Math.min(.05,Math.max(0,dt));
+  if(t<=0)flightTime=0;else flightTime+=step;
   if(t<.97)orbitAngle=0;
   const orbitStep=Math.min(.05,Math.max(0,dt))*.10*T.MathUtils.smoothstep(t,.97,.99);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
-  if(t===previous&&!orbitStep)return;previous=t;
+  if(t===previous&&!orbitStep&&!(step&&t>0&&t<.76))return;previous=t;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
    mesh.visible=taken;
    if(taken!==batch.taken){original.batch.setMatrixAt(original.slot,taken?matrix.makeScale(0,0,0):original.local);original.batch.instanceMatrix.needsUpdate=true;batch.taken=taken;}
-   flowerPose(index,t,point,original.position,orbitAngle);
+   flowerPose(index,t,point,original.position,orbitAngle,flightTime);
    const orient=T.MathUtils.smoothstep(t,phase,phase+.09);
    heading.copy(readingQuaternion).multiply(twist).multiply(face);
    rotation.copy(nativeRotation).slerp(heading,orient);
-   scale.copy(nativeScale).lerp(finalScale,orient).multiplyScalar(1+(layoutScale-1)*orient);
+   // Grow from the exact grounded size, then gently fit the reading perimeter.
+   const settle=T.MathUtils.smoothstep(t,.76,.92);
+   scale.copy(nativeScale).multiplyScalar(flightGrowth(t-phase)).lerp(finalScale,settle).multiplyScalar(1+(layoutScale-1)*settle);
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
   }

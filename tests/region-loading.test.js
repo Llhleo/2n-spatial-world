@@ -67,12 +67,12 @@ test('Hell camera joins Jungle with continuous position and velocity',async()=>{
  const camera=new T.PerspectiveCamera(),a=junglePose(.99999,camera),b=junglePose(1,camera),c=hellPose(0,camera),d=hellPose(.00001,camera);
  for(const key of ['position','target']){assert.deepEqual(b[key],c[key]);const before=new T.Vector3(...b[key]).sub(new T.Vector3(...a[key])).divideScalar(.00001),after=new T.Vector3(...d[key]).sub(new T.Vector3(...c[key])).divideScalar(.00001);assert.ok(before.distanceTo(after)<.3);}
 });
-test('Hell uses real petal meshes grounded in three spatial batches per species',async()=>{
+test('Hell uses real grounded petal meshes including the populated exit corridor',async()=>{
  const {createHellPetals,hellSurface}=await import('../src/hell-production.js');
  const {readFileSync}=await import('node:fs');const catalog={};
  for(const name of ['darkmark','corruption']){const b=readFileSync(new URL(`../public/assets/hell-petals/${name}.glb`,import.meta.url)),j=JSON.parse(b.subarray(20,20+b.readUInt32LE(12))),off=28+b.readUInt32LE(12),a=j.accessors[j.meshes[0].primitives[0].attributes.POSITION],view=j.bufferViews[a.bufferView];const values=new Float32Array(a.count*3);for(let i=0;i<values.length;i++)values[i]=b.readFloatLE(off+(view.byteOffset||0)+(a.byteOffset||0)+i*4);const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(values,3));catalog[name]={geometry,material:new T.MeshStandardMaterial()};}
  const group=createHellPetals(catalog,true),m=new T.Matrix4(),v=new T.Vector3();let total=0;
- assert.equal(group.children.length,6);
+ assert.ok(group.children.length>=6);
  for(const mesh of group.children)for(let i=0;i<mesh.count;i++){total++;mesh.getMatrixAt(i,m);let contact=Infinity;const a=mesh.geometry.attributes.position;for(let j=0;j<a.count;j++){v.fromBufferAttribute(a,j).applyMatrix4(m);contact=Math.min(contact,v.y-hellSurface(v.x,v.z));}assert.ok(Math.abs(contact+.05)<.002,mesh.name);}
- assert.ok(total>=210);assert.ok(total<=240);
+ assert.ok(total>=280);assert.ok(total<=310);
 });

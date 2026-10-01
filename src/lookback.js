@@ -65,13 +65,21 @@ const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3();
 const ease=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
 function bezier(u,a,b,c,d,out){const v=1-u;return out.copy(a).multiplyScalar(v*v*v).addScaledVector(b,3*v*v*u).addScaledVector(c,3*v*u*u).addScaledVector(d,u*u*u);}
 export const flowerReveal=i=>FLOWER_SPECS[i][2];
-export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start,orbitAngle=0){
+export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start,orbitAngle=0,flightTime=0){
  const f=flowers[i],phase=flowerReveal(i),lane=i%3-1;
  if(t<=phase)return out.copy(origin);
  a.copy(origin);a.x+=lane*13;a.y+=30+(i%3)*8;a.z-=18+(i%3)*18;
- if(t<phase+.04)return out.copy(origin).lerp(a,ease((t-phase)/.04));
+ const free=()=>{
+  const weight=T.MathUtils.smoothstep(t,phase,phase+.04)*(1-T.MathUtils.smoothstep(t,.70,.76));
+  const wind=flightTime*.9+(t-phase)*35+i*1.7;
+  out.x+=Math.sin(wind*.73)*7*weight;
+  out.y+=(Math.sin(wind)*12+Math.sin(wind*.43+i)*5)*weight;
+  out.z+=Math.cos(wind*.83)*10*weight;
+  return out;
+ };
+ if(t<phase+.04){out.copy(origin).lerp(a,ease((t-phase)/.04));return free();}
  b.set(origin.x-60-(i%3)*20,100+(i%5)*12,-150-i*12);
- if(t<f.gather)return out.copy(a).lerp(b,ease((t-phase-.04)/(f.gather-phase-.04)));
+ if(t<f.gather){out.copy(a).lerp(b,ease((t-phase-.04)/(f.gather-phase-.04)));return free();}
  // One arc directly to a distinct perimeter slot: no contraction, crossing
  // weave, angle wrap or camera-facing rotation during the return traversal.
  a.copy(b);c.copy(f.gate);c.y+=650+i*4;b.copy(a).lerp(f.gate,.5);b.y+=650+i*4;

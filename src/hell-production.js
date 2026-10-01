@@ -25,6 +25,12 @@ export function* hellPetalSteps(catalog,mobile,names=Object.keys(HELL_POPULATION
     return {x:1316+zone*91+hash(key+1)*87,z:[-86,-42,5,51,94][i%5]+(hash(key+2)-.5)*38,scale:.8+hash(key+3)*.4,pitch:i%6===0?-1.42:-.60-hash(key+4)*.47,yaw:-Math.PI/2+(hash(key+5)-.5)*.8,roll:(hash(key+6)-.5)*.25};
    },hellSurface,`hell-${species}-${zone}`));
   }
+  // Populate the exit corridor as well, without redistributing the established
+  // forward terrain. The return initially still looks beyond the third zone.
+  group.add(yield* petalPlacementSteps(catalog[species],mobile?36:48,species==='darkmark'?3.9:3.4,i=>{
+   const key=i*83+speciesIndex*271;
+   return {x:1580+hash(key+1)*112,z:-76+hash(key+2)*160,scale:.8+hash(key+3)*.4,pitch:-.6-hash(key+4)*.47,yaw:-Math.PI/2+(hash(key+5)-.5)*.8,roll:(hash(key+6)-.5)*.25};
+  },hellSurface,`hell-${species}-exit`));
  }
  return group;
 }
