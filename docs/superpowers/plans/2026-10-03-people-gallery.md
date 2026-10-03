@@ -64,7 +64,9 @@
 
 ## Task 4：章节接入与发布
 
-**Files:** Modify `src/main.js`, `PROJECT_STATUS.md`; Create `tests/people-integration.test.js`, `docs/2026-10-03-people-gallery-handoff.md`.
+**Files:** Modify `src/main.js`, `PROJECT_STATUS.md`; Create `src/people-story.js`, `tests/people-integration.test.js`, `docs/2026-10-03-people-gallery-handoff.md`. Minimal additions to `index.html` and `src/style.css` are allowed only for the new nonblocking people-entry preparation/retry status.
+
+**Implementation clarification:** Keep progress conversion and chapter selection in the small pure `src/people-story.js` helper so tests exercise the actual scheduling used by main, not just source patterns. Preserve the existing scene, viewport, intro gate and all prior UI behavior.
 
 **Interfaces:** `TOTAL_UNITS=STORY_UNITS+PEOPLE_UNITS`；旧段仍用原 progress 的 28 单位坐标采样，新段 t 单独计算。自动播放 duration 为 `150*TOTAL_UNITS/STORY_UNITS`，保留旧段单位速度，不挤快五境。
 

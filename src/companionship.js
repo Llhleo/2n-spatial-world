@@ -2,6 +2,7 @@ import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
+import {peopleState} from './people-path.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
 export const flightGrowth=age=>1+.7*T.MathUtils.smoothstep(age,0,.18);
 // A sync callback is not re-fired when Troika is already syncing. Listen for
@@ -20,7 +21,24 @@ export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
- let previous=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
+ let previous=NaN,previousPeople=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
+ const sidePoint=new T.Vector3(),sideRotation=new T.Quaternion(),sideAxis=new T.Vector3(0,0,1);
+ const smooth=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
+ // Authored world-space side curves continue in depth with the gallery. Merely
+ // widening the old z=-100 ring would strand it behind the arriving camera.
+ function corridorPoint(index,t,out) {
+  const angles=[-.32,-.16,0,.16,.32],boundaries=[.296,.432,.568,.704];let angle=angles[4];
+  for(let i=0;i<4;i++) {
+   if(t<boundaries[i]-.032){angle=angles[i];break;}
+   if(t<boundaries[i]+.032){angle=T.MathUtils.lerp(angles[i],angles[i+1],smooth((t-boundaries[i]+.032)/.064));break;}
+  }
+  const side=index%2?1:-1,lane=Math.floor(index/2),crowd=peopleState(t).crowd;
+  angle*=1-crowd;
+  const radius=110,offset=side*(17.8+lane%3*.25)*(1+1.35*crowd),depth=(lane%3-1)*8;
+  // This samples a fixed authored pair of 3D ribbons, not camera offsets.
+  return readingPoint((radius+depth)*Math.sin(angle)+Math.cos(angle)*offset,
+   (lane-3)*6,-310+(radius+depth)*Math.cos(angle)-Math.sin(angle)*offset,out);
+ }
  for(const [content,size,y] of [['每个地图，',3.6,3],['都有2n的足迹',3.6,-3]]){
   const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc-semibold.woff?v=footprints-sdf256-4`;
   text.fontSize=size;text.color=0xf4f0df;text.anchorX='center';text.anchorY='middle';
@@ -67,13 +85,14 @@ export function createCompanionship(scene){
   batch.finalScale.setScalar(FLOWER_SPECS[batch.index][3]/Math.max(dimensions.x,dimensions.y,dimensions.z));
   batch.displayOwned=true;previous=NaN;
  }
- function update(t,dt=0){
+ function update(t,dt=0,peopleT=0){
+  peopleT=T.MathUtils.clamp(peopleT,0,1);
   const step=Math.min(.05,Math.max(0,dt));
   if(t<=0)flightTime=0;else flightTime+=step;
   if(t<.74)orbitAngle=0;
   const orbitStep=step*.10*T.MathUtils.smoothstep(t,.74,.80);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
-  if(t===previous&&!orbitStep&&!(step&&t>0&&t<.76))return;previous=t;
+  if(t===previous&&peopleT===previousPeople&&!orbitStep&&!(step&&t>0&&t<.76))return;previous=t;previousPeople=peopleT;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
@@ -86,10 +105,16 @@ export function createCompanionship(scene){
    // Grow from the exact grounded size, then gently fit the reading perimeter.
    const settle=T.MathUtils.smoothstep(t,.76,.92);
    scale.copy(nativeScale).multiplyScalar(flightGrowth(t-phase)).lerp(finalScale,settle).multiplyScalar(1+(layoutScale-1)*settle);
+   if(peopleT>0) {
+    const spread=peopleState(peopleT).transition;
+    corridorPoint(index,peopleT,sidePoint);point.lerp(sidePoint,spread);
+    sideRotation.copy(heading).multiply(new T.Quaternion().setFromAxisAngle(sideAxis,(index%2?1:-1)*spread*1.15));
+    rotation.slerp(sideRotation,spread);
+   }
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
   }
-  const opacity=T.MathUtils.smoothstep(t,.952,.962);
+  const opacity=T.MathUtils.smoothstep(t,.952,.962)*(1-T.MathUtils.smoothstep(peopleT,0,.03));
   for(const label of labels){label.visible=opacity>0;label.material.opacity=opacity;}
  }
  return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{}){
