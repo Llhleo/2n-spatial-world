@@ -2,7 +2,34 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import * as courtyard from '../src/people-courtyard.js';
-import {lookbackPose, FLOWER_SPECS} from '../src/lookback.js';
+import {lookbackPose, FLOWER_SPECS, readingQuaternion} from '../src/lookback.js';
+
+// Catches C0-only segment joins, stationary read shots, and instantaneous roll correction.
+test('camera derivatives and opacity remain continuous at every interval boundary', () => {
+  const route = courtyard.createPeopleRoute(data(8)), eps = 1e-7;
+  for (const aspect of [414/896,320/568,896/414]) {
+    for (const edge of [...new Set(route.windows.flatMap(w => [w.start,w.readStart,w.readEnd,w.end]))]) {
+      if (edge === 0 || edge === 1) continue;
+      const a = courtyard.sampleCourtyard(route, edge-eps, aspect);
+      const b = courtyard.sampleCourtyard(route, edge, aspect);
+      const c = courtyard.sampleCourtyard(route, edge+eps, aspect);
+      for (const key of ['position','target','up']) {
+        const left = new T.Vector3(...b[key]).sub(new T.Vector3(...a[key])).divideScalar(eps * route.seconds);
+        const right = new T.Vector3(...c[key]).sub(new T.Vector3(...b[key])).divideScalar(eps * route.seconds);
+        assert.ok(left.distanceTo(right) < .02, `${key} derivative jumps at ${edge}`);
+      }
+      for (let i=0; i<route.stations.length; i++) {
+        const opacity = pose => pose.visibleStations.find(s=>s.stationIndex===i)?.opacity ?? 0;
+        assert.ok(Math.abs(opacity(a)-opacity(c)) < 2e-5);
+      }
+    }
+  }
+  const w = route.windows[1];
+  const a = courtyard.sampleCourtyard(route,w.readStart), b = courtyard.sampleCourtyard(route,w.readEnd);
+  assert.ok(new T.Vector3(...a.position).distanceTo(new T.Vector3(...b.position)) > 1);
+  const wanted = new T.Vector3(0,1,0).applyQuaternion(readingQuaternion);
+  assert.ok(new T.Vector3(...b.up).distanceTo(wanted) < 1e-7, 'read up fails to align fixed text');
+});
 
 const data = count => ({leaders: [{id: 'a', name: 'A'}, {id: 'b', name: 'B', intro: '简介'}], members: Array.from({length: count}, (_, i) => `member-${i}`)});
 

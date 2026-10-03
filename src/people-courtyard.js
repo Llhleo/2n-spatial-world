@@ -54,11 +54,11 @@ export function createPeopleRoute(data) {
         quaternion: [...quaternion], scale: [extent, extent, extent]};
     });
     stations.push({...subject, sourceStationId: subject.id, position, target: [...position], quaternion,
-      cameraPosition: world(x + Math.sin(angle) * 100, y, z + Math.cos(angle) * 100), up: [0, 1, 0], petalAnchors});
+      cameraPosition: world(x + Math.sin(angle) * 100, y, z + Math.cos(angle) * 100), up: new T.Vector3(0, 1, 0).applyQuaternion(readingQuaternion).toArray(), petalAnchors});
   });
   const last = stations.at(-1);
   stations.push({id: 'ending', sourceStationId: 'ending', kind: 'ending', memberIndices: [], position: [...last.position], target: [...last.target],
-    cameraPosition: world(people.members.length ? 32 : 0, 32, -120 - Math.max(0, subjects.length - 1) * 65 + 175), up: [0, 1, 0], petalAnchors: [], readSeconds: 3});
+    cameraPosition: world(people.members.length ? 32 : 0, 32, -120 - Math.max(0, subjects.length - 1) * 65 + 175), up: [...last.up], petalAnchors: [], readSeconds: 3});
   return {stations, memberGroups, ...windowsFor(stations), people};
 }
 
@@ -70,9 +70,11 @@ function sampleTrack(knots, seconds, key) {
   const u2 = u * u, u3 = u2 * u;
   const derivative = index => {
     if (!index || index === knots.length - 1) return [0, 0, 0];
-    const before = knots[index - 1], after = knots[index + 1];
-    // Reading motion is intentionally low-speed, including at transfer boundaries.
-    return after[key].map((v, axis) => (v - before[key][axis]) / (after.time - before.time) * .12);
+    // Each pair bounds one reading interval. Share its slow drift derivative
+    // with the neighboring transfer, rather than letting transfer distances
+    // pull the target away from the fixed readable subject during the hold.
+    const first = knots[index - index % 2], last = knots[index - index % 2 + 1];
+    return last[key].map((v, axis) => (v - first[key][axis]) / (last.time - first.time));
   };
   const da = derivative(i), db = derivative(i + 1);
   return a[key].map((v, axis) => (2 * u3 - 3 * u2 + 1) * v + (u3 - 2 * u2 + u) * h * da[axis] + (-2 * u3 + 3 * u2) * b[key][axis] + (u3 - u2) * h * db[axis]);
