@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "node scripts/bake-petal-placement.mjs && vite build",
+    "build": "node scripts/bake-petal-placement.mjs && node scripts/build-model-transport.mjs && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

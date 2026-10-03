@@ -1,5 +1,6 @@
 import {oceanPose} from './ocean-production.js';
 import {createAutoplay} from './autoplay.js';
+import {createMapFlowers} from './map-flowers.js';
 import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
 import {lookbackPose,RETURN_START,RETURN_UNITS,STORY_UNITS} from './lookback.js';
@@ -35,13 +36,15 @@ if (renderer) {
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
   const world=createBiomes(scene,matchMedia('(max-width: 700px)').matches);
   const companionship=createCompanionship(scene);scene.add(companionship.group);
+  const flowers=createMapFlowers();scene.add(flowers.group);
   world.onAssetPrepared=(mesh,kind,name)=>{if(mesh.material.map)renderer.initTexture(mesh.material.map);companionship.install(mesh,kind,name);};
   let gpuReady=false,gpuError='',warming=false,preparingAll=false;
   async function prepareEverything(){
     if(preparingAll)return;
     preparingAll=true;gpuReady=false;gpuError='';
     try{
-    await Promise.all([prepareBiomePetals(world),companionship.prepare(mesh=>{if(mesh.material.map)renderer.initTexture(mesh.material.map);})]);
+    const initMaps=mesh=>{for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])for(const value of Object.values(material))if(value?.isTexture)renderer.initTexture(value);};
+    await Promise.all([prepareBiomePetals(world),companionship.prepare(initMaps),flowers.prepare(initMaps)]);
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     while(world.groundStatus!=='ready')await new Promise(resolve=>setTimeout(resolve,16));
     companionship.capture();
@@ -57,7 +60,7 @@ if (renderer) {
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   const arrival = document.querySelector('#arrival');
   const loading=document.querySelector('#loading-status'),retry=document.querySelector('#retry-models');
-  const autoplayButton=document.querySelector('#autoplay'),player=createAutoplay(180);
+  const autoplayButton=document.querySelector('#autoplay'),player=createAutoplay();
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
   retry.addEventListener('click',()=>prepareEverything());
@@ -99,7 +102,7 @@ if (renderer) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
     const view=viewport();
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
-    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready,reduced:reduced.matches});introLocked=introState.locked;
+    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked;
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
@@ -121,6 +124,8 @@ if (renderer) {
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
     companionship.update(returnProgress,reduced.matches?0:dt);
+    flowers.group.visible=heroProgress>=.98;
+    flowers.update(camera,reduced.matches?0:dt);
     const readingPixelRatio=Math.min(devicePixelRatio,returnProgress>.95?2:1.5);
     if(renderer.getPixelRatio()!==readingPixelRatio)renderer.setPixelRatio(readingPixelRatio);
     if(returnProgress>0&&scene.fog){const blend=THREE.MathUtils.smoothstep(returnProgress,0,.12);scene.fog.density=THREE.MathUtils.lerp(scene.fog.density,.0015,blend);}
@@ -144,7 +149,7 @@ if (renderer) {
     autoplayButton.textContent=player.playing?'暂停播放':'自动播放';
     if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
-    const loadingText=failed?'部分资源未能准备好，请重试':warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14`;
+    const loadingText=failed?'部分资源未能准备好，请重试':warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14 · 花朵 ${flowers.prepared}/7`;
     if(loadingText!==lastLoadingText){loading.querySelector('span').textContent=loadingText;lastLoadingText=loadingText;}
     retry.hidden=!failed;retry.disabled=warming;
     renderer.render(scene, camera);

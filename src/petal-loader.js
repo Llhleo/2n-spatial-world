@@ -1,6 +1,7 @@
 // Shared bounded queue: avoid duplicate Golden Leaf downloads and unbounded
 // GLB/image decoding on Safari. Failed entries may be retried explicitly.
-const cache=new Map();
+import {fetchAssetBytes} from './asset-transport.js';
+const cache=new Map(),sceneCache=new Map();
 const later=()=>new Promise(resolve=>setTimeout(resolve,0));
 function scheduler(limit){
  const queue=[];let active=0;
@@ -13,19 +14,25 @@ export function createPetalPipeline(networkLimit=6,decodeLimit=2){
  return async(fetchBytes,parse,priority=0)=>{const bytes=await download(fetchBytes,priority);return decode(()=>parse(bytes),priority);};
 }
 const pipeline=createPetalPipeline();
+const displayDownload=scheduler(2),decodeModel=scheduler(2);
 export async function fetchPetalBytes(url,fetcher=fetch,timeout=15000){
  const controller=new AbortController();let timer;
  try{return await Promise.race([(async()=>{const response=await fetcher(url,{signal:controller.signal});if(!response.ok)throw new Error(`Petal request returned ${response.status}`);const type=response.headers.get('content-type')||'';if(type.includes('text/html'))throw new Error('Petal request returned a login page');const bytes=await response.arrayBuffer();if(new DataView(bytes).getUint32(0,true)!==0x46546c67)throw new Error('Invalid GLB response');return bytes;})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Petal download timed out'));},timeout);})]);}finally{clearTimeout(timer);}
 }
 export function loadPetal(url,priority=0){
  if(cache.has(url))return cache.get(url);
- const promise=pipeline(async()=>{
-  for(let attempt=0;attempt<2;attempt++){try{return await fetchPetalBytes(url);}catch(error){if(attempt===1)throw error;await later();}}
- },async bytes=>{
-  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
-  await later();let timer;
-  try{const gltf=await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Petal decoding timed out')),15000);})]);const mesh=gltf.scene.getObjectByProperty('isMesh',true);if(!mesh)throw new Error('GLB contains no mesh');return mesh;}finally{clearTimeout(timer);}
- },priority);cache.set(url,promise);promise.catch(()=>cache.delete(url));return promise;
+ const promise=loadModelScene(url,priority).then(scene=>{const mesh=scene.getObjectByProperty('isMesh',true);if(!mesh)throw new Error('GLB contains no mesh');return mesh;});cache.set(url,promise);promise.catch(()=>cache.delete(url));return promise;
+}
+export function loadModelScene(url,priority=0){
+ if(sceneCache.has(url))return sceneCache.get(url);
+ const near=url.includes('companion-display')||url.includes('map-flowers');
+ const parse=async bytes=>decodeModel(async()=>{
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');await later();let timer;
+  try{return (await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Model decoding timed out')),30000);})])).scene;}finally{clearTimeout(timer);}
+ },priority);
+ const fetchBytes=async()=>{for(let attempt=0;attempt<2;attempt++){try{return near?await fetchAssetBytes(url):await fetchPetalBytes(url);}catch(error){if(attempt===1)throw error;await later();}}};
+ const promise=near?displayDownload(fetchBytes,priority).then(parse):pipeline(fetchBytes,parse,priority);
+ sceneCache.set(url,promise);promise.catch(()=>sceneCache.delete(url));return promise;
 }
 export async function loadPetalCatalog(entries,onAsset){
  const catalog={},failures=[];
