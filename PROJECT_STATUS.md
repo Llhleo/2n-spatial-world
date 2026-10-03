@@ -1,5 +1,13 @@
 # 2n Spatial World：项目进展与未来目标
 
+## 最新指令与检查点（2026-10-03，上海时间）
+
+- 花朵与无损加载版已保存并部署原 Sites，详细结果见 docs/2026-10-03-flowers-lossless-handoff.md。
+- 用户明确要求先将这版发布 GitHub Pages：已建立 release/pages-flowers-2026-10-03 分支，冻结源码 496fbddb997930027b97120789b0e7934451515f，发布流程 commit 14800e49f05e23fb4397b9216481d4ee17615475，Actions run 37117517763。需要确认终态，不能仅凭触发说已经上线。
+- main 与旧 Llhleo/2n 未改动。此前“不动 Pages”限制对这次用户明确指定的花朵版发布解除，不自动授权后续人物覆盖此 Pages 快照。
+- 人物廊设计已审阅确认，实现计划见 docs/superpowers/plans/2026-10-03-people-gallery.md，等待计划审阅及执行方式选择；人物代码尚未实现。
+- 人物文案将集中到 content/people.json，编辑说明放 content/README.md，镜头与文字内容分离。
+
 更新时间：2026-10-03（北京时间）。本文件区分「已保存」「已部署」「已视觉验收」，不以测试或部署成功代替视觉通过。
 
 ## 2026-10-03 连续回望与螺旋汇聚（最新）
