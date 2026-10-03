@@ -33,8 +33,8 @@ Task3 的实际字体 parser/typesetter 几何测量已覆盖完整三层 block�
 
 ## 发布界线与待办
 
-当前原 Sites 仍 **v41 花朵/无损传输版**：https://twon-dark-spatial-world.llhleo.chatgpt.site ，在线源码 `f85a06dafab7bad1d2a4c4ac756f9175da06a286`。本地人物接入基线 `cbcc6b7`，最终本地提交见本轮 controller/实施报告。代码 checkpoint 不等于 GitHub 同步或 Sites 上线。
+人物版已发布到原有 owner-private Sites：地址 https://twon-dark-spatial-world.llhleo.chatgpt.site；Sites 源码提交 `537be1fc60418af393cf9511549b91e5dd77fe8a`，部署 `appgdep_6ac0f318e49881919a9cb170b9660bb4`，版本 `appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_8135a9953c1c8191be0bc29a85ecaa91`，状态 succeeded。GitHub `experiment/lookback-v2` 同步 checkpoint 为 `8c4814faa0ec9f28ae8b2fa3b61d4cdbeab4cf89`；本地实施 checkpoint 为 `e7fb96b441724352b45623287fa589274cb8c10e`。
 
 花朵 Pages 已成功上线：https://llhleo.github.io/2n-spatial-world/ ，冻结源码 `496fbddb997930027b97120789b0e7934451515f`，workflow commit `14800e49f05e23fb4397b9216481d4ee17615475`，run `37117517763`。旧环境规则阻塞仅是历史；人物版不覆盖冻结 Pages。不改 main、旧 Llhleo/2n 或 release 分支。
 
-仍待 controller：独立代码审阅、同步 `experiment/lookback-v2`、按原 Sites 流程发布并核验 succeeded、补记人物 code SHA/部署地址/在线版本。此实施轮没有执行外部写入。iPhone 13 Pro Max / Safari 真实文字清晰度、前后滚动、横竖切换、首访/复访加载、帧率/内存尚未实机验收。完整成员浏览/交互以及后续周年/影像/结尾均未实现。
+已完成：本地全套测试/构建、GitHub `experiment/lookback-v2` 同步、原 Sites 私有部署及 succeeded 核验；没有修改 main、旧 Llhleo/2n 或冻结 Pages。仍未完成：iPhone 13 Pro Max / Safari 真实文字清晰度、前后滚动、横竖切换、首访/复访加载、帧率/内存实机验收；完整成员浏览/交互以及后续周年/影像/结尾也未实现。
