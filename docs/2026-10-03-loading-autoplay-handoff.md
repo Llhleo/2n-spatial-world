@@ -25,6 +25,14 @@
 
 ## 发布与下一目标
 
-此交接与代码一起保存到 GitHub 独立分支；随后同步原 Sites、保存版本并发布。发布结果在最终交接消息记录；本文件不预先声称发布成功。
+已保存到 GitHub 独立分支并发布原 Sites v40，原 owner-private 访问范围保持不变。
+
+- GitHub 代码提交：`5ea91f0f57da99fabc045ed0283494bb1501b617`。
+- Sites 源码提交：`cc0f6924e5822e02a33ef981085d50f76dcad803`；与 GitHub 代码提交的完整文件树相同：`c6de1cd8de750ada72a0ba84efb845082da7188c`。
+- 部署地址：https://twon-dark-spatial-world.llhleo.chatgpt.site
+- Sites 原生部署状态：`succeeded`，v40。发布档案完整性校验通过，未使用降质替代或删除资源。
+- 最终验证：121 项测试全部通过；生产构建成功；本地工作区在代码 checkpoint 后干净。
+- main 保持 `0b5d6921bb7f794a5c10ff7150b6cb1618825c5d`。GitHub Pages 未修改。
+- 本发布结果记录是后续 docs-only checkpoint，不改变 v40 已部署的代码。
 
 下一步先在 iPhone 确认加载阶段 11–23、半透明按钮、手动暂停与回望汇聚旋转。确认后进入人物部分，沿用 `docs/superpowers/specs/2026-10-03-people-gallery-design.md`：花瓣让开通道、相机进入管理者曲面长廊、逐一突出名字与职务、接到成员群入口。未实现人物；真实姓名与职务必须从原项目内容再次核对，不编造名单或成就。
