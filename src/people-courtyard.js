@@ -39,7 +39,9 @@ export function createPeopleRoute(data) {
     ...memberGroups.map(group => ({...group, kind: 'member', readSeconds: 5})),
   ];
   subjects.forEach((subject, index) => {
-    const x = 32 * Math.sin(index * .38) + index * 5;
+    // Lateral travel separates complete old/new name rectangles during transfer,
+    // rather than depth-only crossfading two subjects through the same center.
+    const x = 32 * Math.sin(index * .38) + index * 50;
     const y = 8 * Math.sin(index * .21);
     const z = -120 - index * 65;
     const position = world(x, y, z);
@@ -58,8 +60,39 @@ export function createPeopleRoute(data) {
   });
   const last = stations.at(-1);
   stations.push({id: 'ending', sourceStationId: 'ending', kind: 'ending', memberIndices: [], position: [...last.position], target: [...last.target],
-    cameraPosition: world(people.members.length ? 32 : 0, 32, -120 - Math.max(0, subjects.length - 1) * 65 + 175), up: [...last.up], petalAnchors: [], readSeconds: 3});
+    cameraPosition: mix(last.target,last.cameraPosition,1.08), up: [...last.up], petalAnchors: [], readSeconds: 3});
   return {stations, memberGroups, ...windowsFor(stations), people};
+}
+
+/** The sole responsive window authority. Metrics are post-sync unit ink bounds. */
+export function resizeCourtyard(route, {width, height, glyphMetrics}) {
+  if (![width,height].every(v=>Number.isFinite(v)&&v>0)) throw new RangeError('viewport must be positive');
+  const sourceStations=route.sourceStations || route.stations;
+  const stations=[];let extra=0;
+  for(const source of sourceStations) {
+    const indices=source.memberIndices;
+    let columns=1, capacity=7, rowPixels=40;
+    if(source.kind==='member') {
+      const widest=Math.max(...indices.map(i=>{
+        const m=glyphMetrics?.members?.[i];
+        return m ? (m.maxX-m.minX)/Math.max(...m.glyphs.map(g=>g[3]-g[1]))*22 : Infinity;
+      }));
+      columns=widest*2+24<=width*.76 ? 2 : 1;
+      rowPixels=Math.max(40,Math.ceil(widest/(width*.74))*31+12);
+      capacity=Math.max(1,Math.min(7,Math.floor(height*.4/rowPixels)*columns));
+    }
+    const chunks=source.kind==='member' ? Array.from({length:Math.ceil(indices.length/capacity)},(_,i)=>indices.slice(i*capacity,(i+1)*capacity)) : [indices];
+    chunks.forEach((memberIndices,part)=>{
+      const offset=new T.Vector3(50*(extra+part),0,-35*(extra+part)).applyQuaternion(readingQuaternion).toArray();
+      const translated=key=>source[key].map((v,i)=>v+offset[i]);
+      const id=source.kind==='leader'?`leader:${route.people.leaders[source.leaderIndex].id}`:source.kind==='member'?`member:${source.sourceStationId}:${part}`:`courtyard:${source.kind}`;
+      stations.push({...source,id,personId:source.kind==='leader'?route.people.leaders[source.leaderIndex].id:undefined,
+        memberIndices:[...memberIndices],part,columns,rowPixels,position:translated('position'),target:translated('target'),cameraPosition:translated('cameraPosition'),
+        petalAnchors:source.petalAnchors.map(p=>({...p,id:`${id}:${p.id}`,position:p.position.map((v,i)=>v+offset[i])}))});
+    });
+    extra+=chunks.length-1;
+  }
+  return {...route,sourceStations,stations,...windowsFor(stations),viewport:{width,height}};
 }
 
 /** Hermite interpolation with shared derivatives makes random seeks C1 continuous. */
@@ -105,7 +138,8 @@ export function sampleCourtyard(route, t, aspect = 414 / 896) {
     const w = route.windows[index];
     const fadeStart = index ? route.windows[index - 1].readEnd : 0;
     const fadeEnd = index < route.windows.length - 1 ? route.windows[index + 1].readStart : 1;
-    const opacity = t < w.readStart ? ease((t - fadeStart) / Math.max(w.readStart - fadeStart, 1e-9)) : t > w.readEnd ? 1 - ease((t - w.readEnd) / Math.max(fadeEnd - w.readEnd, 1e-9)) : 1;
+    const keepLast = route.stations[index].kind === 'member' && route.stations[index + 1]?.kind === 'ending';
+    const opacity = t < w.readStart ? ease((t - fadeStart) / Math.max(w.readStart - fadeStart, 1e-9)) : t > w.readEnd && !keepLast ? 1 - ease((t - w.readEnd) / Math.max(fadeEnd - w.readEnd, 1e-9)) : 1;
     visibleStations.push({stationIndex: index, opacity, reading: t >= w.readStart && t <= w.readEnd});
   }
   const petals = route.stations.flatMap(s => s.petalAnchors.map(p => ({...p, position: [...p.position], quaternion: [...p.quaternion], scale: [...p.scale]})));

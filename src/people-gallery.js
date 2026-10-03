@@ -4,9 +4,11 @@ import {normalizePeople} from './people-data.js';
 import {peopleAnchor, peopleState, peopleTextLayout} from './people-path.js';
 import {readingPoint, readingQuaternion} from './lookback.js';
 import {prepareWorldText} from './companionship.js';
+import {createCourtyardGallery} from './people-layout.js';
 
 /** Independent appended chapter; its lifecycle never changes biome readiness. */
-export function createPeopleGallery(data) {
+export function createPeopleGallery(data, route) {
+ if(route)return createCourtyardGallery(data,route);
  const people=normalizePeople(data);
  if(people.errors.length)throw new Error(people.errors.join('\n'));
  if(people.leaders.length>5)throw new Error('第一轮最多展示五位管理层。');

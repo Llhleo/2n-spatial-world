@@ -5,14 +5,176 @@ import {inflateSync} from 'node:zlib';
 import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {createCompanionship} from '../src/companionship.js';
-import {peoplePose, peopleAnchor} from '../src/people-path.js';
+import {peoplePose, peopleAnchor, projectTextBounds} from '../src/people-path.js';
 import {FLOWER_SPECS} from '../src/lookback.js';
+import * as courtyard from '../src/people-courtyard.js';
 
 const api = await import('../src/people-gallery.js').catch(() => ({}));
 const data = JSON.parse(readFileSync(new URL('../content/people.json', import.meta.url)));
 const camera = aspect => new T.PerspectiveCamera(48, aspect ?? 414 / 896, .2, 2400);
 const texts = root => {const result=[];root.traverse(o=>{if(o instanceof Text)result.push(o);});return result;};
 const requireGallery = () => assert.equal(typeof api.createPeopleGallery, 'function', 'world people gallery is missing');
+
+// Replacing only the external font worker: actual Text transforms, geometry
+// publication events, materials, projection and shared sampler remain real.
+async function withInk(run, defer=()=>false) {
+ const original=Text.prototype.sync;
+ const jobs=[];
+ Text.prototype.sync=function(){
+  const content=this.text;
+  const finish=()=>{
+  const glyphs=[];let x=0,y=0;
+  for(const ch of content){if(ch==='\n'){x=0;y-=1.4;continue;}if(this.overflowWrap==='break-word'&&x+.55>this.maxWidth){x=0;y-=1.4;}glyphs.push(x,y,x+.55,y+1);x+=.6;}
+  this._textRenderInfo={glyphBounds:new Float32Array(glyphs),blockBounds:[0,0,x,1]};
+  this.dispatchEvent({type:'synccomplete'});
+  };
+  if(defer(this))jobs.push({text:this,content,finish});else finish();
+ };
+ try{await run(jobs);}finally{Text.prototype.sync=original;}
+}
+
+// Catches presentation stealing a pending measurement slot. Different ink widths
+// distinguish a crash from silently recording the replacement name's geometry.
+for(const replacement of ['deferred','immediate'])test(`member measurement owns its slot during update with ${replacement} replacement sync`,async()=>{
+ let presentation=false,measurementHeld=false;
+ await withInk(async jobs=>{
+  const fixture={leaders:[],members:['a','BBBBBB','cc','dddd']};
+  const gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));
+  try {
+   const result=gallery.prepare(100).then(()=>null,reason=>reason);
+   for(let i=0;i<30&&!jobs.length;i++)await Promise.resolve();
+   const held=jobs.find(job=>job.content==='BBBBBB');assert.ok(held,'second member measurement did not start');
+   presentation=true;
+   const w=gallery.route.windows[1],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);
+   gallery.update(t,cam);gallery.update(t,cam);
+   held.finish();
+   assert.equal(await result,null,'animation update corrupted metric preparation');
+   assert.ok(Math.abs(gallery.glyphMetrics.members[1].maxX-3.55)<1e-6,'second member received replacement ink bounds');
+   assert.equal(gallery.ready,true);assert.equal(gallery.error,null);
+   gallery.update(t,cam);jobs.filter(job=>job!==held).forEach(job=>job.finish());await Promise.resolve();gallery.update(t,cam);
+   const visible=texts(gallery.group).filter(text=>text.visible&&text.userData.memberIndex!==undefined);
+   assert.deepEqual(visible.map(text=>text.text),['a','BBBBBB','cc','dddd']);
+  } finally {gallery.dispose();}
+ },text=>{
+  if(text.text==='BBBBBB'&&!measurementHeld){measurementHeld=true;return true;}
+  return presentation&&replacement==='deferred'&&text.text==='a';
+ });
+});
+
+// Catches timeout releasing measurement ownership while original work is alive.
+test('member measurement remains owned through timeout retry and late completion',async()=>{
+ let heldOnce=false;
+ await withInk(async jobs=>{
+  const fixture={leaders:[],members:['a','BBBBBB']},gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));
+  try {
+   await assert.rejects(gallery.prepare(5),/超时/);
+   const held=jobs.find(job=>job.content==='BBBBBB');assert.ok(held);
+   const w=gallery.route.windows[1],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
+   const retry=gallery.retry(100);held.finish();await retry;
+   assert.ok(Math.abs(gallery.glyphMetrics.members[1].maxX-3.55)<1e-6);assert.equal(gallery.ready,true);assert.equal(gallery.error,null);
+  } finally {gallery.dispose();}
+ },text=>{if(text.text==='BBBBBB'&&!heldOnce){heldOnce=true;return true;}return false;});
+});
+
+// Catches metric writes from the original worker completion after owned disposal.
+test('disposed measurement ignores completion after interleaved update',async()=>withInk(async jobs=>{
+ const fixture={leaders:[],members:['a','BBBBBB']},gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));
+ const preparation=gallery.prepare(100);
+ for(let i=0;i<30&&!jobs.length;i++)await Promise.resolve();
+ const held=jobs.find(job=>job.content==='BBBBBB');assert.ok(held);
+ const w=gallery.route.windows[1],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
+ gallery.dispose();held.finish();await preparation;
+ assert.equal(gallery.glyphMetrics.members[1],undefined);assert.equal(gallery.ready,false);assert.equal(gallery.group.children.length,0);
+},text=>text.text==='BBBBBB'));
+
+// Catches partial group publication and stale geometry exposed after reverse seek.
+test('delayed member sync publishes complete revision only and disposal ignores completion',async()=>{
+ let delayed=false;
+ await withInk(async jobs=>{
+  const fixture={leaders:[],members:Array.from({length:28},(_,i)=>`name${i}`)},gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));await gallery.prepare(50);
+  delayed=true;
+  const show=index=>{const w=gallery.route.windows[index],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);};
+  show(1);show(4);show(1);
+  jobs.filter(j=>j.content!=='name3').forEach(j=>j.finish());await Promise.resolve();show(1);
+  assert.equal(texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7).length,0,'partial current group became readable');
+  for(let round=0;round<4;round++){jobs.splice(0).forEach(j=>j.finish());await Promise.resolve();}
+  show(1);await Promise.resolve();show(1);
+  const visible=texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7);
+  assert.deepEqual(visible.map(t=>t.text).sort(),['name0','name1','name2','name3','name4','name5','name6']);
+  show(4);gallery.dispose();jobs.forEach(j=>j.finish());await Promise.resolve();assert.equal(gallery.group.children.length,0);assert.equal(gallery.ready,false);
+ },text=>delayed&&text.userData.memberSlot!==undefined);
+});
+
+// Catches route being ignored, rank-three visibility, fog fading and identity opacity jumps.
+test('courtyard pool covers all members and holds readable spatial handoffs',async()=>withInk(async()=>{
+ const route=courtyard.createPeopleRoute(data),gallery=api.createPeopleGallery(data,route);
+ await gallery.prepare(50);gallery.resize(414/896,896);
+ assert.equal(texts(gallery.group).filter(t=>t.userData.memberSlot!==undefined).length,21);
+ const seen=[];
+ for(const w of gallery.route.windows){
+  const station=gallery.route.stations[w.stationIndex],t=(w.readStart+w.readEnd)/2,cam=camera();
+  peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);await Promise.resolve();gallery.update(t,cam);
+  if(station.kind==='member'){
+   const visible=texts(gallery.group).filter(o=>o.visible&&o.userData.memberIndex!==undefined);
+   assert.deepEqual(visible.map(o=>o.userData.memberIndex).sort((a,b)=>a-b),station.memberIndices);
+   seen.push(...station.memberIndices);
+   visible.forEach(o=>{assert.equal(o.material.opacity,1);assert.equal(o.material.fog,false);assert.ok(o.userData.projection.fits);assert.ok(o.userData.projection.fontPixels>=20);});
+  }
+ }
+ assert.deepEqual(seen,Array.from({length:95},(_,i)=>i));
+ for(const [width,height] of [[414,896],[390,844],[320,568],[896,414]]){
+  gallery.resize(width/height,height);
+  for(const w of gallery.route.windows){const s=gallery.route.stations[w.stationIndex];if(!['leader','member'].includes(s.kind))continue;
+   for(const t of [w.readStart,(w.readStart+w.readEnd)/2,w.readEnd]){
+    const cam=camera(width/height);peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);await Promise.resolve();gallery.update(t,cam);
+    for(const text of texts(gallery.group).filter(o=>o.visible&&(s.kind==='leader'?o.userData.personId===s.personId:s.memberIndices.includes(o.userData.memberIndex)))){
+     text.updateMatrixWorld(true);const p=projectTextBounds(cam,text.matrixWorld,text.userData.bounds,{width,height});
+     assert.ok(p.fits,`${width} ${s.id} ${text.text}: ${JSON.stringify(p.rect)}`);
+     assert.ok(p.fontPixels>=(text.userData.memberIndex!==undefined?20:text.userData.tier==='name'?(width>=390?44:36):text.userData.tier==='role'?22:width>=390?18:16),`${width} ${s.id} ${text.userData.tier} ${p.fontPixels}`);
+    }
+   }
+  }
+ }
+ gallery.resize(414/896,896);
+ {const cam=camera();peoplePose(1,cam,cam.aspect,gallery.route);gallery.update(1,cam);await Promise.resolve();gallery.update(1,cam);const endingNames=texts(gallery.group).filter(o=>o.visible&&o.userData.memberIndex!==undefined);assert.equal(endingNames.length,4,'ending loses last readable group');for(const o of endingNames){o.updateMatrixWorld(true);assert.ok(projectTextBounds(cam,o.matrixWorld,o.userData.bounds,{width:414,height:896}).fontPixels>=20);}}
+ for(let i=1;i<5;i++){const a=gallery.route.windows[i],b=gallery.route.windows[i+1];for(const fraction of [.02,.05,.1,.25,.5,.75,.9,.95,.98]){
+  const t=a.readEnd+(b.readStart-a.readEnd)*fraction,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
+  const rects=texts(gallery.group).filter(o=>o.visible&&o.userData.personId&&o.userData.tier==='name').map(o=>{o.updateMatrixWorld(true);return projectTextBounds(cam,o.matrixWorld,o.userData.bounds,{width:414,height:896}).rect;});
+  if(rects.length===2){const [r,s]=rects;const overlap=Math.min(r.x+r.width,s.x+s.width)-Math.max(r.x,s.x);assert.ok(overlap<=0||r.x+r.width<49.68||s.x>364.32,'duplicate central leader names during spatial transfer');}
+  assert.ok(rects.some(r=>r.x<414&&r.x+r.width>0&&r.y<896&&r.y+r.height>0),'spatial handoff hides every subject outside canvas');
+  for(const card of gallery.group.getObjectByName('people-leaders').children){const visible=card.children.filter(o=>o.visible);if(visible.length&&visible.every(o=>{o.updateMatrixWorld(true);return projectTextBounds(cam,o.matrixWorld,o.userData.bounds,{width:414,height:896}).fits;}))visible.forEach(o=>assert.equal(o.material.opacity,1,'readable block faded before spatial exit'));}
+  assert.ok(texts(gallery.group).some(o=>o.visible&&o.material.opacity>0),'prepared transfer blacks out all subjects');
+ }}
+ for(const w of gallery.route.windows.slice(1,6))for(const edge of [w.start,w.end]){
+  const snapshots=[];
+  for(const t of [edge-1e-5,edge+1e-5]){const cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);snapshots.push(texts(gallery.group).filter(o=>o.userData.personId).map(o=>o.material.opacity));}
+  snapshots[0].forEach((value,i)=>assert.ok(Math.abs(value-snapshots[1][i])<.02));
+ }
+ gallery.dispose();
+}));
+
+// Catches one failed font request serially preventing unrelated leader preparation.
+test('courtyard font timeout retains independently ready leaders and adopts late sync',async()=>withInk(async jobs=>{
+ const fixture={leaders:[{id:'a',name:'Blocked'},{id:'b',name:'Ready'}],members:[]};
+ const gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));await assert.rejects(gallery.prepare(5),/超时/);
+ const w=gallery.route.windows[2],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
+ assert.ok(texts(gallery.group).find(t=>t.text==='Ready').visible,'failed font hides independently prepared leader');
+ const retry=gallery.retry(50);jobs.forEach(j=>j.finish());await retry;assert.equal(gallery.ready,true);assert.equal(gallery.error,null);gallery.dispose();
+},text=>text.text==='Blocked'));
+
+// Catches a private gallery window list, lossy split order and colliding person IDs.
+test('narrow courtyard splits source groups through shared route authority',async()=>withInk(async()=>{
+ assert.equal(typeof courtyard.resizeCourtyard,'function');
+ const fixture={leaders:[{id:'entry',name:'Leader',role:'管理'}],members:['INeedMoreLuck','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij',...Array.from({length:5},(_,i)=>'longMember'+i)]};
+ const gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));await gallery.prepare(50);
+ const narrow=gallery.resize(320/568,568);
+ const parts=narrow.stations.filter(s=>s.kind==='member');assert.ok(parts.length>1);
+ assert.deepEqual(parts.flatMap(s=>s.memberIndices),[0,1,2,3,4,5,6]);
+ assert.equal(new Set(narrow.stations.map(s=>s.id)).size,narrow.stations.length);
+ for(const w of narrow.windows){const s=narrow.stations[w.stationIndex];if(s.kind!=='member')continue;const t=(w.readStart+w.readEnd)/2,cam=camera(320/568);peoplePose(t,cam,cam.aspect,narrow);gallery.update(t,cam);await Promise.resolve();gallery.update(t,cam);for(const text of texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex!==undefined)){assert.ok(text.userData.projection.fits);assert.ok(text.userData.projection.fontPixels>=20);}}
+ const wide=gallery.resize(896/414,414);assert.deepEqual(wide.stations.filter(s=>s.kind==='member').flatMap(s=>s.memberIndices),[0,1,2,3,4,5,6]);
+ assert.equal(gallery.route,wide);assert.ok(gallery.glyphMetrics.members[0].glyphs.length>0);gallery.dispose();
+}));
 
 function companion() {
  const scene=new T.Scene(), sources=[];
