@@ -3,7 +3,7 @@
 ## 最新指令与检查点（2026-10-03，上海时间）
 
 - 花朵与无损加载版已保存并部署原 Sites，详细结果见 docs/2026-10-03-flowers-lossless-handoff.md。
-- 用户明确要求先将这版发布 GitHub Pages：已建立 release/pages-flowers-2026-10-03 分支，冻结源码 496fbddb997930027b97120789b0e7934451515f，发布流程 commit 14800e49f05e23fb4397b9216481d4ee17615475，Actions run 37117517763。需要确认终态，不能仅凭触发说已经上线。
+- 用户明确要求先将这版发布 GitHub Pages：已建立 release/pages-flowers-2026-10-03 分支，冻结源码 496fbddb997930027b97120789b0e7934451515f，发布流程 commit 14800e49f05e23fb4397b9216481d4ee17615475，Actions run 37117517763。构建成功，部署失败：该分支不在 github-pages 环境允许列表。未上线，未绕过保护规则；需要用户授权将这一分支加入允许列表，或指定另一个明确允许的发布方式。插件不提供环境规则编辑操作，浏览器设置操作需先取得用户同意。
 - main 与旧 Llhleo/2n 未改动。此前“不动 Pages”限制对这次用户明确指定的花朵版发布解除，不自动授权后续人物覆盖此 Pages 快照。
 - 人物廊设计已审阅确认，实现计划见 docs/superpowers/plans/2026-10-03-people-gallery.md，等待计划审阅及执行方式选择；人物代码尚未实现。
 - 人物文案将集中到 content/people.json，编辑说明放 content/README.md，镜头与文字内容分离。
