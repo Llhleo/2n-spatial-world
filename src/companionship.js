@@ -70,8 +70,8 @@ export function createCompanionship(scene){
  function update(t,dt=0){
   const step=Math.min(.05,Math.max(0,dt));
   if(t<=0)flightTime=0;else flightTime+=step;
-  if(t<.97)orbitAngle=0;
-  const orbitStep=Math.min(.05,Math.max(0,dt))*.10*T.MathUtils.smoothstep(t,.97,.99);
+  if(t<.74)orbitAngle=0;
+  const orbitStep=step*.10*T.MathUtils.smoothstep(t,.74,.80);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
   if(t===previous&&!orbitStep&&!(step&&t>0&&t<.76))return;previous=t;
   for(const batch of batches.values()){

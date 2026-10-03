@@ -10,14 +10,14 @@ const shots=[
  {t:.045,p:[1510,35,68],target:[1535,-35,5]},
  {t:.10,p:[1485,80,108],target:[1470,-35,10]},
  {t:.15,p:[1370,138,110],target:[1400,-35,0]},
- {t:.26,p:[990,125,112],target:[1000,-35,10]},
- {t:.30,p:[970,125,112],target:[1000,-35,10]},
- {t:.40,p:[650,112,108],target:[650,-41,10]},
- {t:.44,p:[630,112,108],target:[650,-41,10]},
- {t:.54,p:[365,94,94],target:[366,-35,10]},
- {t:.58,p:[345,94,94],target:[366,-35,10]},
- {t:.66,p:[165,94,94],target:[166,-35,10]},
- {t:.70,p:[145,94,94],target:[166,-35,10]},
+ {t:.26,p:[1040,125,112],target:[1000,-35,10]},
+ {t:.30,p:[940,125,112],target:[1000,-35,10]},
+ {t:.40,p:[700,112,108],target:[650,-41,10]},
+ {t:.44,p:[600,112,108],target:[650,-41,10]},
+ {t:.54,p:[415,94,94],target:[366,-35,10]},
+ {t:.58,p:[315,94,94],target:[366,-35,10]},
+ {t:.66,p:[210,94,94],target:[166,-35,10]},
+ {t:.70,p:[130,110,120],target:[166,-35,10]},
  {t:.76,p:[245,142,165],target:[355,-35,15]},
  {t:.88,p:[305,138,140],target:[450,90,20]},
  {t:1,p:[305,138,140],target:[450,90,20]},
@@ -62,6 +62,7 @@ export function setReadingAspect(aspect){
  return scale;
 }
 const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3(),d=new T.Vector3();
+const readingInverse=readingQuaternion.clone().invert(),local=new T.Vector3();
 const ease=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
 function bezier(u,a,b,c,d,out){const v=1-u;return out.copy(a).multiplyScalar(v*v*v).addScaledVector(b,3*v*v*u).addScaledVector(c,3*v*u*u).addScaledVector(d,u*u*u);}
 export const flowerReveal=i=>FLOWER_SPECS[i][2];
@@ -70,7 +71,7 @@ export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start,orbit
  if(t<=phase)return out.copy(origin);
  a.copy(origin);a.x+=lane*13;a.y+=30+(i%3)*8;a.z-=18+(i%3)*18;
  const free=()=>{
-  const weight=T.MathUtils.smoothstep(t,phase,phase+.04)*(1-T.MathUtils.smoothstep(t,.70,.76));
+  const weight=T.MathUtils.smoothstep(t,phase,phase+.04)*(1-T.MathUtils.smoothstep(t,.70,Math.min(.76,f.gather)));
   const wind=flightTime*.9+(t-phase)*35+i*1.7;
   out.x+=Math.sin(wind*.73)*7*weight;
   out.y+=(Math.sin(wind)*12+Math.sin(wind*.43+i)*5)*weight;
@@ -80,19 +81,22 @@ export function flowerPose(i,t,out=new T.Vector3(),origin=flowers[i].start,orbit
  if(t<phase+.04){out.copy(origin).lerp(a,ease((t-phase)/.04));return free();}
  b.set(origin.x-60-(i%3)*20,100+(i%5)*12,-150-i*12);
  if(t<f.gather){out.copy(a).lerp(b,ease((t-phase-.04)/(f.gather-phase-.04)));return free();}
- // One arc directly to a distinct perimeter slot: no contraction, crossing
- // weave, angle wrap or camera-facing rotation during the return traversal.
+ // Rotate throughout gathering in an elliptical reading-space metric. This
+ // preserves the portrait opening while the radius contracts from gate to end.
+ const spiral=()=>{
+  const blend=T.MathUtils.smoothstep(t,f.gather,f.gather+.04);
+  const angle=-(1.2*ease((t-.74)/.22)+orbitAngle)*blend;
+  local.copy(out).sub(reading.position).applyQuaternion(readingInverse);
+  const ratio=.74*414/896*readingAspectScale/.64;
+  const x=local.x/ratio,y=local.y,cos=Math.cos(angle),sin=Math.sin(angle);
+  local.x=(x*cos-y*sin)*ratio;local.y=x*sin+y*cos;
+  return out.copy(local).applyQuaternion(readingQuaternion).add(reading.position);
+ };
  a.copy(b);c.copy(f.gate);c.y+=650+i*4;b.copy(a).lerp(f.gate,.5);b.y+=650+i*4;
  const gateTime=.84+i*.002;
- if(t<gateTime)return bezier(ease((t-f.gather)/(gateTime-f.gather)),a,b,c,f.gate,out);
- if(t<f.arrive)return out.copy(f.gate).lerp(f.end,ease((t-gateTime)/(f.arrive-gateTime)));
+ if(t<gateTime){bezier(ease((t-f.gather)/(gateTime-f.gather)),a,b,c,f.gate,out);return spiral();}
+ if(t<f.arrive){out.copy(f.gate).lerp(f.end,ease((t-gateTime)/(f.arrive-gateTime)));return spiral();}
  const drift=ease((t-f.arrive)/(1-f.arrive));
  out.copy(f.end).addScaledVector(d.set((i%2?1:-1)*.35,.5,-.3),drift);
- const orbitBlend=T.MathUtils.smoothstep(t,.97,.99);
- if(orbitBlend&&orbitAngle){
-  const angle=(i+.25)*Math.PI*2/14-orbitAngle,depth=f.depth,tan=Math.tan(Math.PI*24/180);
-  readingPoint(Math.cos(angle)*.74*depth*tan*414/896*readingAspectScale,Math.sin(angle)*.64*depth*tan,-depth,d);
-  out.lerp(d,orbitBlend);
- }
- return out;
+ return spiral();
 }
