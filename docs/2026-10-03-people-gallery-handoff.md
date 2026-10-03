@@ -33,7 +33,7 @@ Task3 的实际字体 parser/typesetter 几何测量已覆盖完整三层 block�
 
 ## 发布界线与待办
 
-人物版已发布到原有 owner-private Sites：地址 https://twon-dark-spatial-world.llhleo.chatgpt.site；Sites 源码提交 `537be1fc60418af393cf9511549b91e5dd77fe8a`，部署 `appgdep_6ac0f318e49881919a9cb170b9660bb4`，版本 `appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_8135a9953c1c8191be0bc29a85ecaa91`，状态 succeeded。GitHub `experiment/lookback-v2` 同步 checkpoint 为 `8c4814faa0ec9f28ae8b2fa3b61d4cdbeab4cf89`；本地实施 checkpoint 为 `e7fb96b441724352b45623287fa589274cb8c10e`。
+人物版已发布到原有 owner-private Sites（当前 v42）：地址 https://twon-dark-spatial-world.llhleo.chatgpt.site；Sites 源码提交 `537be1fc60418af393cf9511549b91e5dd77fe8a`，部署 `appgdep_6ac0f318e49881919a9cb170b9660bb4`，版本 `appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_8135a9953c1c8191be0bc29a85ecaa91`，状态 succeeded。GitHub `experiment/lookback-v2` 同步 checkpoint 为 `8c4814faa0ec9f28ae8b2fa3b61d4cdbeab4cf89`；本地实施 checkpoint 为 `e7fb96b441724352b45623287fa589274cb8c10e`。
 
 花朵 Pages 已成功上线：https://llhleo.github.io/2n-spatial-world/ ，冻结源码 `496fbddb997930027b97120789b0e7934451515f`，workflow commit `14800e49f05e23fb4397b9216481d4ee17615475`，run `37117517763`。旧环境规则阻塞仅是历史；人物版不覆盖冻结 Pages。不改 main、旧 Llhleo/2n 或 release 分支。
 

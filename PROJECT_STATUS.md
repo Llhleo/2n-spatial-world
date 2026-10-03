@@ -7,7 +7,7 @@
 - main 与旧 Llhleo/2n 未改动。此前“不动 Pages”限制对这次用户明确指定的花朵版发布解除，不自动授权后续人物覆盖此 Pages 快照。
 - 人物廊第一轮已在本地接入：只追加旧结尾之后，同一 scene/camera；五位真实管理层弧形阅读、95 位真实成员的群像入口。完整成员浏览/交互尚未实现。设计及计划位于 docs/superpowers/；文案集中在 content/people.json，编辑说明为 content/README.md。
 - 人物字体准备不进入旧开场 gate；只在旧模型/文字/GPU 准备完成后启动，失败与重试不等待或重置镜头。旧 28 单位绝对采样不变；总长 73.2 单位，自动播放约 198.913 秒，保留原每单位速度、默认关闭和右下半透明按钮。
-- 人物版已完成本地验证、GitHub 同步及原 Sites 私有部署：本地 checkpoint `e7fb96b441724352b45623287fa589274cb8c10e`，GitHub `experiment/lookback-v2` checkpoint `8c4814faa0ec9f28ae8b2fa3b61d4cdbeab4cf89`，Sites 源码 `537be1fc60418af393cf9511549b91e5dd77fe8a`；部署 `appgdep_6ac0f318e49881919a9cb170b9660bb4` / 版本 `appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_8135a9953c1c8191be0bc29a85ecaa91` 已 succeeded。地址仍为 https://twon-dark-spatial-world.llhleo.chatgpt.site。人物交接见 docs/2026-10-03-people-gallery-handoff.md；iPhone 13 Pro Max / Safari 视觉、加载、帧率与内存仍未实机验证。
+- 人物版已完成本地验证、GitHub 同步及原 Sites 私有部署（当前 v42）：本地 checkpoint `e7fb96b441724352b45623287fa589274cb8c10e`，GitHub `experiment/lookback-v2` checkpoint `8c4814faa0ec9f28ae8b2fa3b61d4cdbeab4cf89`，Sites 源码 `537be1fc60418af393cf9511549b91e5dd77fe8a`；部署 `appgdep_6ac0f318e49881919a9cb170b9660bb4` / 版本 `appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_8135a9953c1c8191be0bc29a85ecaa91` 已 succeeded。地址仍为 https://twon-dark-spatial-world.llhleo.chatgpt.site。人物交接见 docs/2026-10-03-people-gallery-handoff.md；iPhone 13 Pro Max / Safari 视觉、加载、帧率与内存仍未实机验证。
 
 更新时间：2026-10-03（北京时间）。本文件区分「已保存」「已部署」「已视觉验收」，不以测试或部署成功代替视觉通过。
 
