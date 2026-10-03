@@ -10,4 +10,15 @@
 
 发布目标：既有 twon-dark-spatial-world Sites，保持 owner-private。GitHub 仅 experiment/lookback-v2；不动 Pages、main 和旧 Llhleo/2n。部署结果另追加记录，不能把 checkpoint 当作已经上线。
 
+## 已完成的发布结果（2026-10-03 18:35 上海时间）
+
+- GitHub 代码和完整原模型 commit：181c0320e0ae162ca2e9d531fd3478a4c47d4e3f。
+- Sites 已推送源码 commit：f85a06dafab7bad1d2a4c4ac756f9175da06a286。
+- 两端源码树均为 9aadccf81badfaf9ec98cdacdaf18df8800c86ff，原模型 blob SHA 逐个一致。
+- 部署 ID：appgdep_6ac0da78cd4c8191a5e4ead23bf95188；原生返回 succeeded。
+- 版本 ID：appgprj_6aad813744b08191a16efff74d7ebaf0~appgver_090a6b7b7b548191a7031c3922cb2ec7。
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site 。保持原私有权限。
+- 77 MiB 部署包 gzip 完整性与目录检查通过，含原始 GLB、21 个生成传输包及生产入口。生产构建成功。
+- 未完成：iPhone Safari 首次/复访加载计时、真实材质与镜头下的花朵视觉验收。人物任务按最新指令继续暂停。
+
 用户最新指令（18:33 上海时间）：只继续速度优化和花朵接入，人物暂缓。之后经用户要求才恢复现有人物廊设计：核对原项目五位管理者真实姓名和职责，交付连续过渡、管理层弧形展示、群像入口；完整成员交互与后续周年/影像/结尾仍不在第一轮。不得编造人物数据或把入口称为完整成员章节。
