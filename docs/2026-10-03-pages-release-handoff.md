@@ -11,3 +11,7 @@
 这是保护规则，不是编译或上传慢。已停止发布，不能擅自关闭保护、换名环境绕过保护、改写 main、合并 PR 或借其他分支绕过。下一步请求用户授权只将此固定发布分支加入 github-pages 的部署允许列表；GitHub 插件无此操作，需要批准浏览器设置回退，或由用户自己设置。完成后重试同一次失败部署并核实成功与正式 URL，避免重新制作网站。
 
 人物设计已获确认；实现计划 docs/superpowers/plans/2026-10-03-people-gallery.md 已保存，尚待计划审阅与执行方式选择。文案计划 content/people.json + content/README.md。尚未创建人物产品代码，不把计划称为人物已上线。
+
+## 2026-10-03 18:55（上海时间）：阻塞已解决
+
+用户确认允许指定发布分支，并确认人物计划及代理执行。已通过 GitHub 设置只新增 release/pages-flowers-2026-10-03 精确分支规则，保留 Selected branches and tags 与原 main 规则，不关闭保护，不改其他设置。重试 run 37117517763 后 build / deploy 均 success；Pages 设置明确显示该运行已发布。正式地址 https://llhleo.github.io/2n-spatial-world/ 已打开核对，固定花朵版源码仍是 496fbddb997930027b97120789b0e7934451515f。之后的人物修改不自动覆盖此快照。
