@@ -3,3 +3,4 @@ dist/
 public/assets/model-transport/
 .DS_Store
 __pycache__/
+.worktrees/
