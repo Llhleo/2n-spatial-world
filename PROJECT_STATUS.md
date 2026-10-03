@@ -6,7 +6,9 @@
 
 用户确认方案后：修改回望经过各区域的位移，取消近乎停住的观察减速，仍保留五境可辨认的移动视野与 Hell 连接连续性。最终文字阅读位置继续平滑收稳。
 花瓣从汇聚开始即顺时针旋转，旋转和半径收缩同时发生；停滚继续转，汇聚入口的自由漂移平滑归零，避免位置跳变。保持原物种、高精度 GLB、贴图、中央文字留白、起飞渐长与倒滑恢复。
-GitHub 分支：experiment/lookback-v2。部署前在线仍 v38；本次正在准备新 Sites 版本，未将构建当作上线。
+GitHub 分支：experiment/lookback-v2；修复提交 d81a6698cd9aeb6e0ca28bdbd1deabbcaf0a2013。已发布 Sites v39，地址 https://twon-dark-spatial-world.llhleo.chatgpt.site。
+Sites 源码提交 da901544d5cb8fdb63ef597ea04043f900edf631，部署 appgdep_6ac0895f5c5c8191adea4db86ef29856 已成功。GitHub 与 Sites 修复源码 tree 均为 3ab0bc15d606ce481199b9e0c93da7d34dbe31da；上线文档另行补记。
+本地压缩包两次出现尾部不完整并被拒绝；已改用服务端从该源码构建，实际部署成功，不能复用本轮不完整 tar。
 本轮验证：117/117 测试通过，Vite 构建成功。仍有既有大 chunk 提示；故障恢复测试的 offline 日志为预期输入。尚无本轮真实 Safari 视觉验收。
 人物廊方向已确认，正式设计见 docs/superpowers/specs/2026-10-03-people-gallery-design.md；设计文件待审阅，功能尚未实现，不得声称管理层或成员已上线。
 后续：审阅人物廊设计 → 编写实现计划并确认 → 管理层与群像入口 → 完整成员数据与阅读。旧站/main/Pages 不动。
@@ -34,8 +36,8 @@ GitHub 修复提交：db7f907450843d9bc469d17acb6961bd5e53545d，完整 tree 已
 | 开发分支 | experiment/lookback-v2 |
 | 前次完整 GitHub 保存 | 3cf5849db8f111080db6a0a5b7b1bf3845493798 |
 | 本地代码 checkpoint | 4df9f3d8a62a697aaa75470b65e51606c28b80ff |
-| Sites 在线版本 | v38，https://twon-dark-spatial-world.llhleo.chatgpt.site |
-| 在线 Sites 源码提交 | 7da325b1ed5674958e7d30d08df36c7fac595ad7 |
+| Sites 在线版本 | v39，https://twon-dark-spatial-world.llhleo.chatgpt.site |
+| 在线 Sites 源码提交 | da901544d5cb8fdb63ef597ea04043f900edf631 |
 | 受保护 main | 0b5d6921bb7f794a5c10ff7150b6cb1618825c5d |
 
 GitHub 修复代码与 Sites v38 同步，GitHub 文档另补入上线结果。不同同步方式产生的 commit SHA 可以不同；已经核对本地与 GitHub 的完整 Git tree 一致，不能仅根据 SHA 不同判断丢失成果。

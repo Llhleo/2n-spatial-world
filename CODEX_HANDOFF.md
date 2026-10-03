@@ -7,6 +7,8 @@
 - 回望各区域保持明显位移而非近乎停止；汇聚从开始就顺时针旋转并缩小半径；最终阅读处才收稳。
 - 人物廊方向已确认；设计文件 docs/superpowers/specs/2026-10-03-people-gallery-design.md 等待用户审阅。不要跳过设计审阅直接声称新章节已实现。
 - 发布与验证结果以 PROJECT_STATUS.md 最新记录为准；原 v38 记录保留作历史。
+- 最新 Sites v39 已发布成功，源码 da901544d5cb8fdb63ef597ea04043f900edf631，部署 appgdep_6ac0895f5c5c8191adea4db86ef29856。117 项测试与构建通过；仍需 Safari 实机验收。
+- 本轮本地压缩包不完整，最终由服务端从已保存源码构建上线；不要复用两个不完整 tar。
 
 ## 本轮修复（已发布 Sites v38）
 - 开始时核实 Sites 仍 v37，上一轮 SDF256 与公转尚未发布。
@@ -24,7 +26,7 @@
 - 工作分支：experiment/lookback-v2；不合并 main，不触发 GitHub Pages。
 - main 必须保持 0b5d6921bb7f794a5c10ff7150b6cb1618825c5d。
 - Sites：https://twon-dark-spatial-world.llhleo.chatgpt.site。
-- 已上线 v38，Sites 源码提交 7da325b1ed5674958e7d30d08df36c7fac595ad7。
+- 已上线 v39，Sites 源码提交 da901544d5cb8fdb63ef597ea04043f900edf631。
 - 不修改开场 2n、既有五境地形/纹理/花瓣/前进镜头、Safari 视口稳定与雾过渡。
 
 ## 当前成果
