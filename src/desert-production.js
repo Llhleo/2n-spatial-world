@@ -1,6 +1,7 @@
 import {loadPetalCatalog} from './petal-loader.js';
 import * as T from 'three';
 import {finishSteps,runSteps} from './petal-placement.js';
+import {restoreBakedPetals} from './placement-cache.js';
 
 // Broken color blocks follow world coordinates, so terrain spans stay seamless.
 const hash=(x,z)=>{
@@ -99,7 +100,7 @@ export function* desertPetalSteps(height,mobile,catalog,names=Object.keys(POPULA
   return group;
 }
 export const createDesertProduction=(...args)=>finishSteps(desertPetalSteps(...args));
-export const createDesertProductionAsync=(...args)=>runSteps(desertPetalSteps(...args));
+export const createDesertProductionAsync=(height,mobile,catalog,names=Object.keys(POPULATION))=>Promise.resolve(restoreBakedPetals('desert',mobile,catalog,names,height.placementKey||height.toString())||runSteps(desertPetalSteps(height,mobile,catalog,names)));
 
 export function loadDesertPetals(onAsset){
  return loadPetalCatalog(['cactus','sand','stick','pincer','iris','goldenleaf'].map(name=>[name,`assets/${name==='goldenleaf'?'garden-petals':'desert-petals'}/${name}.glb`]),onAsset);

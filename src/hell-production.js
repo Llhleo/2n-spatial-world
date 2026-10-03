@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {restoreBakedPetals} from './placement-cache.js';
 import {worldHeight} from './world-surface.js';
 import {jungleSurface,junglePose,createRegionGround} from './jungle-production.js';
 import {petalPlacementSteps,finishSteps,runSteps} from './petal-placement.js';
@@ -35,7 +36,7 @@ export function* hellPetalSteps(catalog,mobile,names=Object.keys(HELL_POPULATION
  return group;
 }
 export const createHellPetals=(...args)=>finishSteps(hellPetalSteps(...args));
-export const createHellPetalsAsync=(...args)=>runSteps(hellPetalSteps(...args));
+export const createHellPetalsAsync=(catalog,mobile,names=Object.keys(HELL_POPULATION))=>Promise.resolve(restoreBakedPetals('hell',mobile,catalog,names)||runSteps(hellPetalSteps(catalog,mobile,names)));
 export const loadHellPetals=onAsset=>loadPetalCatalog(Object.keys(HELL_POPULATION).map(n=>[n,`assets/hell-petals/${n}.glb`]),onAsset);
 const end=junglePose(1,new T.PerspectiveCamera()),near=junglePose(.99999,new T.PerspectiveCamera());
 const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,end[key].map((v,i)=>(v-near[key][i])/.00001)]));

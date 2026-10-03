@@ -26,6 +26,8 @@ export function renderedGroundHeight(x,z){
   if(u+v<=1)return (1-u-v)*groundHeight(X,Z)+u*groundHeight(X+dx,Z)+v*groundHeight(X,Z+dz);
   return (u+v-1)*groundHeight(X+dx,Z+dz)+(1-v)*groundHeight(X+dx,Z)+(1-u)*groundHeight(X,Z+dz);
 }
+// Stable across bundler minification; build regenerates the exact matrices.
+renderedGroundHeight.placementKey='rendered-desert';
 function terrainPart(x0,x1){
   const nx=56,nz=68,geo=new T.BufferGeometry();
   const positions=[],normals=[],colors=[],uvs=[],indices=[],c=new T.Color();

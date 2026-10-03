@@ -1,4 +1,5 @@
 import {oceanPose} from './ocean-production.js';
+import {createAutoplay} from './autoplay.js';
 import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
 import {lookbackPose,RETURN_START,RETURN_UNITS,STORY_UNITS} from './lookback.js';
@@ -56,6 +57,9 @@ if (renderer) {
   camera.position.set(0, 5, 145); camera.lookAt(5, 5, 0);
   const arrival = document.querySelector('#arrival');
   const loading=document.querySelector('#loading-status'),retry=document.querySelector('#retry-models');
+  const autoplayButton=document.querySelector('#autoplay'),player=createAutoplay(180);
+  let dimTimer,buttonShown=false;
+  function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
   retry.addEventListener('click',()=>prepareEverything());
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const intro=createLoadingIntro();
@@ -69,8 +73,11 @@ if (renderer) {
     companionship.resize(camera.aspect);
     if(old&&controlled)scrollTo({top:retained*next.range,behavior:'instant'});
   },STORY_UNITS);
-  const takeControl = () => {
+  const takeControl = event => {
     if(introLocked)return;
+    if(event?.target?.closest?.('#autoplay'))return;
+    if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
+    player.pause();
     if (!controlled) {
       // Hand off at the current shot, never jump back to the start on first touch.
       scrollTo({top:progress*28/STORY_UNITS*viewport().range,behavior:'instant'});
@@ -79,7 +86,14 @@ if (renderer) {
   };
   addEventListener('wheel', takeControl, {passive:true});
   addEventListener('touchstart', takeControl, {passive:true});
+  addEventListener('pointerdown', takeControl, {passive:true});
   addEventListener('keydown', takeControl);
+  autoplayButton.addEventListener('click',event=>{
+    event.stopPropagation();if(introLocked)return;
+    player.toggle(progress*28/STORY_UNITS,true);controlled=true;
+    scrollTo({top:progress*28/STORY_UNITS*viewport().range,behavior:'instant'});
+    revealButton();
+  });
   attachIntroInput(window,()=>introLocked,()=>{});
   function frame(now) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
@@ -87,12 +101,17 @@ if (renderer) {
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
     const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready,reduced:reduced.matches});introLocked=introState.locked;
     document.documentElement.classList.toggle('loading-intro',introLocked);
+    const wasPlaying=player.playing;
+    if(wasPlaying){
+      progress=player.advance(dt)*STORY_UNITS/28;
+      scrollTo({top:progress*28/STORY_UNITS*view.range,behavior:'instant'});
+    }
     const scroll = scrollProgress(scrollY,view.range);
     if(!controlled) auto = Math.min(HERO_END*(introLocked?.92:1),auto+dt*HERO_END/30*introState.speed);
     const requested = reduced.matches&&!introLocked ? 1 : controlled ? scroll : auto;
     const target=controlled||reduced.matches&&!introLocked?requested*STORY_UNITS/28:requested;
-    progress += (target-progress)*(1-Math.exp(-dt*5));
-    if(reduced.matches&&!introLocked) progress=STORY_UNITS/28;
+    if(!wasPlaying)progress += (target-progress)*(1-Math.exp(-dt*5));
+    if(reduced.matches&&!introLocked&&!wasPlaying) progress=STORY_UNITS/28;
     const heroProgress=Math.min(1,progress/HERO_END);
     const worldProgress=THREE.MathUtils.clamp((progress-HERO_END)/(DESERT_END-HERO_END),0,1);
     const portrait=view.width<view.height;
@@ -120,8 +139,12 @@ if (renderer) {
     canvas.dataset.desertPetals=world.desertPetalStatus;
     const counts=world.loading.counts;
     loading.hidden=!introLocked;
+    autoplayButton.hidden=introLocked;
+    autoplayButton.setAttribute('aria-pressed',String(player.playing));
+    autoplayButton.textContent=player.playing?'暂停播放':'自动播放';
+    if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
-    const loadingText=failed?'部分资源未能准备好，请重试':warming?'即将准备好，稍候即可滑动':`慢播中，正在准备五境花瓣 · ${total}/23`;
+    const loadingText=failed?'部分资源未能准备好，请重试':warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14`;
     if(loadingText!==lastLoadingText){loading.querySelector('span').textContent=loadingText;lastLoadingText=loadingText;}
     retry.hidden=!failed;retry.disabled=warming;
     renderer.render(scene, camera);

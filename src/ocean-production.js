@@ -1,4 +1,5 @@
 import {worldHeight,desertSurface} from './world-surface.js';
+import {restoreBakedPetals} from './placement-cache.js';
 import {gardenPose} from './garden-path.js';
 import {motionPath} from './motion-path.js';
 import {petalPlacementSteps,finishSteps,runSteps} from './petal-placement.js';
@@ -67,7 +68,7 @@ export function* oceanPetalSteps(catalog,mobile,names=Object.keys(OCEAN_POPULATI
  return group;
 }
 export const createOceanPetals=(...args)=>finishSteps(oceanPetalSteps(...args));
-export const createOceanPetalsAsync=(...args)=>runSteps(oceanPetalSteps(...args));
+export const createOceanPetalsAsync=(catalog,mobile,names=Object.keys(OCEAN_POPULATION))=>Promise.resolve(restoreBakedPetals('ocean',mobile,catalog,names)||runSteps(oceanPetalSteps(catalog,mobile,names)));
 export function loadOceanPetals(onAsset){
  return loadPetalCatalog(Object.keys(OCEAN_POPULATION).map(name=>[name,`assets/ocean-petals/${name}.glb`]),onAsset);
 }
@@ -87,4 +88,4 @@ export function* coastSandSteps(asset,mobile){
  return yield* petalPlacementSteps(asset,mobile?18:26,3.4,i=>{const s=i*71+401;return {x:448+hash(s)*70,z:[-79,-32,26,76][i%4]+(hash(s+1)-.5)*32,scale:.85+hash(s+2)*.3,pitch:-.65-hash(s+3)*.7,yaw:-Math.PI/2+(hash(s+4)-.5),roll:(hash(s+5)-.5)*.2};},oceanSurface,'coast-sand-petals',.07);
 }
 export const createCoastSand=(...args)=>finishSteps(coastSandSteps(...args));
-export const createCoastSandAsync=(...args)=>runSteps(coastSandSteps(...args));
+export const createCoastSandAsync=(asset,mobile)=>Promise.resolve(restoreBakedPetals('coast',mobile,{sand:asset})||runSteps(coastSandSteps(asset,mobile)));

@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {restoreBakedPetals} from './placement-cache.js';
 import {createGroundMaterial} from './ground-material.js';
 import {worldHeight} from './world-surface.js';
 import {coastalColor,oceanPose} from './ocean-production.js';
@@ -38,7 +39,7 @@ export function* junglePetalSteps(catalog,mobile,names=Object.keys(JUNGLE_POPULA
  return group;
 }
 export const createJunglePetals=(...args)=>finishSteps(junglePetalSteps(...args));
-export const createJunglePetalsAsync=(...args)=>runSteps(junglePetalSteps(...args));
+export const createJunglePetalsAsync=(catalog,mobile,names=Object.keys(JUNGLE_POPULATION))=>Promise.resolve(restoreBakedPetals('jungle',mobile,catalog,names)||runSteps(junglePetalSteps(catalog,mobile,names)));
 export const loadJunglePetals=onAsset=>loadPetalCatalog(Object.keys(JUNGLE_POPULATION).map(n=>[n,n==='compass'?'assets/jungle-petals/compass.glb':`assets/${['goldenleaf','rock'].includes(n)?'garden':'jungle'}-petals/${n}.glb`]),onAsset);
 const end=oceanPose(1,new T.PerspectiveCamera()),near=oceanPose(.99999,new T.PerspectiveCamera());
 const incoming=Object.fromEntries([['p','position'],['target','target']].map(([k,key])=>[k,end[key].map((v,i)=>(v-near[key][i])/.00001*4/6)]));
