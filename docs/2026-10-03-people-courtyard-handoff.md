@@ -55,3 +55,13 @@ Retain v42/source `537be1fc60418af393cf9511549b91e5dd77fe8a` and the GitHub chec
 ## Final review correction (supersedes earlier pending review)
 
 Final product checkpoint: f40b7d7c501de75cca7c6ce4cb1df97f673577bd. Whole-branch review's clean-Troika-sync member publication defect was fixed and independently re-reviewed clean. Three faithful no-op regressions passed; final verification159 tests in tests/ plus15 in test/ =174/174 across two commands. Build/diff-check pass; protected assets/content/Pages remain unchanged. GitHub and Sites publication results will be appended after native confirmation. Device acceptance remains pending.
+
+## Confirmed publication — 2026-10-04
+
+- GitHub reviewed code checkpoint: 7c845ea6e9f9ee0c72c66acedabb092a8adcf0f4 on Llhleo/2n-spatial-world / experiment/lookback-v2; final six differences read back exactly. Earlier unchanged checkpoint files compared exactly before commit.
+- Sites version43, source34f7cbc26244463f855fe79316c2e9a9f14dd586. Native deploymentappgdep_6ac1c3ffd73c819183c804fa7d2495f1 returned succeeded. Saved-version source SHA was independently read back.
+- URL: https://twon-dark-spatial-world.llhleo.chatgpt.site
+- Original project identity and owner-only audience confirmed unchanged. No GitHub Pages/main/old-repository operation.
+- All code work complete and reviewed. Remaining: actual Safari/phone continuous visual review, actual font metrics and device startup/frame/memory measurements. These were not performed, and deployment success does not establish them.
+- Next work: review deployed phone experience against the handoff checks; fix concrete observed flicker, composition, readability or performance issues with preservation of HD quality and existing world. Introductions remain conveniently editable in content/people.json.
+- Rollback reference: Sitesv42/source537be1fc60418af393cf9511549b91e5dd77fe8a.
