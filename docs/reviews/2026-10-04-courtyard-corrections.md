@@ -84,3 +84,7 @@ Validation:
 - Diagnostic Node shipped-content responsive route (414x896, 102 stations), injected immediate idle queue with 10ms deadline: 813 slices, total callback work 106.14ms, maximum observed callback 3.42ms, cached 1000 forward mappings 0.65ms. Same machine diagnostic only; not browser/iPhone timing. Callback budget is checked between samples, so a sample, initialization, normalization or GC can exceed 2ms.
 
 Limits: preparation redistributes computation into available loading/idle periods; it does not eliminate total work. If a route is used before idle preparation completes, synchronous fallback remains possible, especially immediate resize/playing adoption requiring time mapping. No asynchronous geometry jump was introduced to hide that cost. Timer fallback provides bounded work but cannot prove browser idle time. No browser/GPU/iPhone confirmation or external publication was performed. No subagents spawned. Root-owned docs were not staged. This report is uncommitted for root ownership and scoped re-review.
+
+## Scoped final re-review
+
+Independentcourtyard_prepare_reviewclean atb1d9365: soleMinoraddressed, no newbreakage/openfindings. Same builder/sampling/normalization/cache/fallback verified; dedupe/deadlineyield/queuedcancellation/stalecancelguards and actuallyadoptedroute lifecycle preserve delayedmetrics/resize/playing. Savedlogs190/190pass/buildcorroborated without duplicate suite. Immediateentry/resize maystillfallback;2ms is checkedbetween samples, not harddeadline/deviceguarantee.
