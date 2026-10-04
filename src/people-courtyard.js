@@ -55,7 +55,7 @@ export function createPeopleRoute(data) {
         position: world(x + (j % 2 ? 1 : -1) * (20 + (j % 3) * 7), y + [-23, 25, -29, 30, -20, 23][j], z + [12, -10, -26, 18, -35, -18][j]),
         quaternion: [...quaternion], scale: [extent, extent, extent]};
     });
-    stations.push({...subject, sourceStationId: subject.id, position, target: [...position], quaternion,
+    stations.push({...subject, id: `${subject.kind}:${subject.id}`, personId:subject.kind==='leader'?subject.id:undefined, sourceStationId: subject.id, position, target: [...position], quaternion,
       cameraPosition: world(x + Math.sin(angle) * 100, y, z + Math.cos(angle) * 100), up: new T.Vector3(0, 1, 0).applyQuaternion(readingQuaternion).toArray(), petalAnchors});
   });
   const last = stations.at(-1);
@@ -80,6 +80,8 @@ export function resizeCourtyard(route, {width, height, glyphMetrics}) {
       columns=widest*2+24<=width*.76 ? 2 : 1;
       rowPixels=Math.max(40,Math.ceil(widest/(width*.74))*31+12);
       capacity=Math.max(1,Math.min(7,Math.floor(height*.4/rowPixels)*columns));
+      // Unknown ink still reserves one member; its eventual layout must be finite.
+      if(!Number.isFinite(rowPixels))rowPixels=40;
     }
     const chunks=source.kind==='member' ? Array.from({length:Math.ceil(indices.length/capacity)},(_,i)=>indices.slice(i*capacity,(i+1)*capacity)) : [indices];
     chunks.forEach((memberIndices,part)=>{

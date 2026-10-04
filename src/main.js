@@ -1,8 +1,8 @@
-import {createPeopleRoute,resizeCourtyard} from './people-courtyard.js';
+import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,autoplayDuration,timeFractionToScroll,scrollToTimeFraction,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createCompanionship} from './companionship.js';
@@ -96,7 +96,7 @@ if (renderer) {
     const playing=player.playing;
     peopleRoute=next;people.adoptRoute(next);
     player=createAutoplay(autoplayDuration(next));
-    if(playing)player.toggle(scrollToTimeFraction(storyToScroll(progress),next),true);
+    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress),next),true);
   }
   function adoptReadyMetrics(){
     if(!people?.ready||metricsAdopted)return;
@@ -115,7 +115,7 @@ if (renderer) {
     if(people){
       const token=old&&chapterAt(progress).peopleT>0?capturePeoplePosition(peopleRoute,chapterAt(progress).peopleT):null;
       const nextRoute=people.resize(camera.aspect,next.height);
-      if(token){progress=(STORY_UNITS+18*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress);}
+      if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress);}
       adoptPeopleRoute(nextRoute);
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
@@ -139,7 +139,7 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    player.toggle(scrollToTimeFraction(storyToScroll(progress),peopleRoute),true);controlled=true;
+    player.toggle(scrollToAutoplay(storyToScroll(progress),peopleRoute),true);controlled=true;
     scrollTo({top:storyToScroll(progress)*viewport().range,behavior:'instant'});
     revealButton();
   });
@@ -152,7 +152,7 @@ if (renderer) {
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
-      progress=scrollToStory(timeFractionToScroll(player.advance(dt),peopleRoute));
+      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute));
       scrollTo({top:storyToScroll(progress)*view.range,behavior:'instant'});
     }
     const scroll = scrollProgress(scrollY,view.range);

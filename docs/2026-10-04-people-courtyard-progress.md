@@ -14,6 +14,10 @@ Task 4 已完成：本地 commit 7692eeb09ea670c029a4a928bda340cfccbe225f。最�
 
 Task 5 已有主入口/故事映射/VM 测试的连贯草稿，首轮定向 10/10 GREEN（尚未完成旧路径删除）。已检查前段 150 秒不变、映射互逆、字体晚到时保留同一路线与真实相机姿态。接下来删除临时旧人物/侧边走廊实现、加强播放中 resize/语义位置检查，再跑完整 suite/build/独立审查。本次 WIP 未审查、未部署。
 
+Task 5 候选已提交本地 2db0c2dad33aa2df9ece1da8d08c1b6a4aa01621 + 5e3dd23：统一路线接入、准确 autoplayToScroll/scrollToAutoplay 映射、旧 150 秒、窗口阅读时长、默认关闭/手动暂停、重试不 seek、播放中语义 resize、迟到字体不换当前物理路线。实际 gallery+VM 测试发现并修复了未知字形行高 Infinity 导致文字 NaN 消失；共享摄像机测试发现并修复了倒滑回五境残留 up 方向。最终定向 30/30、完整 171/171、构建及 diff-check 通过。旧点阵/最近三名/独立人物走廊已删除。独立审查进行中，候选尚未发布。
+
+详细验证保存在 docs/reviews/2026-10-04-courtyard-environment.md 与 docs/reviews/2026-10-04-courtyard-integration.md。测试数下降包含删除已废弃行为断言并新增共享路线回归；不冒充手机视觉/性能实测。
+
 已重新确认 Sites 仍为 v42、源码 537be1fc60418af393cf9511549b91e5dd77fe8a；原站源码已打开，尚未更新或部署。当前支持流程仍缺少 control-browser，浏览器/手机/性能实测保持未验状态。
 
 ## 已保存阶段

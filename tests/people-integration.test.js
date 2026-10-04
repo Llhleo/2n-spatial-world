@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {createPeopleRoute,resizeCourtyard} from '../src/people-courtyard.js';
+import {createPeopleRoute,resizeCourtyard,sampleCourtyard} from '../src/people-courtyard.js';
 const fixture={leaders:[{id:'ending',name:'Leader',role:'Role',intro:'Intro'}],members:Array.from({length:15},(_,i)=>`Member ${i}`)};
 const metrics={members:Array.from({length:15},()=>({minX:0,minY:0,maxX:4,maxY:1,glyphs:[[0,0,1,1]]}))};
 import * as THREE from 'three';
+import {Text} from 'troika-three-text';
+import {createPeopleGallery} from '../src/people-gallery.js';
 import {createAutoplay} from '../src/autoplay.js';
 import {lookbackPose} from '../src/lookback.js';
 import {pose} from '../src/journey.js';
@@ -63,16 +65,16 @@ test('direct ending seek, reverse drag and portrait/landscape resize are absolut
 
 test('paced autoplay preserves old speed and inverts every route reading window',()=>{
  const route=resizeCourtyard(createPeopleRoute(fixture),{width:414,height:896,glyphMetrics:metrics});
- assert.equal(typeof api.timeFractionToScroll,'function');
+ assert.equal(typeof api.autoplayToScroll,'function');
  const duration=api.autoplayDuration(route),player=createAutoplay(duration);player.toggle(0,true);
- near(api.timeFractionToScroll(player.advance(75),route)*73.2,27.6);
- near(api.timeFractionToScroll(player.advance(75),route)*73.2,55.2);
+ near(api.autoplayToScroll(player.advance(75),route)*73.2,27.6);
+ near(api.autoplayToScroll(player.advance(75),route)*73.2,55.2);
  for(const w of route.windows){
   const seconds=(w.readEnd-w.readStart)*route.seconds;
-  near(seconds,route.stations[w.stationIndex].readSeconds);
+  near(seconds,{entry:2,leader:7,member:5,ending:3}[route.stations[w.stationIndex].kind]);
  }
- for(let i=0;i<=1000;i++)near(api.scrollToTimeFraction(api.timeFractionToScroll(i/1000,route),route),i/1000);
- near(api.timeFractionToScroll(player.advance(route.seconds),route),1);assert.equal(player.playing,false);
+ for(let i=0;i<=1000;i++)near(api.scrollToAutoplay(api.autoplayToScroll(i/1000,route),route),i/1000);
+ near(api.autoplayToScroll(player.advance(route.seconds),route),1);assert.equal(player.playing,false);
 });
 
 test('semantic remap retains original member inside changed subwindow numbering',()=>{
@@ -85,29 +87,31 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({constructionError=false,preparationError=false,reduced=false,late=false}={}){
+function entry({constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture}={}){
  const events=new Map(),elements=new Map(),calls={prepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
  };
+ let complete;
  let frame,resize,oldReady=false,now=0,scrollY=0,currentReduced=reduced;
  const resource=()=>({group:new THREE.Group(),ready:true,prepare:async()=>{},update(){},resize(){},capture(){},install(){},prepared:7,displayPrepared:14});
  const companion=resource();companion.update=(...args)=>calls.companion.push(args);
- const gallery=resource();gallery.ready=false;gallery.error=null;
+ const gallery=galleryFactory?galleryFactory():resource();
+ if(!galleryFactory){gallery.ready=false;gallery.error=null;
  gallery.glyphMetrics={members:[]};
  gallery.resize=(aspect,height=896)=>gallery.route=resizeCourtyard(gallery.route,{width:aspect*height,height,glyphMetrics:gallery.glyphMetrics});
  gallery.adoptRoute=route=>gallery.route=route||createPeopleRoute(data);
- let complete;
  gallery.prepare=gallery.retry=async()=>{calls.prepare++;if(late)await new Promise(resolve=>complete=resolve);if(preparationError){gallery.error=new Error('font timeout');throw gallery.error;}gallery.glyphMetrics=metrics;gallery.resize(gallery.route.viewport.width/gallery.route.viewport.height,gallery.route.viewport.height);gallery.ready=true;};
- gallery.update=(...args)=>calls.people.push(args);
+ gallery.update=(...args)=>calls.people.push(args);}
+ const updateGallery=gallery.update;gallery.update=(...args)=>{calls.people.push(args);return updateGallery(...args);};
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:73.2*896};
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
  const context={...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
-  createPeopleRoute,resizeCourtyard,peopleData:fixture,createPeopleGallery(data,route){gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
+  createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
   document:{querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
@@ -134,6 +138,8 @@ test('people font failure cannot lock original opening; retry and resize do not 
  app.resize();app.tick();near(Number(app.elements.get('world').dataset.progress),before);
  app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
  const playing=app.elements.get('autoplay').textContent;assert.equal(playing,'暂停播放');
+ const scrollCalls=app.calls.scroll.length;
+ app.events.get('retry-people:click')({stopPropagation(){}});await app.settle();assert.equal(app.calls.scroll.length,scrollCalls,'retry seeks during playback');
  app.events.get('pointerdown')({target:{closest:selector=>selector.includes('#retry-people')}});app.tick();
  assert.equal(app.elements.get('autoplay').textContent,'暂停播放','retry pointer unexpectedly takes story control');
  app.events.get('wheel')({type:'wheel',target:{closest:selector=>selector.includes('#retry-people')}});app.tick();
@@ -189,6 +195,8 @@ test('late glyph completion retains actual camera pose and shared route during p
  const app=entry({late:true,reduced:true});await app.settle();app.open();app.tick();
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(.94);app.tick();
  const pose=app.calls.shots.at(-1),route=app.calls.routes.at(-1);
+ const physical=sampleCourtyard(route,(.94*73.2-55.2)/18,414/896);
+ pose.forEach((v,i)=>near(v,physical.position[i]));
  app.complete();await app.settle();app.tick();
  assert.deepEqual(app.calls.shots.at(-1),pose);assert.equal(app.calls.routes.at(-1),route);
  assert.equal(app.calls.companion.at(-1)[3],route);
@@ -199,4 +207,80 @@ test('late glyph completion retains actual camera pose and shared route during p
 test('missing route preserves old ending for every requested people sample',()=>{
  const old=lookbackPose(1,camera());
  for(const t of [.1,.5,1])assert.deepEqual(api.sampleStoryPose((55.2+18*t)/28,camera(),true),old);
+});
+
+test('base route namespaces route-owned IDs while preserving original person IDs',()=>{
+ const route=createPeopleRoute({leaders:[{id:'entry',name:'A',role:'R'},{id:'ending',name:'B',role:'R'},{id:'members-0',name:'C',role:'R'}],members:['M']});
+ assert.equal(new Set(route.stations.map(s=>s.id)).size,route.stations.length);
+ assert.deepEqual(route.stations.filter(s=>s.kind==='leader').map(s=>s.personId),['entry','ending','members-0']);
+});
+
+test('entry toggle and resize preserve reading member and active time mapping',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(.91);app.tick();
+ const route=app.calls.routes.at(-1),t=Number(app.elements.get('world').dataset.peopleProgress);
+ const token=api.capturePeoplePosition(route,t);
+ const before=Number(app.elements.get('world').dataset.progress);
+ app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
+ const step=Number(app.elements.get('world').dataset.progress)-before;assert.ok(step>=0&&step<.01);
+ app.resize();app.tick();
+ assert.equal(app.elements.get('autoplay').textContent,'暂停播放');
+ const next=app.calls.routes.at(-1),actual=api.capturePeoplePosition(next,Number(app.elements.get('world').dataset.peopleProgress));
+ assert.equal(actual.kind,token.kind);assert.equal(actual.sourceStationId,token.sourceStationId);
+ if(token.kind==='member')assert.ok(next.stations.some(s=>s.memberIndices.includes(token.memberIndex)&&s.sourceStationId===actual.sourceStationId));
+ for(const type of ['pointerdown','keydown']){
+  app.events.get(type)({type,key:'PageDown',target:{closest:()=>false}});app.tick();
+  assert.equal(app.elements.get('autoplay').textContent,'自动播放');
+  app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
+ }
+});
+
+test('actual gallery late measurement publishes on the existing route before first ready frame',async()=>{
+ const sync=Text.prototype.sync;let release,held=false;
+ Text.prototype.sync=function(){
+  const publish=()=>{this._textRenderInfo={glyphBounds:new Float32Array([0,-.5,4,.5])};this.dispatchEvent({type:'synccomplete'});};
+  if(this.text==='Member 0'&&!held){held=true;release=publish;}else publish();
+ };
+ let app;
+ try{
+  app=entry({reduced:true,galleryFactory:()=>createPeopleGallery(fixture,createPeopleRoute(fixture))});
+  await app.settle();assert.equal(typeof release,'function');app.open();app.tick();
+  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+  const w=app.gallery.route.windows[app.gallery.route.stations.findIndex(s=>s.kind==='member'&&s.memberIndices.includes(6))];
+  app.seek((55.2+18*(w.readStart+w.readEnd)/2)/73.2);app.tick();
+  const route=app.calls.routes.at(-1),pose=app.calls.shots.at(-1);
+  release();await app.settle();assert.equal(app.gallery.ready,true);
+  app.tick();assert.equal(app.gallery.route,route);assert.deepEqual(app.calls.shots.at(-1),pose);
+  app.tick();await app.settle();app.tick();
+  assert.equal(app.gallery.route,route);assert.deepEqual(app.calls.shots.at(-1),pose);
+  const t=app.calls.companion.at(-1)[2],station=route.stations[route.windows.findIndex(w=>t>=w.start&&t<=w.end)];
+  assert.equal(station.kind,'member');const visible=[];app.gallery.group.traverse(o=>{if(o instanceof Text&&o.visible&&o.userData.memberIndex!==undefined)visible.push(o.userData.memberIndex);});
+  assert.ok(visible.includes(station.memberIndices[0]),'ready member pool never publishes on deferred route');
+ }finally{app?.gallery.dispose();Text.prototype.sync=sync;}
+});
+
+test('invalid content route cannot prevent reduced old world return or start playback',async()=>{
+ const app=entry({reduced:true,data:{leaders:[{id:'bad',name:'',role:'R'}],members:[]}});
+ await app.settle();app.open();app.tick();
+ assert.equal(app.elements.get('world').dataset.loadingIntro,'false');
+ assert.equal(app.elements.get('autoplay').textContent,'自动播放');
+ assert.deepEqual(app.calls.shots.at(-1),lookbackPose(1,camera()).position);
+ assert.equal(app.calls.companion.at(-1)[3],null);
+});
+
+test('reverse courtyard seeks restore pristine historical camera orientation and up in every old chapter',()=>{
+ const route=createPeopleRoute(fixture);
+ for(const peopleT of [.5,1])for(const units of [3,10,17,22,25,41.2,55.2]){
+  const shared=camera(),pristine=camera();
+  api.sampleStoryPose((55.2+18*peopleT)/28,shared,true,route);
+  const expected=api.sampleStoryPose(units/28,pristine,true);
+  const actual=api.sampleStoryPose(units/28,shared,true,route);
+  assert.deepEqual(actual,expected);assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
+  assert.ok(shared.quaternion.angleTo(pristine.quaternion)<1e-7,`old orientation changed at ${units}`);
+ }
+ const shared=camera(),pristine=camera();
+ api.sampleStoryPose((55.2+9)/28,shared,true,route);
+ assert.deepEqual(api.sampleStoryPose(73.2/28,shared,true),lookbackPose(1,pristine));
+ assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
+ assert.ok(shared.quaternion.angleTo(pristine.quaternion)<1e-7);
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {lookbackPose, readingQuaternion} from '../src/lookback.js';
+import {lookbackPose} from '../src/lookback.js';
 import {createPeopleRoute} from '../src/people-courtyard.js';
 
 const api = await import('../src/people-path.js').catch(() => ({}));

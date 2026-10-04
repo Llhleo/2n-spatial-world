@@ -5,7 +5,7 @@ export const PEOPLE_UNITS=18;
 
 /** Missing people content retains the existing return shot. */
 export function peoplePose(t,camera,aspect=camera.aspect,route){
- if(!route)return lookbackPose(1,camera);
+ if(!route){camera.up.set(0,1,0);return lookbackPose(1,camera);}
  const pose=sampleCourtyard(route,t,aspect);
  camera.position.fromArray(pose.position);camera.up.fromArray(pose.up);camera.lookAt(new T.Vector3(...pose.target));return pose;
 }
@@ -47,4 +47,3 @@ export function projectTextBounds(camera, worldMatrix, glyphBounds, viewport) {
   return {rect, fontPixels,
     fits: finite && valid && left >= width * .12 && right <= width * .88 && top >= height * .30 && bottom <= height * .70};
 }
-

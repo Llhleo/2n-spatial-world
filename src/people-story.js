@@ -7,7 +7,7 @@ import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
 
 export const TOTAL_UNITS=STORY_UNITS+PEOPLE_UNITS;
-export const AUTOPLAY_DURATION=150;
+export {PEOPLE_UNITS};
 export const autoplayDuration=route=>150+(route?.seconds||0);
 const clamp=t=>Math.max(0,Math.min(1,t));
 // Keep the historical absolute coordinate: one progress unit is 28 scroll units.
@@ -15,12 +15,12 @@ export const scrollToStory=t=>clamp(t)*TOTAL_UNITS/28;
 export const storyToScroll=p=>clamp(p*28/TOTAL_UNITS);
 
 // The player stores time only; scroll remains the historical physical coordinate.
-export function timeFractionToScroll(fraction,route){
+export function autoplayToScroll(fraction,route){
  const seconds=clamp(fraction)*autoplayDuration(route);
  return seconds<=150 ? seconds/150*STORY_UNITS/TOTAL_UNITS
   : (STORY_UNITS+PEOPLE_UNITS*clamp((seconds-150)/(route?.seconds||1)))/TOTAL_UNITS;
 }
-export function scrollToTimeFraction(scroll,route){
+export function scrollToAutoplay(scroll,route){
  const units=clamp(scroll)*TOTAL_UNITS;
  return (units<=STORY_UNITS ? units/STORY_UNITS*150 : 150+(units-STORY_UNITS)/PEOPLE_UNITS*(route?.seconds||0))/autoplayDuration(route);
 }
@@ -49,6 +49,8 @@ export function chapterAt(progress){
 export function sampleStoryPose(progress,camera,portrait,route){
  const {chapter,peopleT,returnT,heroT,worldT}=chapterAt(progress);
  if(chapter==='people')return peoplePose(peopleT,camera,camera.aspect,route);
+ // The old samplers were authored against world-up and share this camera.
+ camera.up.set(0,1,0);
  if(chapter==='lookback')return lookbackPose(returnT,camera);
  if(chapter==='hero')return pose(heroT,camera,portrait);
  if(chapter==='garden')return gardenPose(worldT,camera,portrait);
