@@ -52,3 +52,15 @@ Build reports existing-size-class warning for chunks over500kB; no build errors.
 Changed paths: src/people-courtyard.js, src/companionship.js, src/people-layout.js, src/people-distance.js, src/people-story.js, src/main.js, tests/courtyard-clearance.test.js, tests/people-gallery.test.js, tests/people-distance.test.js, tests/people-integration.test.js.
 
 Limits/risks: automated geometry and VM tests do not establish real iPhone visual quality or GPU speed. Physical people range remains18 story units; longer responsive routes still cover more total world distance in that range, now distributed by travel instead of wait durations. Responsive resize preserves semantic reading position rather than identical world coordinates when splitting/regrouping changes geometry; late readiness retains exact camera until explicit resize or old-world return. Terrain checks target rendered ground triangles and complete conservative subject bounds, not every decorative biome mesh; all subjects have generous altitude margin. Root owns release/progress/spec/plan documents and any publication decisions.
+
+## Independent task review
+
+Reviewer courtyard_three_task_review: Spec compliant within automated acceptance; Task quality Approved. No Critical/Important/new Minor. Checked same-route elevation, raw source stations prevent double lift, shared fade including spatial fallback, cached inverse distance mapping and controller seek/interrupt/resize/late-readiness. Existing logs corroborated186pass andsuccessfulbuild without duplicate full suite.
+
+Limits: real Safari appearance/GPU unverified; terrain check does not cover every decorative mesh; numerical arc integration; responsive resize preserves semantic position rather than world coordinates.
+
+## Whole-change final review
+
+Independent courtyard_three_final_review: no Critical/Important; owner-private candidate ready. One Minor: first-use distance-table construction on102-station pre-metrics route measured91.5–104.4ms inNode vs0.20–0.56ms for1000cachedinversions, possible one-time boundary/resize hitch. This is not device/GPU evidence. Root assigned sole complete correction wave for idle/loading preparation with safe fallback.
+
+Declined to judge: Safari/touch/GPU, all decorative occluders, real-font rendering, analytic arc exactness (numerical intentional), identicalworldpose afterresponsive regrouping (semantic preservation), sameabsolute sensitivity acrossroute lengths (18units retained), externalpublication/Pages evidence. No silently discarded deviceacceptance.

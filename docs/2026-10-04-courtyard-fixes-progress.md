@@ -19,3 +19,7 @@ Manual mapping draft focused19tests GREEN: cached distance coordinate constructe
 Limit: original18unit people physical scroll range preserved, so long/narrow content has greater absolute sensitivity; correction targets hold/transfer sensitivity cliffs, not a measured GPU optimization. Numerical arc-table mapping preserves exact table inverse, not analytic arc integral. Device visual/performance evidence remains pending.
 
 Candidate local5186de5+eb56381+7adfb40 complete: final186/186 tests, productionbuild anddiff-check pass. Independent task review pending; original Sites remainsv43. Candidate is not yet visual/performance accepted or deployed. Full report preserved docs/reviews/2026-10-04-courtyard-corrections.md.
+
+Independent task review approved, no Critical/Important/newMinor. GitHub candidate7fbbca5ce660b88cf45fda6eedc59e248810d11a all12paths exact. Full-change final review remains before publication; no source/assets/content/Pages changes beyond listed corrections.
+
+Whole-change final review1258a16: noCritical/Important, publicationcandidateapproved but deviceacceptancepending. ONE Minor first-use distance-table setup91.5–104.4ms on102-station route. To avoid adding a startup/resize hitch while fixing manual response, sole correction wave is preparing adopted routes during idle/loading time, preserving exact numeric mapping and safe fallback. Final scopedre-review/build pending; do not call these draft improvements deployed.
