@@ -278,3 +278,21 @@ test('supplemental WOFF includes every displayed name and Chinese glyph without 
  const missing=[...new Set(displayed)].filter(c=>!/[\s]/u.test(c)&&!mapped(c.codePointAt(0)));
  assert.deepEqual(missing,[],'displayed glyphs fall back to another font');
 });
+
+// Uses real gallery projection/spatial opacity, not just the route opacity.
+test('footprints and all people text share an exclusive forward/reverse handoff',async()=>withInk(async()=>{
+ const gallery=api.createPeopleGallery(data,courtyard.createPeopleRoute(data)),companion=createCompanionship(new T.Scene());
+ try {
+  await gallery.prepare(100);const route=gallery.route,cam=camera();
+  let gap=0;
+  for(const direction of [1,-1])for(let n=0;n<=180;n++){
+   const t=(direction===1?n:180-n)/180*route.windows[1].readStart;
+   peoplePose(t,cam,cam.aspect,route);gallery.update(t,cam);companion.update(1,0,t,route);
+   const old=texts(companion.group).some(text=>text.visible&&text.material.opacity>0);
+   const next=gallery.group.visible&&texts(gallery.group).some(text=>text.visible&&text.material.opacity>0);
+   assert.ok(!(old&&next),`old/people text overlap at ${t}`);
+   if(!old&&!next&&t>0&&t<route.windows[1].readStart)gap++;
+  }
+  assert.ok(gap>5,'must include a deterministic petals-only connection');
+ } finally {gallery.dispose();companion.dispose();}
+}));

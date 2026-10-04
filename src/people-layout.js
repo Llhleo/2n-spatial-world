@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {normalizePeople} from './people-data.js';
-import {resizeCourtyard, sampleCourtyard} from './people-courtyard.js';
+import {resizeCourtyard, sampleCourtyard, chapterHandoff} from './people-courtyard.js';
 import {peoplePose,projectTextBounds} from './people-path.js';
 
 function ink(text) {
@@ -128,7 +128,7 @@ export function createCourtyardGallery(data, initialRoute) {
   for(const text of all){text.visible=false;text.material.opacity=0;}
   for(const visible of sample.visibleStations){const s=route.stations[visible.stationIndex];if(s.kind!=='leader')continue;
    const children=cards[s.leaderIndex].children,rects=children.filter(text=>text.userData.bounds).map(text=>{text.updateMatrixWorld(true);return projectTextBounds(camera,text.matrixWorld,text.userData.bounds,viewport).rect;});
-   const opacity=spatialOpacity(rects,viewport,visible.opacity);
+   const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(rects,viewport,visible.opacity));
    for(const text of children){text.material.opacity=opacity;text.visible=Boolean(glyphMetrics.leaders[s.personId??people.leaders[s.leaderIndex].id]?.[text.userData.tier])&&opacity>0;}
   }
   // The measurement pass owns the member pool until every metric is recorded.
@@ -155,7 +155,7 @@ export function createCourtyardGallery(data, initialRoute) {
     slot.text.visible=v.opacity>0;slot.text.material.opacity=v.opacity;
    }
    const active=slots.slice(bucket*7,bucket*7+station.memberIndices.length);
-   const opacity=spatialOpacity(active.map(slot=>projectTextBounds(camera,slot.text.matrixWorld,slot.text.userData.bounds,viewport).rect),viewport,v.opacity);
+   const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(active.map(slot=>projectTextBounds(camera,slot.text.matrixWorld,slot.text.userData.bounds,viewport).rect),viewport,v.opacity));
    active.forEach(slot=>{slot.text.material.opacity=opacity;slot.text.visible=opacity>0;});
   }
  }

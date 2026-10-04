@@ -129,6 +129,15 @@ function sampleTrack(knots, seconds, key) {
   return a[key].map((v, axis) => (2 * u3 - 3 * u2 + 1) * v + (u3 - 2 * u2 + u) * h * da[axis] + (-2 * u3 + 3 * u2) * b[key][axis] + (u3 - u2) * h * db[axis]);
 }
 
+/** One reversible chapter gate, expressed in route time, including a moving
+ * petals-only interval at the beginning of the first transfer. */
+export function chapterHandoff(route,t) {
+ if(!route)return {footprints:1,people:0};
+ const end=route.windows[0].readEnd,arrival=route.windows[1].readStart;
+ const start=end+(arrival-end)*.25;
+ return {footprints:1-ease(t/Math.max(end,1e-9)),people:ease((t-start)/Math.max(arrival-start,1e-9))};
+}
+
 /** Absolute sampling only: no camera, renderer, Text, loading, or accumulated time. */
 export function sampleCourtyard(route, t, aspect = 414 / 896) {
   if (!Number.isFinite(aspect) || aspect <= 0) throw new RangeError('camera aspect must be positive');
@@ -150,13 +159,14 @@ export function sampleCourtyard(route, t, aspect = 414 / 896) {
   position = mix(target, position, 1 + widen * ease(t / Math.max(route.windows[0].readEnd, 1e-6)));
   const primaryStation = route.windows.findIndex(w => t >= w.start && (t < w.end || w.end === 1));
   const visibleStations = [];
+  const handoff=chapterHandoff(route,t);
   for (let index = Math.max(0, primaryStation - 1); index <= Math.min(route.stations.length - 1, primaryStation + 1); index++) {
     const w = route.windows[index];
     const fadeStart = index ? route.windows[index - 1].readEnd : 0;
     const fadeEnd = index < route.windows.length - 1 ? route.windows[index + 1].readStart : 1;
     const keepLast = route.stations[index].kind === 'member' && route.stations[index + 1]?.kind === 'ending';
     const opacity = t < w.readStart ? ease((t - fadeStart) / Math.max(w.readStart - fadeStart, 1e-9)) : t > w.readEnd && !keepLast ? 1 - ease((t - w.readEnd) / Math.max(fadeEnd - w.readEnd, 1e-9)) : 1;
-    visibleStations.push({stationIndex: index, opacity, reading: t >= w.readStart && t <= w.readEnd});
+    visibleStations.push({stationIndex: index, opacity: index?Math.min(opacity,handoff.people):opacity, reading: t >= w.readStart && t <= w.readEnd});
   }
   const petals = route.stations.flatMap(s => s.petalAnchors.map(p => ({...p, position: [...p.position], quaternion: [...p.quaternion], scale: [...p.scale]})));
   // Original ring remains present at the seam and unfolds into a fixed entry cluster.

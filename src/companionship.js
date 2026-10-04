@@ -2,7 +2,7 @@ import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
-import {sampleCourtyard,courtyardEnvironment} from './people-courtyard.js';
+import {sampleCourtyard,courtyardEnvironment,chapterHandoff} from './people-courtyard.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
 export const flightGrowth=age=>1+.7*T.MathUtils.smoothstep(age,0,.18);
 // A sync callback is not re-fired when Troika is already syncing. Listen for
@@ -142,7 +142,7 @@ export function createCompanionship(scene){
     }extras.instanceMatrix.needsUpdate=true;
    }
   }
-  const opacity=T.MathUtils.smoothstep(t,.952,.962)*(1-T.MathUtils.smoothstep(peopleT,0,.03));
+  const opacity=T.MathUtils.smoothstep(t,.952,.962)*chapterHandoff(route,peopleT).footprints;
   for(const label of labels){label.visible=opacity>0;label.material.opacity=opacity;}
  }
  return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{}){
