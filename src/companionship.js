@@ -72,7 +72,7 @@ export function createCompanionship(scene){
   mesh.name='companion-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   const twist=new T.Quaternion().setFromEuler(new T.Euler((index%3-1)*.13,(index%4-1.5)*.06,(index-6)*.075));
   const finalScale=new T.Vector3().setScalar(FLOWER_SPECS[index][3]/Math.max(size.x,size.y,size.z));
-  const extras=new T.InstancedMesh(geometry,material,2);extras.name='courtyard-'+key;extras.frustumCulled=false;extras.visible=false;group.add(extras);
+  const extras=null; // Allocate the optional courtyard pool only on route entry.
   batches.set(key,{mesh,extras,index,face,twist,original,nativeRotation,nativeScale,finalScale,center,taken:false,displayOwned:false});group.add(mesh);previous=NaN;
   if(displayAssets.has(key))installDisplay(displayAssets.get(key),kind,name);
  }
@@ -87,7 +87,7 @@ export function createCompanionship(scene){
   const dimensions=geometry.boundingBox.getSize(size),normal=dimensions.y<Math.min(dimensions.x,dimensions.z)?new T.Vector3(0,1,0):dimensions.x<dimensions.z?new T.Vector3(1,0,0):new T.Vector3(0,0,1);
   batch.face.setFromUnitVectors(normal,new T.Vector3(0,0,1));
   batch.finalScale.setScalar(FLOWER_SPECS[batch.index][3]/Math.max(dimensions.x,dimensions.y,dimensions.z));
-  batch.extras.geometry=batch.mesh.geometry;batch.extras.material=batch.mesh.material;
+  if(batch.extras){batch.extras.geometry=batch.mesh.geometry;batch.extras.material=batch.mesh.material;}
   batch.displayOwned=true;previous=NaN;
  }
  function update(t,dt=0,peopleT=0,route=null){
@@ -132,7 +132,12 @@ export function createCompanionship(scene){
    }
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
-   const extras=batch.extras;extras.visible=!!pose;
+   if(pose&&!batch.extras){
+    batch.extras=new T.InstancedMesh(mesh.geometry,mesh.material,2);
+    batch.extras.name='courtyard-'+selected[index];batch.extras.frustumCulled=false;
+    batch.extras.instanceMatrix.setUsage(T.DynamicDrawUsage);group.add(batch.extras);
+   }
+   const extras=batch.extras;if(extras)extras.visible=!!pose;
    if(pose){
     const candidates=anchors.filter(p=>p.sourceIndex===index).map(p=>({p,d:new T.Vector3(...p.position).distanceTo(new T.Vector3(...pose.target))})).sort((a,b)=>a.d-b.d);
     const cutoff=candidates[2]?.d??Infinity;
@@ -165,5 +170,5 @@ export function createCompanionship(scene){
  return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{}){
   if(prepared)return;
   await Promise.all([...labels.map(text=>prepareWorldText(text)),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`${import.meta.env?.BASE_URL||'/'}assets/companion-display/${name}.glb`,100);onPrepared(source);installDisplay(source,kind,name);})]);prepared=true;
- },dispose(){for(const {mesh,extras,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();extras.dispose();}for(const label of labels)label.dispose();}};
+ },dispose(){for(const {mesh,extras,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();extras?.dispose();}for(const label of labels)label.dispose();}};
 }

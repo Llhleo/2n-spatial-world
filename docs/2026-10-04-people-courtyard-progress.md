@@ -10,6 +10,8 @@ Task 1–3 不重做。Task 4 从未完成部分续做：固定沿途花瓣簇�
 
 Task 4 本次已有连贯实现草稿：companionship/people-courtyard 与新增 environment 测试。RED 17 项中 3 失败（入口完整花瓣、42 实例池、避字体积）；首轮定向 4/4 GREEN，使用现有 14 个 GLB 的真实位置缓冲包围框。已覆盖四视口读站/转场、旧矩阵/实时入口/地面恢复、高清迟到共享引用及资源释放、最大幅度避字/倒滑/reduced。此 checkpoint 是未审查 WIP：密集 cutoff 连续性、完整 suite、独立审查仍待完成；不得视为已部署。
 
+Task 4 已完成：本地 commit 7692eeb09ea670c029a4a928bda340cfccbe225f。最终定向 19/19、完整 174/174；四视口、7 人与保守单人拆组、读站开始/中/末及转场采样均检查真实完整模型。1199 个密集邻点与实际池替换边界检查通过，对照移除平滑处理会失败。独立审查 Spec compliant、Task quality Approved，无 Critical/Important；已有 offline fixture 诊断为待整理 minor。模型和材质共享、高清迟到升级、42 实例上限及地面恢复通过。当前开始 Task 5 集成，Sites 仍未切换。
+
 已重新确认 Sites 仍为 v42、源码 537be1fc60418af393cf9511549b91e5dd77fe8a；原站源码已打开，尚未更新或部署。当前支持流程仍缺少 control-browser，浏览器/手机/性能实测保持未验状态。
 
 ## 已保存阶段
