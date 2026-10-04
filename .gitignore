@@ -4,3 +4,7 @@ public/assets/model-transport/
 .DS_Store
 __pycache__/
 .worktrees/
+
+# Checkout-local symlinks and execution state
+/node_modules
+/.superpowers/

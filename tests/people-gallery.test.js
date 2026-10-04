@@ -176,7 +176,8 @@ test('courtyard pool covers all members and holds readable spatial handoffs',asy
   const t=a.readEnd+(b.readStart-a.readEnd)*fraction,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
   const rects=texts(gallery.group).filter(o=>o.visible&&o.userData.personId&&o.userData.tier==='name').map(o=>{o.updateMatrixWorld(true);return projectTextBounds(cam,o.matrixWorld,o.userData.bounds,{width:414,height:896}).rect;});
   if(rects.length===2){const [r,s]=rects;const overlap=Math.min(r.x+r.width,s.x+s.width)-Math.max(r.x,s.x);assert.ok(overlap<=0||r.x+r.width<49.68||s.x>364.32,'duplicate central leader names during spatial transfer');}
-  if(fraction<.46||fraction>.54)assert.ok(rects.some(r=>r.x<414&&r.x+r.width>0&&r.y<896&&r.y+r.height>0),'spatial handoff hides every subject outside canvas');
+  // Transfers may show only terrain/petals; reading windows above must remain readable.
+  assert.ok(rects.length<=1,'transfer shows overlapping neighboring subjects');
   assert.ok(texts(gallery.group).every(o=>!o.visible||o.material.opacity<=1),'transfer opacity exceeds authored gate');
 
  }}

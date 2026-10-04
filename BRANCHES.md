@@ -1,16 +1,8 @@
-# Branch inventory — 2026-09-30
+# 分支使用规则
 
-Repository: Llhleo/2n-spatial-world. Llhleo/2n is outside this task.
+- `experiment/lookback-v2`：当前 Sites 人物版的开发与交接分支。
+- `main`：本轮保留，不合并人物版本。
+- Pages：保持已发布的花朵冻结版，不改部署配置或工作流。
+- 旧 `Llhleo/2n`：不在本轮修改范围。
 
-The user-approved v28 checkpoint is GitHub commit `5ebf6366e0fc5239239083c507ab7ee6b8632174` (Site source `93077f43778be9e3c55f6726e70589663b58f191`). PR #1 promotes this baseline into main. This round's loading-intro/Jungle changes remain on the development branch until visual acceptance.
-
-| Branch | Head when checked | Commits unique vs accepted checkpoint | Disposition |
-| --- | --- | ---: | --- |
-| main | e5106c5f662f46ee058653f3e040d05815e498b6 | 0 | Promote accepted baseline through PR #1 |
-| sync/persistent-3d-2026-09-27 | 5ebf6366e0fc5239239083c507ab7ee6b8632174 | current baseline | Active development / new checkpoints |
-| experiment/sculpture-light-reveal | d78b9af73f3d1bd25be0c75e7f90f91ec02c608a | 6 | Preserve research history |
-| experiment/model-study-02 | f3f6b37c60881b2781c4fa1fb2e8a071c7276e49 | 12 | Preserve research history |
-| experiment/garden-desert-3d-gate | 4a59296553e92233193d010845331ecab15751b7 | 25 | Preserve research history |
-| research/florr-3d-assets | cbef6771b0f469d19aecea82a90c0b9e7c94cb4e | 29 | Preserve research/source history |
-
-No old branch is an ancestor of the accepted checkpoint: connector comparison reports divergence. Do not infer that old branch names mean redundant content. Deletion needs per-file/history review or archival refs first. No branch deletion was performed this round; the connected plugins do not expose delete-ref.
+早期分支清单已归档到 [历史分支记录](docs/archive/2026-10-04-BRANCHES.md)。该清单是当时的快照，不代表当前远端分支状态。本轮没有删除远端分支或改写 Git 历史。
