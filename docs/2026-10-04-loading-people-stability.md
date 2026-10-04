@@ -26,3 +26,11 @@
 3. 从 Hell 最后成员镜头连续过渡到五境总览，展示历程，再回到公会主题作为结尾。复用现有模型，不增加首屏大资源；新增内容在相关章节前按需准备。
 
 保护范围：不更改 `main`、旧 `Llhleo/2n`、GitHub Pages 或 Pages 工作流；不删除原资产、历史记录及回退版本。
+
+## 发布记录
+
+Sites v46 已成功发布，部署时间 2026-10-04T15:32:35.712088+00:00。
+源码：`2e471ffd57f762ad5d0831a45e4bb58cfd7c4166`。
+部署地址：https://twon-dark-spatial-world.llhleo.chatgpt.site
+GitHub 代码 checkpoint：`b6f34e4b03eda2fed8598eb3b6b33f84c1cc7919`；检查/交接 checkpoint：`c6b329caf479534eac0a90c16ef2e0c91e5c6cf2`。
+当前版本保存来源 SHA 已经由 Sites 版本接口核对，发布状态为 succeeded。Pages 保持不变。
