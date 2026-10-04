@@ -175,7 +175,7 @@ test('reduced-motion manual input reads forward and backward without smoothing o
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
  for(const scroll of [.88,.4,.93]){
   app.seek(scroll);app.tick();
-  near(Number(app.elements.get('world').dataset.progress),Number((scroll*73.2/28).toFixed(3)));
+  near(Number(app.elements.get('world').dataset.progress),Number(api.scrollToStory(scroll,app.calls.routes.at(-1)).toFixed(3)));
   near(app.calls.companion.at(-1)[1],0);
  }
  const before=app.elements.get('world').dataset.progress;
@@ -195,7 +195,7 @@ test('late glyph completion retains actual camera pose and shared route during p
  const app=entry({late:true,reduced:true});await app.settle();app.open();app.tick();
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(.94);app.tick();
  const pose=app.calls.shots.at(-1),route=app.calls.routes.at(-1);
- const physical=sampleCourtyard(route,(.94*73.2-55.2)/18,414/896);
+ const physical=sampleCourtyard(route,api.chapterAt(api.scrollToStory(.94,route)).peopleT,414/896);
  pose.forEach((v,i)=>near(v,physical.position[i]));
  app.complete();await app.settle();app.tick();
  assert.deepEqual(app.calls.shots.at(-1),pose);assert.equal(app.calls.routes.at(-1),route);
@@ -247,7 +247,7 @@ test('actual gallery late measurement publishes on the existing route before fir
   await app.settle();assert.equal(typeof release,'function');app.open();app.tick();
   app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
   const w=app.gallery.route.windows[app.gallery.route.stations.findIndex(s=>s.kind==='member'&&s.memberIndices.includes(6))];
-  app.seek((55.2+18*(w.readStart+w.readEnd)/2)/73.2);app.tick();
+  app.seek(api.storyToScroll((55.2+18*(w.readStart+w.readEnd)/2)/28,app.gallery.route));app.tick();
   const route=app.calls.routes.at(-1),pose=app.calls.shots.at(-1);
   release();await app.settle();assert.equal(app.gallery.ready,true);
   app.tick();assert.equal(app.gallery.route,route);assert.deepEqual(app.calls.shots.at(-1),pose);
@@ -283,4 +283,20 @@ test('reverse courtyard seeks restore pristine historical camera orientation and
  assert.deepEqual(api.sampleStoryPose(73.2/28,shared,true),lookbackPose(1,pristine));
  assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
  assert.ok(shared.quaternion.angleTo(pristine.quaternion)<1e-7);
+});
+
+test('entry applies manual distance inverse, and play/pause retain the rendered shot',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ for(const scroll of [.81,.91,.99,.87]){
+  app.seek(scroll);app.tick();const route=app.calls.routes.at(-1);
+  const expected=api.sampleStoryPose(api.scrollToStory(scroll,route),camera(),true,route);
+  app.calls.shots.at(-1).forEach((v,i)=>near(v,expected.position[i]));
+  const t=app.calls.companion.at(-1)[2];
+  app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
+  near(app.calls.companion.at(-1)[2],t+.02/route.seconds);
+  const playingPose=app.calls.shots.at(-1);
+  app.events.get('wheel')({type:'wheel',target:{closest:()=>false}});app.tick();
+  app.calls.shots.at(-1).forEach((v,i)=>near(v,playingPose[i]));
+ }
 });

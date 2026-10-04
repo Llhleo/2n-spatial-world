@@ -138,11 +138,14 @@ export function chapterHandoff(route,t) {
  return {footprints:1-ease(t/Math.max(end,1e-9)),people:ease((t-start)/Math.max(arrival-start,1e-9))};
 }
 
-/** Absolute sampling only: no camera, renderer, Text, loading, or accumulated time. */
-export function sampleCourtyard(route, t, aspect = 414 / 896) {
+const tracks=new WeakMap();
+/** Camera-only sampling also builds the manual distance table without allocating
+ * the complete petal scene at every integration sample. */
+export function sampleCourtyardView(route, t, aspect = 414 / 896) {
   if (!Number.isFinite(aspect) || aspect <= 0) throw new RangeError('camera aspect must be positive');
   t = clamp(Number.isFinite(t) ? t : 0);
-  const knots = [];
+  let knots=tracks.get(route);
+  if(!knots){knots=[];
   route.windows.forEach(window => {
     const station = route.stations[window.stationIndex];
     const p = station.cameraPosition, target = station.target;
@@ -152,11 +155,19 @@ export function sampleCourtyard(route, t, aspect = 414 / 896) {
       knots.push({time: progress * route.seconds, position: p.map((v, i) => v + offset[i]), target: [...target], up: [...station.up]});
     }
   });
+  tracks.set(route,knots);}
   let position = sampleTrack(knots, t * route.seconds, 'position');
   const target = sampleTrack(knots, t * route.seconds, 'target');
   const up = new T.Vector3(...sampleTrack(knots, t * route.seconds, 'up')).normalize().toArray();
   const widen = Math.max(1, (414 / 896) / aspect) - 1;
   position = mix(target, position, 1 + widen * ease(t / Math.max(route.windows[0].readEnd, 1e-6)));
+  return {position,target,up};
+}
+
+/** Absolute sampling only: no camera, renderer, Text, loading, or accumulated time. */
+export function sampleCourtyard(route,t,aspect=414/896) {
+  t=clamp(Number.isFinite(t)?t:0);
+  const {position,target,up}=sampleCourtyardView(route,t,aspect);
   const primaryStation = route.windows.findIndex(w => t >= w.start && (t < w.end || w.end === 1));
   const visibleStations = [];
   const handoff=chapterHandoff(route,t);

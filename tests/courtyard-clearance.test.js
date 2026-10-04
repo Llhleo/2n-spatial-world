@@ -32,3 +32,20 @@ for(const count of [0,95])for(const [width,height] of [[414,896],[240,568],[896,
  const old=lookbackPose(1,new T.PerspectiveCamera());assert.deepEqual(sampleCourtyard(route,0,width/height).position,old.position);
  const a=sampleCourtyard(route,1e-9,width/height);assert.ok(new T.Vector3(...a.position).distanceTo(new T.Vector3(...old.position))<1e-6);
 });
+
+test('clearance reference matches actual finite rendered triangle geometry',async()=>{
+ const {preparedWorld}=await import('./support/prepared-world.js');
+ const scene=new T.Scene();await preparedWorld(scene,true);
+ const meshes=[];scene.traverse(o=>{if(o.isMesh&&['continuous-3d-ground','florr-ocean-ground','florr-jungle-ground','florr-hell-ground'].includes(o.name))meshes.push(o);});
+ assert.equal(meshes.length,7);
+ let highest=-Infinity;
+ for(const mesh of meshes){const p=mesh.geometry.attributes.position,index=mesh.geometry.index;
+  for(let i=0;i<p.count;i++)highest=Math.max(highest,p.getY(i));
+  for(let i=0;i<index.count;i+=333){const points=[0,1,2].map(k=>new T.Vector3().fromBufferAttribute(p,index.getX(i+k)));
+   const center=points[0].clone().add(points[1]).add(points[2]).divideScalar(3);
+   assert.ok(Math.abs(ground(center.x,center.z)-center.y)<2e-5,'reference differs from rendered triangle plane');
+  }
+ }
+ assert.ok(highest< -19,'conservative terrain envelope changed');
+ assert.equal(ground(1741,0),-Infinity);assert.equal(ground(500,331),-Infinity);
+});

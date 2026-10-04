@@ -1,3 +1,4 @@
+import {peopleTimeToDistance,peopleDistanceToTime} from './people-distance.js';
 import {STORY_UNITS,RETURN_START,RETURN_UNITS,lookbackPose} from './lookback.js';
 import {PEOPLE_UNITS,peoplePose} from './people-path.js';
 import {pose} from './journey.js';
@@ -11,17 +12,23 @@ export {PEOPLE_UNITS};
 export const autoplayDuration=route=>150+(route?.seconds||0);
 const clamp=t=>Math.max(0,Math.min(1,t));
 // Keep the historical absolute coordinate: one progress unit is 28 scroll units.
-export const scrollToStory=t=>clamp(t)*TOTAL_UNITS/28;
-export const storyToScroll=p=>clamp(p*28/TOTAL_UNITS);
+export function scrollToStory(t,route){
+ const units=clamp(t)*TOTAL_UNITS;
+ return (units<=STORY_UNITS?units:STORY_UNITS+PEOPLE_UNITS*peopleDistanceToTime((units-STORY_UNITS)/PEOPLE_UNITS,route))/28;
+}
+export function storyToScroll(p,route){
+ const units=clamp(p*28/TOTAL_UNITS)*TOTAL_UNITS;
+ return (units<=STORY_UNITS?units:STORY_UNITS+PEOPLE_UNITS*peopleTimeToDistance((units-STORY_UNITS)/PEOPLE_UNITS,route))/TOTAL_UNITS;
+}
 
 // The player stores time only; scroll remains the historical physical coordinate.
 export function autoplayToScroll(fraction,route){
  const seconds=clamp(fraction)*autoplayDuration(route);
  return seconds<=150 ? seconds/150*STORY_UNITS/TOTAL_UNITS
-  : (STORY_UNITS+PEOPLE_UNITS*clamp((seconds-150)/(route?.seconds||1)))/TOTAL_UNITS;
+  : storyToScroll((STORY_UNITS+PEOPLE_UNITS*clamp((seconds-150)/(route?.seconds||1)))/28,route);
 }
 export function scrollToAutoplay(scroll,route){
- const units=clamp(scroll)*TOTAL_UNITS;
+ const units=scrollToStory(scroll,route)*28;
  return (units<=STORY_UNITS ? units/STORY_UNITS*150 : 150+(units-STORY_UNITS)/PEOPLE_UNITS*(route?.seconds||0))/autoplayDuration(route);
 }
 export function capturePeoplePosition(route,t){

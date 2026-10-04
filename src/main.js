@@ -96,7 +96,7 @@ if (renderer) {
     const playing=player.playing;
     peopleRoute=next;people.adoptRoute(next);
     player=createAutoplay(autoplayDuration(next));
-    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress),next),true);
+    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next),true);
   }
   function adoptReadyMetrics(){
     if(!people?.ready||metricsAdopted)return;
@@ -115,7 +115,7 @@ if (renderer) {
     if(people){
       const token=old&&chapterAt(progress).peopleT>0?capturePeoplePosition(peopleRoute,chapterAt(progress).peopleT):null;
       const nextRoute=people.resize(camera.aspect,next.height);
-      if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress);}
+      if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress,nextRoute);}
       adoptPeopleRoute(nextRoute);
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
@@ -129,7 +129,7 @@ if (renderer) {
     player.pause();
     if (!controlled) {
       // Hand off at the current shot, never jump back to the start on first touch.
-      scrollTo({top:storyToScroll(progress)*viewport().range,behavior:'instant'});
+      scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
       controlled = true;
     }
   };
@@ -139,8 +139,8 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    player.toggle(scrollToAutoplay(storyToScroll(progress),peopleRoute),true);controlled=true;
-    scrollTo({top:storyToScroll(progress)*viewport().range,behavior:'instant'});
+    player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute),true);controlled=true;
+    scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
   attachIntroInput(window,()=>introLocked,()=>{});
@@ -152,8 +152,8 @@ if (renderer) {
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
-      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute));
-      scrollTo({top:storyToScroll(progress)*view.range,behavior:'instant'});
+      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute),peopleRoute);
+      scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
     }
     const scroll = scrollProgress(scrollY,view.range);
     if(!controlled&&!reduced.matches) auto = Math.min(HERO_END*(introLocked?.92:1),auto+dt*HERO_END/30*introState.speed);
@@ -161,10 +161,15 @@ if (renderer) {
     // changes hold the current shot; manual reduced-motion reads sample directly.
     const initialEnding=startAtEnding&&!introLocked&&!controlled;
     const requested=initialEnding?1:controlled?scroll:reduced.matches?progress:auto;
-    const target=controlled||initialEnding?scrollToStory(requested):requested;
+    const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
     if(!wasPlaying){
       if(reduced.matches)progress=target;
-      else progress += (target-progress)*(1-Math.exp(-dt*5));
+      else if(controlled||initialEnding){
+        // Damp the physical distance coordinate, then sample its inverse. Time
+        // damping would reintroduce the hold/transfer sensitivity cliff.
+        const current=storyToScroll(progress,peopleRoute);
+        progress=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+      } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
