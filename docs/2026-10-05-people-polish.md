@@ -20,3 +20,12 @@
 先确认冷启动稳定、白字清晰、从足迹文字到管理层没有花瓣闪现，并核对手机链大小。验收后再进行公会历程/纪念收束：复用五境与现有资源，资料与文案独立维护，不增加首屏大模型。
 
 发布结果将在 GitHub 的 PROJECT_STATUS.md 和 CODEX_HANDOFF.md 更新；失败时保留 checkpoint，不覆盖先前线上版本。
+
+## 发布结果
+
+- Sites v47，部署 succeeded，2026-10-05 00:51:32 北京时间。
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site
+- Sites 源码：`b5854964eb6f6aa62143d10f79f6a50eea64374b`。
+- GitHub 代码 checkpoint：`c604cefd9c6ed4b839cd5e30363f5e7e162e07cd`。
+- 36 项针对性检查通过；最终五境花瓣选择修改后，7 项实际高清几何检查再次通过。Vite 生产构建成功（1.90s），diff 检查无错误。
+- 未完成：实机 Safari 视觉/GPU 验收、实际网络加载提速比例；未冒称实测。Pages 未动。
