@@ -23,3 +23,5 @@ Candidate local5186de5+eb56381+7adfb40 complete: final186/186 tests, productionb
 Independent task review approved, no Critical/Important/newMinor. GitHub candidate7fbbca5ce660b88cf45fda6eedc59e248810d11a all12paths exact. Full-change final review remains before publication; no source/assets/content/Pages changes beyond listed corrections.
 
 Whole-change final review1258a16: noCritical/Important, publicationcandidateapproved but deviceacceptancepending. ONE Minor first-use distance-table setup91.5–104.4ms on102-station route. To avoid adding a startup/resize hitch while fixing manual response, sole correction wave is preparing adopted routes during idle/loading time, preserving exact numeric mapping and safe fallback. Final scopedre-review/build pending; do not call these draft improvements deployed.
+
+Finalfixb1d9365 complete:190/190fulltests andbuild/diffcheck pass. Same incremental table is prepared in boundedidle/timerslices; exactmapping/dedupe/cancel/fallback/adoptedidentity regressions pass. Scopedreview pending, no deploymentyet. Immediateentry/resize can still use synchronousfallback; no realdeviceclaim.

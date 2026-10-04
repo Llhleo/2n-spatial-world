@@ -64,3 +64,23 @@ Limits: real Safari appearance/GPU unverified; terrain check does not cover ever
 Independent courtyard_three_final_review: no Critical/Important; owner-private candidate ready. One Minor: first-use distance-table construction on102-station pre-metrics route measured91.5–104.4ms inNode vs0.20–0.56ms for1000cachedinversions, possible one-time boundary/resize hitch. This is not device/GPU evidence. Root assigned sole complete correction wave for idle/loading preparation with safe fallback.
 
 Declined to judge: Safari/touch/GPU, all decorative occluders, real-font rendering, analytic arc exactness (numerical intentional), identicalworldpose afterresponsive regrouping (semantic preservation), sameabsolute sensitivity acrossroute lengths (18units retained), externalpublication/Pages evidence. No silently discarded deviceacceptance.
+
+## Sole final correction wave
+
+# Sole final correction wave
+
+Base: 1258a16. Commit: b1d9365 (source and tests only). Complete assigned finding: lazy people distance-table first-use construction cost.
+
+Implemented one shared incremental builder for both synchronous first use and idle preparation. Same 256 cosine samples per edge interval, order, position sampler, metric floor, normalization and interpolation. WeakMap cache and pending jobs deduplicate overlapping requests. Each idle callback processes at most 64 samples and checks a 2ms budget between samples; a zero-budget callback reschedules without sampling. No idle timeout forces work onto a busy frame. Browsers without idle callbacks use bounded timer slices. Finished cache makes preparation a no-op. Synchronous fallback continues partial work and cancels its scheduled callback. Replacement cancellation removes stale work; stale cancel handles cannot cancel newer jobs.
+
+Main schedules immediately after adopting the actual route; previous adopted route preparation is canceled. Deferred late metrics are still deferred while inside people, and route adoption remains synchronous with original progress/player/resize semantics. No new readiness gate, seek, dependency, content/animation changes or alternative mapping. Existing integration harness additionally records preparation/cancellation and covers adopted identity, deferred metrics, resize and continued playback.
+
+Validation:
+- RED: `node --test tests/people-distance.test.js` — exit 1; existing 3 passed, new 2 failed because preparePeopleDistance absent.
+- GREEN: `node --test tests/people-distance.test.js tests/people-integration.test.js` — exit 0, 23/23 passed. Initial integration assertion incorrectly compared preparation with per-render route history, corrected to adopted gallery identity and preparation cancellation history.
+- Final full run (once): `node --test test/*.test.js tests/*.test.js > /tmp/courtyard-final-tests.log 2>&1` — exit 0, 190/190 passed, 0 skipped, approximately 14.28 seconds. Includes additional busy-budget/stale-cancellation test.
+- Final build (once): `npm run build > /tmp/courtyard-final-build.log 2>&1` — exit 0. Existing Vite >500kB chunk warning; build completed.
+- `git diff --check` — exit 0.
+- Diagnostic Node shipped-content responsive route (414x896, 102 stations), injected immediate idle queue with 10ms deadline: 813 slices, total callback work 106.14ms, maximum observed callback 3.42ms, cached 1000 forward mappings 0.65ms. Same machine diagnostic only; not browser/iPhone timing. Callback budget is checked between samples, so a sample, initialization, normalization or GC can exceed 2ms.
+
+Limits: preparation redistributes computation into available loading/idle periods; it does not eliminate total work. If a route is used before idle preparation completes, synchronous fallback remains possible, especially immediate resize/playing adoption requiring time mapping. No asynchronous geometry jump was introduced to hide that cost. Timer fallback provides bounded work but cannot prove browser idle time. No browser/GPU/iPhone confirmation or external publication was performed. No subagents spawned. Root-owned docs were not staged. This report is uncommitted for root ownership and scoped re-review.

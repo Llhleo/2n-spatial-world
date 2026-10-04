@@ -88,7 +88,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
 function entry({constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture}={}){
- const events=new Map(),elements=new Map(),calls={prepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
+ const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
@@ -112,6 +112,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
   createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
+  preparePeopleDistance(route){calls.distancePrepared.push(route);return ()=>calls.distanceCancelled.push(route);},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
   document:{querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
@@ -299,4 +300,18 @@ test('entry applies manual distance inverse, and play/pause retain the rendered 
   app.events.get('wheel')({type:'wheel',target:{closest:()=>false}});app.tick();
   app.calls.shots.at(-1).forEach((v,i)=>near(v,playingPose[i]));
  }
+});
+
+
+test('entry prepares only adopted routes and cancels previous preparation through late readiness and resize',async()=>{
+ const app=entry({reduced:true,late:true});await app.settle();
+ assert.equal(app.calls.distancePrepared.at(-1),app.gallery.route);
+ app.open();app.tick();app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(.9);app.tick();const route=app.calls.routes.at(-1),count=app.calls.distancePrepared.length;
+ app.complete();await app.settle();app.tick();
+ assert.equal(app.calls.routes.at(-1),route);assert.equal(app.calls.distancePrepared.length,count);
+ app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
+ app.resize();assert.equal(app.calls.distancePrepared.at(-1),app.gallery.route);
+ assert.deepEqual(app.calls.distanceCancelled,app.calls.distancePrepared.slice(0,-1));
+ app.tick();assert.equal(app.elements.get('autoplay').textContent,'暂停播放');
 });

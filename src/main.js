@@ -1,3 +1,4 @@
+import {preparePeopleDistance} from './people-distance.js';
 import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
@@ -40,6 +41,7 @@ if (renderer) {
   let gpuReady=false,gpuError='',warming=false,preparingAll=false;
   let people=null,peopleRoute=null,peoplePreparing=false,peopleError=null,peopleStarted=false;
   let measuredRoutePending=false,metricsAdopted=false;
+  let cancelDistancePreparation=()=>{};
   // Gallery validation and font sync are isolated from all prior scene resources.
   async function preparePeople(){
     if(peoplePreparing)return;
@@ -94,7 +96,9 @@ if (renderer) {
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
   function adoptPeopleRoute(next){
     const playing=player.playing;
+    cancelDistancePreparation();
     peopleRoute=next;people.adoptRoute(next);
+    cancelDistancePreparation=preparePeopleDistance(next);
     player=createAutoplay(autoplayDuration(next));
     if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next),true);
   }
