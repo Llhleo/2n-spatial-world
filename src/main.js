@@ -1,7 +1,8 @@
+import {createPeopleRoute,resizeCourtyard} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,AUTOPLAY_DURATION,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {TOTAL_UNITS,autoplayDuration,timeFractionToScroll,scrollToTimeFraction,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createCompanionship} from './companionship.js';
@@ -37,14 +38,20 @@ if (renderer) {
   const flowers=createMapFlowers();scene.add(flowers.group);
   world.onAssetPrepared=(mesh,kind,name)=>{if(mesh.material.map)renderer.initTexture(mesh.material.map);companionship.install(mesh,kind,name);};
   let gpuReady=false,gpuError='',warming=false,preparingAll=false;
-  let people=null,peoplePreparing=false,peopleError=null,peopleStarted=false;
+  let people=null,peopleRoute=null,peoplePreparing=false,peopleError=null,peopleStarted=false;
+  let measuredRoutePending=false,metricsAdopted=false;
   // Gallery validation and font sync are isolated from all prior scene resources.
   async function preparePeople(){
     if(peoplePreparing)return;
     peopleStarted=true;peoplePreparing=true;peopleError=null;
     try{
-      if(!people){people=createPeopleGallery(peopleData);scene.add(people.group);people.resize(camera.aspect);}
+      if(!people){
+        const base=createPeopleRoute(peopleData);
+        people=createPeopleGallery(peopleData,base);scene.add(people.group);
+        const view=viewport();adoptPeopleRoute(people.resize(camera.aspect,view.height));
+      }
       await people.retry();
+      adoptReadyMetrics();
     }catch(error){peopleError=error;}finally{peoplePreparing=false;}
   }
   async function prepareEverything(){
@@ -74,7 +81,8 @@ if (renderer) {
   const loading=document.querySelector('#loading-status'),retry=document.querySelector('#retry-models');
   const peopleStatus=document.querySelector('#people-status'),peopleRetry=document.querySelector('#retry-people');
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
-  const autoplayButton=document.querySelector('#autoplay'),player=createAutoplay(AUTOPLAY_DURATION);
+  const autoplayButton=document.querySelector('#autoplay');
+  let player=createAutoplay(autoplayDuration(peopleRoute));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
   retry.addEventListener('click',()=>prepareEverything());
@@ -84,13 +92,34 @@ if (renderer) {
   let introLocked=true;
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
+  function adoptPeopleRoute(next){
+    const playing=player.playing;
+    peopleRoute=next;people.adoptRoute(next);
+    player=createAutoplay(autoplayDuration(next));
+    if(playing)player.toggle(scrollToTimeFraction(storyToScroll(progress),next),true);
+  }
+  function adoptReadyMetrics(){
+    if(!people?.ready||metricsAdopted)return;
+    if(measuredRoutePending&&chapterAt(progress).peopleT>0)return;
+    // Async glyph completion cannot replace geometry under a people camera.
+    if(chapterAt(progress).peopleT>0){measuredRoutePending=true;people.adoptRoute(peopleRoute);return;}
+    const view=viewport();adoptPeopleRoute(people.resize(camera.aspect,view.height));
+    metricsAdopted=true;measuredRoutePending=false;
+  }
   const viewport=stableViewport((next,old)=>{
     const retained=old?scrollProgress(scrollY,old.range):0;
     renderer.setSize(next.width,next.height);
     camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
     companionship.resize(camera.aspect);
-    people?.resize(camera.aspect);
-    if(old&&controlled)scrollTo({top:retained*next.range,behavior:'instant'});
+    let nextScroll=retained;
+    if(people){
+      const token=old&&chapterAt(progress).peopleT>0?capturePeoplePosition(peopleRoute,chapterAt(progress).peopleT):null;
+      const nextRoute=people.resize(camera.aspect,next.height);
+      if(token){progress=(STORY_UNITS+18*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress);}
+      adoptPeopleRoute(nextRoute);
+      if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
+    }
+    if(old&&controlled)scrollTo({top:nextScroll*next.range,behavior:'instant'});
   },TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
@@ -110,7 +139,7 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    player.toggle(storyToScroll(progress),true);controlled=true;
+    player.toggle(scrollToTimeFraction(storyToScroll(progress),peopleRoute),true);controlled=true;
     scrollTo({top:storyToScroll(progress)*viewport().range,behavior:'instant'});
     revealButton();
   });
@@ -123,7 +152,7 @@ if (renderer) {
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
-      progress=scrollToStory(player.advance(dt));
+      progress=scrollToStory(timeFractionToScroll(player.advance(dt),peopleRoute));
       scrollTo({top:storyToScroll(progress)*view.range,behavior:'instant'});
     }
     const scroll = scrollProgress(scrollY,view.range);
@@ -137,14 +166,15 @@ if (renderer) {
       if(reduced.matches)progress=target;
       else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
+    if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
-    const state=sampleStoryPose(progress,camera,portrait);
+    const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress);
+    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute);
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);

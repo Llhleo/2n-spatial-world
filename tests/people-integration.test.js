@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {createPeopleRoute,resizeCourtyard} from '../src/people-courtyard.js';
+const fixture={leaders:[{id:'ending',name:'Leader',role:'Role',intro:'Intro'}],members:Array.from({length:15},(_,i)=>`Member ${i}`)};
+const metrics={members:Array.from({length:15},()=>({minX:0,minY:0,maxX:4,maxY:1,glyphs:[[0,0,1,1]]}))};
 import * as THREE from 'three';
 import {createAutoplay} from '../src/autoplay.js';
 import {lookbackPose} from '../src/lookback.js';
@@ -58,22 +61,32 @@ test('direct ending seek, reverse drag and portrait/landscape resize are absolut
  assert.equal(api.chapterAt(api.scrollToStory(55.2/73.2)).chapter,'lookback');
 });
 
-test('autoplay keeps old unit speed, reaches appended ending and pauses there on manual control',()=>{
- requireApi();
- const player=createAutoplay(api.AUTOPLAY_DURATION);
- player.toggle(0,true);
- near(api.scrollToStory(player.advance(75))*28,27.6);
- player.advance(75);
- near(api.scrollToStory(player.advance(150*18/55.2)),73.2/28);
- assert.equal(player.playing,false);
- player.toggle(.9,true);player.advance(1);player.pause();
- const paused=player.advance(1);near(player.advance(10),paused);
+test('paced autoplay preserves old speed and inverts every route reading window',()=>{
+ const route=resizeCourtyard(createPeopleRoute(fixture),{width:414,height:896,glyphMetrics:metrics});
+ assert.equal(typeof api.timeFractionToScroll,'function');
+ const duration=api.autoplayDuration(route),player=createAutoplay(duration);player.toggle(0,true);
+ near(api.timeFractionToScroll(player.advance(75),route)*73.2,27.6);
+ near(api.timeFractionToScroll(player.advance(75),route)*73.2,55.2);
+ for(const w of route.windows){
+  const seconds=(w.readEnd-w.readStart)*route.seconds;
+  near(seconds,route.stations[w.stationIndex].readSeconds);
+ }
+ for(let i=0;i<=1000;i++)near(api.scrollToTimeFraction(api.timeFractionToScroll(i/1000,route),route),i/1000);
+ near(api.timeFractionToScroll(player.advance(route.seconds),route),1);assert.equal(player.playing,false);
+});
+
+test('semantic remap retains original member inside changed subwindow numbering',()=>{
+ const base=createPeopleRoute(fixture),narrow=resizeCourtyard(base,{width:320,height:568}),wide=resizeCourtyard(base,{width:896,height:414,glyphMetrics:metrics});
+ const i=narrow.stations.findIndex(s=>s.kind==='member'&&s.memberIndices.includes(6)),w=narrow.windows[i],t=w.readStart+(w.readEnd-w.readStart)*.37;
+ const token=api.capturePeoplePosition(narrow,t);assert.equal(token.memberIndex,6);
+ const next=api.restorePeoplePosition(wide,token),j=wide.windows.findIndex(w=>next>=w.start&&next<=w.end);
+ assert.ok(wide.stations[j].memberIndices.includes(6));near((next-wide.windows[j].readStart)/(wide.windows[j].readEnd-wide.windows[j].readStart),.37);
 });
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({constructionError=false,preparationError=false,reduced=false}={}){
- const events=new Map(),elements=new Map(),calls={prepare:0,people:[],companion:[],scroll:[],render:0};
+function entry({constructionError=false,preparationError=false,reduced=false,late=false}={}){
+ const events=new Map(),elements=new Map(),calls={prepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
@@ -82,22 +95,26 @@ function entry({constructionError=false,preparationError=false,reduced=false}={}
  const resource=()=>({group:new THREE.Group(),ready:true,prepare:async()=>{},update(){},resize(){},capture(){},install(){},prepared:7,displayPrepared:14});
  const companion=resource();companion.update=(...args)=>calls.companion.push(args);
  const gallery=resource();gallery.ready=false;gallery.error=null;
- gallery.prepare=gallery.retry=async()=>{calls.prepare++;if(preparationError){gallery.error=new Error('font timeout');throw gallery.error;}gallery.ready=true;};
+ gallery.glyphMetrics={members:[]};
+ gallery.resize=(aspect,height=896)=>gallery.route=resizeCourtyard(gallery.route,{width:aspect*height,height,glyphMetrics:gallery.glyphMetrics});
+ gallery.adoptRoute=route=>gallery.route=route||createPeopleRoute(data);
+ let complete;
+ gallery.prepare=gallery.retry=async()=>{calls.prepare++;if(late)await new Promise(resolve=>complete=resolve);if(preparationError){gallery.error=new Error('font timeout');throw gallery.error;}gallery.glyphMetrics=metrics;gallery.resize(gallery.route.viewport.width/gallery.route.viewport.height,gallery.route.viewport.height);gallery.ready=true;};
  gallery.update=(...args)=>calls.people.push(args);
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:73.2*896};
- class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(){calls.render++;}setAnimationLoop(fn){frame=fn;}}
+ class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
  const context={...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
-  peopleData:{},createPeopleGallery(){if(constructionError)throw new Error('invalid record');return gallery;},
+  createPeopleRoute,resizeCourtyard,peopleData:fixture,createPeopleGallery(data,route){gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
   document:{querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
- return {calls,gallery,elements,events,setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=73.2*414;resize(view,old);}};
+ return {calls,gallery,elements,events,complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=73.2*414;resize(view,old);}};
 }
 
 test('people font failure cannot lock original opening; retry and resize do not reset camera progress',async()=>{
@@ -166,4 +183,20 @@ test('turning reduced motion on mid-opening holds the current shot rather than j
  const before=app.elements.get('world').dataset.progress;
  app.setReduced(true);app.tick();assert.equal(app.elements.get('world').dataset.progress,before);
  for(let i=0;i<50;i++)app.tick();assert.equal(app.elements.get('world').dataset.progress,before);
+});
+
+test('late glyph completion retains actual camera pose and shared route during people reading',async()=>{
+ const app=entry({late:true,reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(.94);app.tick();
+ const pose=app.calls.shots.at(-1),route=app.calls.routes.at(-1);
+ app.complete();await app.settle();app.tick();
+ assert.deepEqual(app.calls.shots.at(-1),pose);assert.equal(app.calls.routes.at(-1),route);
+ assert.equal(app.calls.companion.at(-1)[3],route);
+ app.resize();app.tick();assert.notEqual(app.calls.routes.at(-1),route);
+ assert.equal(app.calls.companion.at(-1)[3],app.calls.routes.at(-1));
+});
+
+test('missing route preserves old ending for every requested people sample',()=>{
+ const old=lookbackPose(1,camera());
+ for(const t of [.1,.5,1])assert.deepEqual(api.sampleStoryPose((55.2+18*t)/28,camera(),true),old);
 });

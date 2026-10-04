@@ -12,6 +12,8 @@ Task 4 本次已有连贯实现草稿：companionship/people-courtyard 与新增
 
 Task 4 已完成：本地 commit 7692eeb09ea670c029a4a928bda340cfccbe225f。最终定向 19/19、完整 174/174；四视口、7 人与保守单人拆组、读站开始/中/末及转场采样均检查真实完整模型。1199 个密集邻点与实际池替换边界检查通过，对照移除平滑处理会失败。独立审查 Spec compliant、Task quality Approved，无 Critical/Important；已有 offline fixture 诊断为待整理 minor。模型和材质共享、高清迟到升级、42 实例上限及地面恢复通过。当前开始 Task 5 集成，Sites 仍未切换。
 
+Task 5 已有主入口/故事映射/VM 测试的连贯草稿，首轮定向 10/10 GREEN（尚未完成旧路径删除）。已检查前段 150 秒不变、映射互逆、字体晚到时保留同一路线与真实相机姿态。接下来删除临时旧人物/侧边走廊实现、加强播放中 resize/语义位置检查，再跑完整 suite/build/独立审查。本次 WIP 未审查、未部署。
+
 已重新确认 Sites 仍为 v42、源码 537be1fc60418af393cf9511549b91e5dd77fe8a；原站源码已打开，尚未更新或部署。当前支持流程仍缺少 control-browser，浏览器/手机/性能实测保持未验状态。
 
 ## 已保存阶段

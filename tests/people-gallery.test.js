@@ -5,7 +5,7 @@ import {inflateSync} from 'node:zlib';
 import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {createCompanionship} from '../src/companionship.js';
-import {peoplePose, peopleAnchor, projectTextBounds} from '../src/people-path.js';
+import {peoplePose, projectTextBounds} from '../src/people-path.js';
 import {FLOWER_SPECS} from '../src/lookback.js';
 import * as courtyard from '../src/people-courtyard.js';
 
@@ -189,25 +189,6 @@ function companion() {
 }
 const matrixOf = mesh => {const m=new T.Matrix4();mesh.getMatrixAt(0,m);return m;};
 
-// Only the browser font-worker boundary is replaced; real Text/Group/material,
-// sync events, measured glyph union, state, visibility and projection run here.
-async function withGlyphs(run, pending=new Set()) {
- const original=Text.prototype.sync, jobs=new Map(), calls=new Map();
- Text.prototype.sync=function() {
-  calls.set(this,(calls.get(this)||0)+1);
-  if(this.textRenderInfo)return;
-  const finish=()=>{
-   const width=this.text.includes('\n')?132:this.text==='flowerwsr'?105:this.text==='INeedMoreLuck'?200:Math.max(10,this.text.length*3);
-   const height=this.text.includes('\n')?12:this.fontSize;
-   // Deliberately asymmetric extents catch name-only or blockBounds fitting.
-   this._textRenderInfo={glyphBounds:new Float32Array([-width/2,-height*.8,width/2,height*.2]),blockBounds:[-1,-1,1,1]};
-   this.dispatchEvent({type:'synccomplete'});
-  };
-  if(pending.has(this.text))jobs.set(this,finish);else finish();
- };
- try {await run({jobs,calls,complete:text=>jobs.get(text)?.()});} finally {Text.prototype.sync=original;}
-}
-
 test('default companion preserves original matrices and labels when peopleT is omitted or zero',()=>{
  const a=companion(),b=companion();
  a.rig.update(1,0);b.rig.update(1,0,0);
@@ -221,86 +202,10 @@ test('default companion preserves original matrices and labels when peopleT is o
  a.rig.dispose();b.rig.dispose();
 });
 
-test('people handoff fades the old words before spreading along depth-aware side curves and reversal restores ring',()=>{
- const {rig,meshes,sources}=companion(),cam=camera();rig.update(1,0);const ring=meshes.map(matrixOf);
- rig.update(1,0,.000001);
- meshes.forEach((mesh,i)=>assert.ok(new T.Vector3().setFromMatrixPosition(matrixOf(mesh)).distanceTo(new T.Vector3().setFromMatrixPosition(ring[i]))<.001));
- rig.update(1,0,.035);assert.ok(texts(rig.group).every(t=>!t.visible),'old words persist when petals start spreading');
- for(const aspect of [414/896,.35,896/414])for(const t of [.07,.12,.16,.228,.296,.364,.432,.5,.568,.636,.704,.772,.9,1]) {
-  cam.aspect=aspect;cam.updateProjectionMatrix();rig.update(1,0,t);peoplePose(t,cam);cam.updateMatrixWorld();
-  let visible=0,left=0,right=0;
-  meshes.forEach(mesh=>{const ndc=new T.Vector3().setFromMatrixPosition(matrixOf(mesh)).project(cam);if(ndc.z>-1&&ndc.z<1&&Math.abs(ndc.x)<1&&Math.abs(ndc.y)<1){visible++;if(ndc.x<0)left++;else right++;if(aspect<=414/896&&t>=.16)assert.ok(Math.abs(ndc.x)>.72,`petal center enters portrait reading width at ${t}: ${ndc.x}`);}});
-  assert.ok(visible>=6&&left>=2&&right>=2,`side petals outside actual frustum at ${aspect}, ${t}: ${visible}, ${left}, ${right}`);
- }
- rig.update(1,0,.1);const mid=matrixOf(meshes[0]);rig.update(1,0,.11);assert.ok(mid.elements.some((v,i)=>i<12&&Math.abs(v-matrixOf(meshes[0]).elements[i])>.0001),'spreading does not rotate');
- rig.update(1,0,0);meshes.forEach((mesh,i)=>assert.deepEqual(matrixOf(mesh).toArray(),ring[i].toArray()));
- sources.forEach(({ground})=>assert.equal(matrixOf(ground).elements[0],0,'duplicate grounded petal'));
- rig.update(0,0,0);sources.forEach(({ground})=>assert.equal(matrixOf(ground).elements[0],1));rig.dispose();
-});
-
-test('gallery keeps fixed world anchors, only one detail block, and fits complete measured glyphs on all reading views',async()=>{
- requireGallery();
- await withGlyphs(async()=>{
-  const gallery=api.createPeopleGallery(data);await gallery.prepare(50);assert.equal(gallery.ready,true);
-  const cards=gallery.group.getObjectByName('people-leaders').children;
-  assert.equal(cards.length,5);
-  for(const aspect of [414/896,896/414,16/9]) {
-   gallery.resize(aspect);const cam=camera(aspect);
-   for(let step=160;step<840;step+=4) {
-    const t=step/1000;peoplePose(t,cam);cam.updateMatrixWorld();gallery.update(t,cam,.016,false);
-    const details=texts(gallery.group).filter(text=>text.visible&&text.userData.tier!=='name');
-    assert.ok(new Set(details.map(text=>text.userData.personId)).size<=1,'multiple people show roles');
-    for(const card of cards) {
-     assert.deepEqual(card.position.toArray(),peopleAnchor(card.userData.index).position);
-     if(!card.userData.focal||!card.visible)continue;
-     const [minX,minY,maxX,maxY]=card.userData.measuredBounds;
-     for(const x of [minX,maxX])for(const y of [minY,maxY]) {
-      const ndc=card.localToWorld(new T.Vector3(x,y,0)).project(cam);
-      assert.ok(Math.abs(ndc.x)<=.72+1e-6&&Math.abs(ndc.y)<=.70+1e-6,`glyph clipping ${t}: ${ndc.toArray()}`);
-     }
-    }
-   }
-  }
-  const cam=camera();peoplePose(.364,cam);gallery.update(.364,cam,0,true);
-  assert.equal(texts(gallery.group).find(t=>t.userData.personId==='flowerwsr'&&t.userData.tier==='intro').text.split('\n').length,2);
-  texts(gallery.group).forEach(t=>{assert.equal(t.sdfGlyphSize,256);assert.equal(t.gpuAccelerateSDF,false);assert.ok(t.font.includes('people-sc-semibold.woff'));});
-  const before=cards.map(c=>c.matrix.toArray());gallery.update(.364,cam,1,true);assert.deepEqual(cards.map(c=>c.matrix.toArray()),before);gallery.dispose();
- });
-});
-
-test('crowd entry uses separate instanced nodes and only a few nearby real names',async()=>{
- requireGallery();await withGlyphs(async()=>{
-  const gallery=api.createPeopleGallery(data);await gallery.prepare(50);
-  const cam=camera();peoplePose(1,cam);gallery.update(1,cam,0,true);
-  const crowd=gallery.group.getObjectByName('people-crowd'),nodes=crowd.children.find(o=>o.isInstancedMesh);
-  assert.equal(nodes.count,95);assert.notEqual(crowd.name,'companionship');
-  const names=texts(crowd).filter(t=>t.visible);assert.ok(names.length>0&&names.length<=3);
-  names.forEach(t=>{assert.ok(data.members.includes(t.text));const glyphs=t.textRenderInfo.glyphBounds;for(let i=0;i<glyphs.length;i+=4)for(const x of [glyphs[i],glyphs[i+2]])for(const y of [glyphs[i+1],glyphs[i+3]]){const p=t.localToWorld(new T.Vector3(x,y,0)).project(cam);assert.ok(Math.abs(p.x)<.72&&Math.abs(p.y)<.7);}});
-  assert.ok(texts(gallery.group).filter(t=>t.userData.personId).every(t=>!t.visible),'leadership cards persist over crowd');
-  gallery.update(.5,cam,0,true);assert.equal(crowd.visible,false);gallery.dispose();
- });
-});
-
-test('finite font timeout is isolated; retry adopts late sync and never resets already prepared names',async()=>{
- requireGallery();await withGlyphs(async({complete,calls})=>{
-  const gallery=api.createPeopleGallery(data);
-  await assert.rejects(gallery.prepare(5),/超时/);assert.equal(gallery.ready,false);assert.ok(gallery.error instanceof Error);
-  const all=texts(gallery.group),blocked=all.filter(t=>t.text==='flowerwsr'),ready=all.filter(t=>t.text!=='flowerwsr');
-  const cam=camera();peoplePose(.228,cam);gallery.update(.228,cam,0,true);
-  assert.ok(all.find(t=>t.text==='awdc'&&t.userData.personId).visible,'one failed card hides an already measured neighbor');
-  const saved=ready.map(t=>t.textRenderInfo);const retry=gallery.retry(50);blocked.forEach(complete);await retry;
-  assert.equal(gallery.ready,true);assert.equal(gallery.error,null);
-  ready.forEach((t,i)=>{assert.equal(t.textRenderInfo,saved[i]);assert.equal(calls.get(t),1);});
-  await gallery.prepare(50);assert.equal(gallery.ready,true);gallery.dispose();
- },new Set(['flowerwsr']));
-});
-
-test('late glyph completion after timeout restores readiness without another retry and disposal removes owned nodes',async()=>{
- requireGallery();await withGlyphs(async({complete})=>{
-  const gallery=api.createPeopleGallery(data);await assert.rejects(gallery.prepare(5),/超时/);
-  texts(gallery.group).filter(t=>t.text==='flowerwsr').forEach(complete);
-  assert.equal(gallery.ready,true);assert.equal(gallery.error,null);gallery.dispose();assert.equal(gallery.group.children.length,0);
- },new Set(['flowerwsr']));
+test('missing route keeps original companion ring and words and rejects legacy gallery',()=>{
+ const {rig,meshes}=companion();rig.update(1,0);const ring=meshes.map(matrixOf);
+ for(const t of [.1,.5,1]){rig.update(1,0,t);meshes.forEach((m,i)=>assert.deepEqual(matrixOf(m).toArray(),ring[i].toArray()));assert.ok(texts(rig.group).every(t=>t.visible));}
+ assert.throws(()=>api.createPeopleGallery(data),/共享路线/);rig.dispose();
 });
 
 test('supplemental WOFF includes every displayed name and Chinese glyph without fallback',()=>{

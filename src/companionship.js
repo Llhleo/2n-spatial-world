@@ -3,7 +3,6 @@ import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
 import {sampleCourtyard,courtyardEnvironment} from './people-courtyard.js';
-import {peopleState} from './people-path.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
 export const flightGrowth=age=>1+.7*T.MathUtils.smoothstep(age,0,.18);
 // A sync callback is not re-fired when Troika is already syncing. Listen for
@@ -27,21 +26,6 @@ export function createCompanionship(scene){
  let previous=NaN,previousPeople=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
  const sidePoint=new T.Vector3(),sideRotation=new T.Quaternion(),sideAxis=new T.Vector3(0,0,1);
  const smooth=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
- // Authored world-space side curves continue in depth with the gallery. Merely
- // widening the old z=-100 ring would strand it behind the arriving camera.
- function corridorPoint(index,t,out) {
-  const angles=[-.32,-.16,0,.16,.32],boundaries=[.296,.432,.568,.704];let angle=angles[4];
-  for(let i=0;i<4;i++) {
-   if(t<boundaries[i]-.032){angle=angles[i];break;}
-   if(t<boundaries[i]+.032){angle=T.MathUtils.lerp(angles[i],angles[i+1],smooth((t-boundaries[i]+.032)/.064));break;}
-  }
-  const side=index%2?1:-1,lane=Math.floor(index/2),crowd=peopleState(t).crowd;
-  angle*=1-crowd;
-  const radius=110,offset=side*(17.8+lane%3*.25)*(1+1.35*crowd),depth=(lane%3-1)*8;
-  // This samples a fixed authored pair of 3D ribbons, not camera offsets.
-  return readingPoint((radius+depth)*Math.sin(angle)+Math.cos(angle)*offset,
-   (lane-3)*6,-310+(radius+depth)*Math.cos(angle)-Math.sin(angle)*offset,out);
- }
  for(const [content,size,y] of [['每个地图，',3.6,3],['都有2n的足迹',3.6,-3]]){
   const text=new Text();text.text=content;text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/companionship-sc-semibold.woff?v=footprints-sdf256-4`;
   text.fontSize=size;text.color=0xf4f0df;text.anchorX='center';text.anchorY='middle';
@@ -91,7 +75,7 @@ export function createCompanionship(scene){
   batch.displayOwned=true;previous=NaN;
  }
  function update(t,dt=0,peopleT=0,route=null){
-  peopleT=T.MathUtils.clamp(peopleT,0,1);
+  peopleT=route?T.MathUtils.clamp(peopleT,0,1):0;
   const step=Math.min(.05,Math.max(0,dt));ornamentTime+=step;
   let pose=null,anchors=null;
   if(route&&peopleT>0){
@@ -116,12 +100,6 @@ export function createCompanionship(scene){
    // Grow from the exact grounded size, then gently fit the reading perimeter.
    const settle=T.MathUtils.smoothstep(t,.76,.92);
    scale.copy(nativeScale).multiplyScalar(flightGrowth(t-phase)).lerp(finalScale,settle).multiplyScalar(1+(layoutScale-1)*settle);
-   if(peopleT>0&&!route) {
-    const spread=peopleState(peopleT).transition;
-    corridorPoint(index,peopleT,sidePoint);point.lerp(sidePoint,spread);
-    sideRotation.copy(heading).multiply(new T.Quaternion().setFromAxisAngle(sideAxis,(index%2?1:-1)*spread*1.15));
-    rotation.slerp(sideRotation,spread);
-   }
    if(pose){
     const spread=smooth(peopleT/Math.max(route.windows[0].readEnd,1e-6));
     const anchor=pose.petals.find(p=>p.id===`entry-petal-${index}`);
