@@ -2,6 +2,7 @@ import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
 import {flowerPose,flowerReveal,readingPoint,readingQuaternion,lookbackPose,setReadingAspect,FLOWER_SPECS} from './lookback.js';
+import {sampleCourtyard,courtyardEnvironment} from './people-courtyard.js';
 import {peopleState} from './people-path.js';
 const selected=FLOWER_SPECS.map(([kind,name])=>kind+':'+name);
 export const flightGrowth=age=>1+.7*T.MathUtils.smoothstep(age,0,.18);
@@ -21,6 +22,8 @@ export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
+ let previousRoute=null,ornamentTime=0;
+ const view=new T.PerspectiveCamera(48,414/896,.2,2400);
  let previous=NaN,previousPeople=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
  const sidePoint=new T.Vector3(),sideRotation=new T.Quaternion(),sideAxis=new T.Vector3(0,0,1);
  const smooth=u=>{u=T.MathUtils.clamp(u,0,1);return u*u*u*(10+u*(-15+6*u));};
@@ -69,7 +72,8 @@ export function createCompanionship(scene){
   mesh.name='companion-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   const twist=new T.Quaternion().setFromEuler(new T.Euler((index%3-1)*.13,(index%4-1.5)*.06,(index-6)*.075));
   const finalScale=new T.Vector3().setScalar(FLOWER_SPECS[index][3]/Math.max(size.x,size.y,size.z));
-  batches.set(key,{mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center,taken:false,displayOwned:false});group.add(mesh);previous=NaN;
+  const extras=new T.InstancedMesh(geometry,material,2);extras.name='courtyard-'+key;extras.frustumCulled=false;extras.visible=false;group.add(extras);
+  batches.set(key,{mesh,extras,index,face,twist,original,nativeRotation,nativeScale,finalScale,center,taken:false,displayOwned:false});group.add(mesh);previous=NaN;
   if(displayAssets.has(key))installDisplay(displayAssets.get(key),kind,name);
  }
  function installDisplay(source,kind,name){
@@ -83,16 +87,23 @@ export function createCompanionship(scene){
   const dimensions=geometry.boundingBox.getSize(size),normal=dimensions.y<Math.min(dimensions.x,dimensions.z)?new T.Vector3(0,1,0):dimensions.x<dimensions.z?new T.Vector3(1,0,0):new T.Vector3(0,0,1);
   batch.face.setFromUnitVectors(normal,new T.Vector3(0,0,1));
   batch.finalScale.setScalar(FLOWER_SPECS[batch.index][3]/Math.max(dimensions.x,dimensions.y,dimensions.z));
+  batch.extras.geometry=batch.mesh.geometry;batch.extras.material=batch.mesh.material;
   batch.displayOwned=true;previous=NaN;
  }
- function update(t,dt=0,peopleT=0){
+ function update(t,dt=0,peopleT=0,route=null){
   peopleT=T.MathUtils.clamp(peopleT,0,1);
-  const step=Math.min(.05,Math.max(0,dt));
+  const step=Math.min(.05,Math.max(0,dt));ornamentTime+=step;
+  let pose=null,anchors=null;
+  if(route&&peopleT>0){
+   const aspect=route.viewport?route.viewport.width/route.viewport.height:view.aspect;
+   pose=sampleCourtyard(route,peopleT,aspect);anchors=courtyardEnvironment(route);
+   view.aspect=aspect;view.updateProjectionMatrix();view.position.fromArray(pose.position);view.up.fromArray(pose.up);view.lookAt(new T.Vector3(...pose.target));view.updateMatrixWorld();
+  }
   if(t<=0)flightTime=0;else flightTime+=step;
   if(t<.74)orbitAngle=0;
   const orbitStep=step*.10*T.MathUtils.smoothstep(t,.74,.80);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
-  if(t===previous&&peopleT===previousPeople&&!orbitStep&&!(step&&t>0&&t<.76))return;previous=t;previousPeople=peopleT;
+  if(t===previous&&peopleT===previousPeople&&route===previousRoute&&!step)return;previous=t;previousPeople=peopleT;previousRoute=route;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
@@ -105,14 +116,48 @@ export function createCompanionship(scene){
    // Grow from the exact grounded size, then gently fit the reading perimeter.
    const settle=T.MathUtils.smoothstep(t,.76,.92);
    scale.copy(nativeScale).multiplyScalar(flightGrowth(t-phase)).lerp(finalScale,settle).multiplyScalar(1+(layoutScale-1)*settle);
-   if(peopleT>0) {
+   if(peopleT>0&&!route) {
     const spread=peopleState(peopleT).transition;
     corridorPoint(index,peopleT,sidePoint);point.lerp(sidePoint,spread);
     sideRotation.copy(heading).multiply(new T.Quaternion().setFromAxisAngle(sideAxis,(index%2?1:-1)*spread*1.15));
     rotation.slerp(sideRotation,spread);
    }
+   if(pose){
+    const spread=smooth(peopleT/Math.max(route.windows[0].readEnd,1e-6));
+    const anchor=pose.petals.find(p=>p.id===`entry-petal-${index}`);
+    point.lerp(sidePoint.fromArray(anchor.position),spread);
+    rotation.slerp(sideRotation.fromArray(anchor.quaternion).multiply(face),spread);
+    // The inherited ring is allowed only before the first people reading.
+    scale.multiplyScalar(1-smooth(peopleT/Math.max(route.windows[1].readStart,1e-6)));
+   }
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
+   const extras=batch.extras;extras.visible=!!pose;
+   if(pose){
+    const candidates=anchors.filter(p=>p.sourceIndex===index).map(p=>({p,d:new T.Vector3(...p.position).distanceTo(new T.Vector3(...pose.target))})).sort((a,b)=>a.d-b.d);
+    const cutoff=candidates[2]?.d??Infinity;
+    extras.userData.anchorIds=[];
+    for(let slot=0;slot<2;slot++){
+     const candidate=candidates[slot];
+     if(!candidate){extras.setMatrixAt(slot,matrix.makeScale(0,0,0));continue;}
+     const p=candidate.p;extras.userData.anchorIds.push(p.id);
+     point.fromArray(p.position);rotation.fromArray(p.quaternion).multiply(face);
+     rotation.multiply(sideRotation.setFromAxisAngle(sideAxis,Math.sin(ornamentTime*.35+index)*.12));
+     point.y+=Math.sin(ornamentTime*.4+index)*.3;
+     const dimensions=mesh.geometry.boundingBox.getSize(new T.Vector3());
+     let amount=smooth((cutoff-candidate.d)/10)*smooth(peopleT/Math.max(route.windows[0].readEnd,1e-6));
+     const extent=p.scale[0],radius=dimensions.length()/Math.max(dimensions.x,dimensions.y,dimensions.z)*extent/2+.6;
+     const local=sidePoint.copy(point).applyMatrix4(view.matrixWorldInverse),depth=-local.z;
+     if(depth<=radius)amount=0;
+     else {
+      const half=depth*Math.tan(Math.PI*24/180),x=local.x/(half*view.aspect),y=local.y/half,rx=radius/((depth-radius)*Math.tan(Math.PI*24/180)*view.aspect),ry=radius/((depth-radius)*Math.tan(Math.PI*24/180));
+      const clearance=Math.max(Math.abs(x)-rx-.76,Math.abs(y)-ry-.4);
+      amount*=smooth(clearance/.12);
+     }
+     scale.setScalar(extent/Math.max(dimensions.x,dimensions.y,dimensions.z)*amount);
+     matrix.compose(point,rotation,scale).multiply(pivot);extras.setMatrixAt(slot,matrix);
+    }extras.instanceMatrix.needsUpdate=true;
+   }
   }
   const opacity=T.MathUtils.smoothstep(t,.952,.962)*(1-T.MathUtils.smoothstep(peopleT,0,.03));
   for(const label of labels){label.visible=opacity>0;label.material.opacity=opacity;}
@@ -120,5 +165,5 @@ export function createCompanionship(scene){
  return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{}){
   if(prepared)return;
   await Promise.all([...labels.map(text=>prepareWorldText(text)),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`${import.meta.env?.BASE_URL||'/'}assets/companion-display/${name}.glb`,100);onPrepared(source);installDisplay(source,kind,name);})]);prepared=true;
- },dispose(){for(const {mesh,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();}for(const label of labels)label.dispose();}};
+ },dispose(){for(const {mesh,extras,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();extras.dispose();}for(const label of labels)label.dispose();}};
 }

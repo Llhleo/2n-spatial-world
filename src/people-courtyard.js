@@ -151,3 +151,33 @@ export function sampleCourtyard(route, t, aspect = 414 / 896) {
   });
   return {position, target, up, visibleStations, primaryStation, petals};
 }
+
+const environments = new WeakMap();
+/** Fixed world clusters authored once from the shared shots, including transfers.
+ * Sampling their construction camera never creates a second rendered camera/path.
+ */
+export function courtyardEnvironment(route) {
+  if (environments.has(route)) return environments.get(route);
+  const aspect = route.viewport ? route.viewport.width / route.viewport.height : 414 / 896;
+  const times = [];
+  route.windows.forEach((w,i) => {
+    times.push((w.readStart+w.readEnd)/2);
+    if(i) for(const u of [.25,.5,.75]) times.push(route.windows[i-1].readEnd+(w.readStart-route.windows[i-1].readEnd)*u);
+  });
+  const petals = [];
+  const camera = new T.PerspectiveCamera(48,aspect,.2,2400);
+  times.forEach((t,cluster) => {
+    const view=sampleCourtyard(route,t,aspect);
+    camera.position.fromArray(view.position);camera.up.fromArray(view.up);camera.lookAt(new T.Vector3(...view.target));camera.updateMatrixWorld();
+    for(let j=0;j<6;j++) {
+      const sourceIndex=(cluster*5+j)%FLOWER_SPECS.length;
+      const [kind,name,,extent]=FLOWER_SPECS[sourceIndex];
+      const depth=j%2?112:84, half=depth*Math.tan(Math.PI*24/180);
+      const x=[-.65,0,.65,-.65,0,.5][j], y=j<3?.73:-.73;
+      petals.push({id:`courtyard-${cluster}-${j}`,key:`${kind}:${name}`,sourceIndex,
+        position:new T.Vector3(x*half*aspect,y*half,-depth).applyMatrix4(camera.matrixWorld).toArray(),
+        quaternion:camera.quaternion.toArray(),scale:[extent*1.6,extent*1.6,extent*1.6]});
+    }
+  });
+  environments.set(route,petals);return petals;
+}
