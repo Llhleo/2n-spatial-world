@@ -25,6 +25,20 @@ function windowsFor(stations) {
   return {windows, seconds};
 }
 
+// Lift each complete shot by one scalar. The original tilted horizontal route,
+// relative camera/subject/petal geometry and shared Hermite derivatives survive.
+// 108+ units leaves the complete ink and rotating HD clusters above the finite
+// terrain triangle envelope (all terrain vertices are below -19), even in narrow views.
+function elevate(stations) {
+ const floor=stations.find(s=>s.quaternion)?.target[1] ?? entry.target[1];
+ return stations.map(s=>{
+  const lift=s.kind==='entry'?0:Math.max(0,floor-s.target[1]);
+  const move=p=>[p[0],p[1]+lift,p[2]];
+  return {...s,elevation:lift,position:move(s.position),target:move(s.target),cameraPosition:move(s.cameraPosition),
+   petalAnchors:s.petalAnchors.map(p=>({...p,position:move(p.position)}))};
+ });
+}
+
 /** Pure data, with stable source IDs; position is a text anchor, not the camera. */
 export function createPeopleRoute(data) {
   const people = normalizePeople(data);
@@ -61,7 +75,7 @@ export function createPeopleRoute(data) {
   const last = stations.at(-1);
   stations.push({id: 'ending', sourceStationId: 'ending', kind: 'ending', memberIndices: [], position: [...last.position], target: [...last.target],
     cameraPosition: mix(last.target,last.cameraPosition,1.08), up: [...last.up], petalAnchors: [], readSeconds: 3});
-  return {stations, memberGroups, ...windowsFor(stations), people};
+  return {stations:elevate(stations), sourceStations:stations, memberGroups, ...windowsFor(stations), people};
 }
 
 /** The sole responsive window authority. Metrics are post-sync unit ink bounds. */
@@ -94,7 +108,7 @@ export function resizeCourtyard(route, {width, height, glyphMetrics}) {
     });
     extra+=chunks.length-1;
   }
-  return {...route,sourceStations,stations,...windowsFor(stations),viewport:{width,height}};
+  return {...route,sourceStations,stations:elevate(stations),...windowsFor(stations),viewport:{width,height}};
 }
 
 /** Hermite interpolation with shared derivatives makes random seeks C1 continuous. */

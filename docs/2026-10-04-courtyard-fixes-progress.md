@@ -9,3 +9,5 @@ Current: implementation in isolated fix/courtyard-readability worktree. No code 
 Expected: full readable member route above terrain; old text clears before awdc; manual scroll movement more uniform without altering autoplay reading times or animations. GPU/phone acceptance requires real evidence, not inferred from deterministic tests.
 
 Next: RED/GREEN regressions in order, independent task and full-change review, code checkpoint and original owner-private Sites publication, followed by actual Safari feedback. No main, Pages or old Llhleo/2n operations.
+
+Terrain draft local5186de5: full rotating HD bounds penetration reproduced RED; focused17 tests GREEN, dense1201 samples over six zero/95-member responsive cases with finite rendered triangle heights, text extents/sightlines, petal extents and entry continuity. Unreviewed WIP; full suite and independent review not yet done. Handoff/mapping still in progress, Sites stillv43.
