@@ -54,3 +54,11 @@ Task 3 已实施：21 个成员 Text 对象池、数据版本校验和整组同�
 2. 中间任务保留现有 optional-route 兼容，直到 Task 5 接入新路线再移除不再使用的旧路径；风险是暂时双路径，须在集成审查关闭。
 3. 缺少浏览器实测不阻塞纯代码开发，但性能与视觉不宣称通过；风险是回退尚不可见，必须保留为未验项。
 4. 人物站横向间距改为每站 50 世界单位，窄屏子窗口同步偏移；这是为避免前后姓名中央重叠，风险是较长转场需要更多沿途景物，Task 4 必须覆盖。
+
+## Final current state
+
+Tasks1–6 code and handoff complete. Whole-branch review found a real Troika clean-sync lifecycle bug after height-only resize / identical route adoption. Sole correction wave f40b7d7c501de75cca7c6ce4cb1df97f673577bd reuses settled shaping while guarding pending/stale work. Faithful regressions were RED then GREEN. Scoped independent re-review clean, no open findings. Final tests159/159 plus omitted unchanged directory15/15, total174/174 across two runs; production build and diff-check passed. Earlier pending-review paragraphs are historical checkpoint states.
+
+Current goals: save all final source, tests, handoff and review/decision records to GitHub experiment/lookback-v2; update original owner-private Sites. Pages/main/old repository remain untouched. Then obtain real Safari continuous-view feedback and same-device startup/frame/memory evidence; any visual adjustment must respond to actual observed issues. Browser acceptance is explicitly pending, not inferred from deployment. Editable people introductions remain content/people.json.
+
+All nine controller decisions and their risks are preserved in docs/reviews/2026-10-04-courtyard-controller-decisions.md.

@@ -17,10 +17,12 @@ const requireGallery = () => assert.equal(typeof api.createPeopleGallery, 'funct
 
 // Replacing only the external font worker: actual Text transforms, geometry
 // publication events, materials, projection and shared sampler remain real.
-async function withInk(run, defer=()=>false) {
+async function withInk(run, defer=()=>false, faithful=false) {
  const original=Text.prototype.sync;
  const jobs=[];
  Text.prototype.sync=function(){
+  if(faithful&&!this._needsSync)return;
+  this._needsSync=false;
   const content=this.text;
   const finish=()=>{
   const glyphs=[];let x=0,y=0;
@@ -32,6 +34,39 @@ async function withInk(run, defer=()=>false) {
  };
  try{await run(jobs);}finally{Text.prototype.sync=original;}
 }
+
+// Real Troika emits no completion for unchanged shaping properties.
+for(const change of ['height-only resize','identical route adoption'])test(`settled member ink survives ${change} and later navigation/retry`,async()=>withInk(async()=>{
+ const fixture={leaders:[],members:Array.from({length:28},(_,i)=>`name${i}`)},gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));
+ try {
+  await gallery.prepare(100);
+  const show=async index=>{const w=gallery.route.windows[index],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);await Promise.resolve();gallery.update(t,cam);};
+  const current=()=>texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7).map(t=>t.text);
+  await show(1);assert.equal(current().length,7);
+  if(change==='height-only resize')gallery.resize(414/844,844);else gallery.adoptRoute(gallery.route);
+  await show(1);assert.equal(current().length,7,'unchanged glyph shaping must publish the new revision');
+  await gallery.retry(100);await show(4);await show(1);
+  assert.deepEqual(current(),fixture.members.slice(0,7));assert.equal(gallery.error,null);
+ } finally {gallery.dispose();}
+},()=>false,true));
+
+test('pending stale member ink settles before identical revision can reuse it',async()=>{
+ let delayed=false;
+ await withInk(async jobs=>{
+  const fixture={leaders:[],members:Array.from({length:28},(_,i)=>`name${i}`)},gallery=api.createPeopleGallery(fixture,courtyard.createPeopleRoute(fixture));
+  try {
+   await gallery.prepare(100);delayed=true;
+   const show=index=>{const w=gallery.route.windows[index],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);};
+   show(1);gallery.adoptRoute(gallery.route);show(1);
+   assert.equal(texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7).length,0);
+   jobs.splice(0).forEach(job=>job.finish());await Promise.resolve();show(1);
+   assert.deepEqual(texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7).map(t=>t.text),fixture.members.slice(0,7));
+   show(4);show(1);
+   for(let i=0;i<4;i++){jobs.splice(0).forEach(job=>job.finish());await Promise.resolve();}
+   show(1);assert.deepEqual(texts(gallery.group).filter(t=>t.visible&&t.userData.memberIndex<7).map(t=>t.text),fixture.members.slice(0,7));
+  } finally {gallery.dispose();}
+ },text=>delayed&&text.userData.memberSlot!==undefined,true);
+});
 
 // Catches presentation stealing a pending measurement slot. Different ink widths
 // distinguish a crash from silently recording the replacement name's geometry.

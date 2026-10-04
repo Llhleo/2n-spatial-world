@@ -55,12 +55,21 @@ export function createCourtyardGallery(data, initialRoute) {
   const text=slot.text,serial=++slot.serial;text.text=binding.content;
   text.maxWidth=binding.maxWidth??Infinity;
   text.whiteSpace=binding.maxWidth?'normal':'pre';text.overflowWrap=binding.maxWidth?'break-word':'normal';
+  // These are the only shaping properties changed after label construction.
+  // Revision identifies the route placement; it is not a glyph-work identity.
+  const shaping=[text.text,text.maxWidth,text.whiteSpace,text.overflowWrap];
+  if(slot.settled?.shaping.every((value,i)=>value===shaping[i])){
+   binding.measured=slot.settled.measured;slot.published=binding;
+   return Promise.resolve();
+  }
+  slot.settled=null;
   const promise=new Promise((resolve,reject)=>{
    const complete=()=>{
     text.removeEventListener('synccomplete',complete);
     if(disposed){resolve();return;}
     try{
      const measured=ink(text);binding.measured=measured;
+     if(serial===slot.serial)slot.settled={shaping,measured};
      if(slot.desired?.key===binding.key&&serial===slot.serial)slot.published=binding;
      resolve();
     }catch(reason){error=reason;reject(reason);}
