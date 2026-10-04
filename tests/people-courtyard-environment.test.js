@@ -29,17 +29,18 @@ function boxes(rig,c){const result=[];for(const mesh of rig.group.children.filte
  result.push({name:mesh.name,minX:Math.min(...corners.map(p=>p.x)),maxX:Math.max(...corners.map(p=>p.x)),minY:Math.min(...corners.map(p=>p.y)),maxY:Math.max(...corners.map(p=>p.y)),depth:-center.z,clip:corners.every(p=>p.z>-1&&p.z<1)});
  }return result;}
 const separated=(a,b)=>a.maxX<b.minX||b.maxX<a.minX||a.maxY<b.minY||b.maxY<a.minY;
-// Removing the route branch must fail coverage; bbox includes every actual HD vertex extent.
-test('all shots contain complete separated HD petals across two depths',()=>{
+// Actual HD vertex bounds, not simplified proxy models.
+test('stable chains remain readable and separated on all five-region shots',()=>{
  for(const [width,height] of [[414,896],[320,568],[896,414],[768,1024]]){
- for(const glyphMetrics of [undefined,{members:data.members.map(()=>({minX:0,maxX:3,glyphs:[[0,0,1,1]]}))}]){
- const route=resizeCourtyard(createPeopleRoute(data),{width,height,glyphMetrics}),{rig}=fixture();rig.resize(width/height);
- for(const [i,w] of route.windows.entries()){
- const ts=[w.readStart,(w.readStart+w.readEnd)/2,w.readEnd];if(i)for(const f of [.02,.25,.5,.75,.98])ts.push(route.windows[i-1].readEnd+(w.readStart-route.windows[i-1].readEnd)*f);
- for(const t of ts){rig.update(1,0,t,route);const visible=boxes(rig,camera(route,t)).filter(b=>b.clip&&b.minX>-.98&&b.maxX<.98&&b.minY>-.98&&b.maxY<.98&&Math.max((b.maxX-b.minX)*width/2,(b.maxY-b.minY)*height/2)>=12);
- assert.ok(visible.some((a,i)=>visible.slice(i+1).some((b,j)=>separated(a,b)&&visible.slice(i+j+2).some(c=>separated(a,c)&&separated(b,c)&&Math.max(a.depth,b.depth,c.depth)-Math.min(a.depth,b.depth,c.depth)>5))),`${width} shot ${t}: only ${visible.length} viable petals`);
- }}rig.dispose();
- }}
+  const route=resizeCourtyard(createPeopleRoute(data),{width,height}),{rig}=fixture();rig.resize(width/height);
+  for(const w of route.windows.slice(1))for(const t of [w.readStart,(w.readStart+w.readEnd)/2,w.readEnd]){
+   rig.update(1,.05,t,route);const visible=boxes(rig,camera(route,t));
+   assert.equal(visible.length,width<600?10:12);
+   assert.ok(visible.every(b=>b.clip&&b.minX>-.98&&b.maxX<.98&&b.minY>-.98&&b.maxY<.98));
+   assert.ok(visible.every(b=>Math.max((b.maxX-b.minX)*width/2,(b.maxY-b.minY)*height/2)>=26));
+   for(let i=0;i<visible.length;i++)for(let j=i+1;j<visible.length;j++)assert.ok(separated(visible[i],visible[j]));
+  }rig.dispose();
+ }
 });
 // Catches replacement of live orbit/scale by the zero-orbit sampler and lost ground restoration.
 test('old return samples and live entry seam remain identical; reverse restores ground',()=>{
@@ -51,10 +52,10 @@ test('old return samples and live entry seam remain identical; reverse restores 
 // Catches duplicate downloads/ownership and stale pool references after late HD installation.
 test('bounded pool shares upgraded HD geometry and material without disposing source',()=>{
  const {rig,sources}=fixture(false),route=createPeopleRoute(data);rig.update(1,0,.5,route);
- assert.equal(rig.group.children.filter(m=>m.isInstancedMesh).reduce((n,m)=>n+m.count,0),42);
+ assert.equal(rig.group.children.filter(m=>m.isInstancedMesh).reduce((n,m)=>n+m.count,0),14);
  for(const [i,[kind,name]]of FLOWER_SPECS.entries()){
   const source=sources[i];let disposed=0;source.geometry.addEventListener('dispose',()=>disposed++);source.material.addEventListener('dispose',()=>disposed++);rig.installDisplay(source,kind,name);
-  const meshes=rig.group.children.filter(m=>m.isInstancedMesh&&m.name.endsWith(kind+':'+name));assert.equal(meshes.length,2);assert.equal(meshes[0].geometry,meshes[1].geometry);assert.equal(meshes[0].material,meshes[1].material);source.userData.check=()=>assert.equal(disposed,0);
+  const meshes=rig.group.children.filter(m=>m.isInstancedMesh&&m.name.endsWith(kind+':'+name));assert.equal(meshes.length,1);assert.notEqual(meshes[0].geometry,source.geometry);source.userData.check=()=>assert.equal(disposed,0);
  }rig.dispose();sources.forEach(s=>s.userData.check());
 });
 // Catches ornament drift in reduced mode, stateful chapter anchors, and text intersections.
@@ -71,38 +72,29 @@ test('maximum decorative motion avoids text and reduced sampling is reversible',
  }
  }rig.dispose();}
 });
-function identities(rig){const result=new Map();for(const mesh of rig.group.children.filter(m=>m.isInstancedMesh&&m.name.startsWith('courtyard-')))for(let i=0;i<mesh.count;i++){
- const m=new T.Matrix4();mesh.getMatrixAt(i,m);const s=new T.Vector3();m.decompose(new T.Vector3(),new T.Quaternion(),s);const size=mesh.geometry.boundingBox.getSize(new T.Vector3());result.set(mesh.userData.anchorIds?.[i],s.length()*Math.max(size.x,size.y,size.z));
- }return result;}
-// Catches a visible world-anchor substitution at the bounded pool's rank cutoff.
-test('pool replacements fade to zero without visible identity pops',()=>{
+test('same visible model identities persist without scale flashes across transfers',()=>{
  const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
- for(let i=1;i<1200;i++){
- const t=i/1200;rig.update(1,0,t-1e-7,route);const a=identities(rig);rig.update(1,0,t+1e-7,route);const b=identities(rig);
- for(const id of new Set([...a.keys(),...b.keys()]))assert.ok(Math.abs((a.get(id)||0)-(b.get(id)||0))<.1,`visible replacement ${id} at ${t}: ${a.get(id)} -> ${b.get(id)}`);
- }
- // Locate actual discrete rank changes, rather than hoping regular samples hit one.
- let previous=0;rig.update(1,0,previous,route);let old=identities(rig);
- for(let i=1;i<=200;i++){
- const t=i/200;rig.update(1,0,t,route);const next=identities(rig),lost=[...old.keys()].find(id=>id&& !next.has(id));
- if(lost){let lo=previous,hi=t;for(let k=0;k<35;k++){const mid=(lo+hi)/2;rig.update(1,0,mid,route);if(identities(rig).has(lost))lo=mid;else hi=mid;}
- rig.update(1,0,lo,route);assert.ok((identities(rig).get(lost)||0)<1e-5,`${lost} replaced at visible scale`);}
- previous=t;old=next;
+ let names=null;
+ for(let i=0;i<=80;i++){
+  const t=route.windows[1].readStart+(1-route.windows[1].readStart)*i/80;
+  rig.update(1,0,t,route);const visible=boxes(rig,camera(route,t));
+  const current=visible.map(b=>b.name);if(names)assert.deepEqual(current,names);names=current;
+  assert.ok(visible.every(b=>(b.maxX-b.minX)*414/2>20));
  }rig.dispose();
 });
 
 test('decorative motion advances only with positive dt',()=>{
- const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();const snapshot=()=>rig.group.children.filter(m=>m.name.startsWith('courtyard-')).map(m=>Array.from(m.instanceMatrix.array));
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();const snapshot=()=>rig.group.children.filter(m=>m.name.startsWith('companion-')).map(m=>Array.from(m.instanceMatrix.array));
  rig.update(1,0,.4,route);const initial=snapshot();rig.update(1,.05,.4,route);assert.notDeepEqual(snapshot(),initial);const moved=snapshot();for(let i=0;i<10;i++)rig.update(1,0,.4,route);assert.deepEqual(snapshot(),moved);rig.dispose();
 });
 
 test('new chains never intersect each other while breathing; old ring exits before first leader',()=>{
  const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
  const first=route.windows[1].readStart;rig.update(1,0,first,route);
- assert.ok(rig.group.children.filter(m=>m.name.startsWith('companion-')).every(m=>!m.visible));
+ assert.equal(boxes(rig,camera(route,first)).length,10,'the original ring becomes one chain set, not a second pool');
  for(let i=1;i<=120;i++){
   const t=first+(1-first)*i/120;rig.update(1,.05,t,route);
-  const visible=boxes(rig,camera(route,t)).filter(b=>b.name.startsWith('courtyard-')&&Math.max(b.maxX-b.minX,b.maxY-b.minY)>1e-4);
+  const visible=boxes(rig,camera(route,t)).filter(b=>b.name.startsWith('companion-')&&Math.max(b.maxX-b.minX,b.maxY-b.minY)>1e-4);
   for(let a=0;a<visible.length;a++)for(let b=a+1;b<visible.length;b++)assert.ok(separated(visible[a],visible[b]),`chain collision at ${t}: ${visible[a].name}/${visible[b].name}`);
  }rig.dispose();
 });

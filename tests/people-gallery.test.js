@@ -15,6 +15,18 @@ const camera = aspect => new T.PerspectiveCamera(48, aspect ?? 414 / 896, .2, 24
 const texts = root => {const result=[];root.traverse(o=>{if(o instanceof Text)result.push(o);});return result;};
 const requireGallery = () => assert.equal(typeof api.createPeopleGallery, 'function', 'world people gallery is missing');
 
+test('white lettering has no inner stroke and a separate soft world-space shade',async()=>withInk(async()=>{
+ const gallery=api.createPeopleGallery(data,courtyard.createPeopleRoute(data));
+ try{
+  await gallery.prepare(1000);const w=gallery.route.windows[1],t=(w.readStart+w.readEnd)/2,cam=camera();peoplePose(t,cam,cam.aspect,gallery.route);gallery.update(t,cam);
+  const visible=texts(gallery.group).filter(text=>text.visible);assert.ok(visible.length);
+  assert.ok(visible.every(text=>!text.strokeWidth));
+  const shade=gallery.group.getObjectByName('people-soft-shade');assert.ok(shade?.visible);
+  assert.ok(shade.material.uniforms.opacity.value>0&&shade.material.uniforms.opacity.value<=.42);
+  gallery.update(0,cam);assert.equal(shade.visible,false);
+ }finally{gallery.dispose();}
+}));
+
 // Replacing only the external font worker: actual Text transforms, geometry
 // publication events, materials, projection and shared sampler remain real.
 async function withInk(run, defer=()=>false, faithful=false) {

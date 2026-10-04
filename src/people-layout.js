@@ -29,14 +29,20 @@ export function createCourtyardGallery(data, initialRoute) {
  const group=new T.Group();group.name='people-gallery';group.visible=false;
  const leaderGroup=new T.Group();leaderGroup.name='people-leaders';group.add(leaderGroup);
  const crowd=new T.Group();crowd.name='people-crowd';group.add(crowd);
+ const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({
+  transparent:true,depthWrite:false,toneMapped:false,
+  uniforms:{opacity:{value:0}},
+  vertexShader:'varying vec2 uvShade; void main(){uvShade=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'varying vec2 uvShade; uniform float opacity; void main(){vec2 p=abs(uvShade*2.-1.);float edge=max(p.x,p.y);float alpha=1.-smoothstep(.28,1.,edge);gl_FragColor=vec4(.025,.035,.03,alpha*opacity);}'
+ }));
+ shade.name='people-soft-shade';shade.visible=false;shade.renderOrder=1;group.add(shade);
  const all=[],cards=[],slots=[],glyphMetrics={leaders:{},members:[]};
  let route=initialRoute,viewport={width:414,height:896},disposed=false,prepared=false,error=null,inflight=null,revision=0;
  function label(tier){
   const text=new Text();text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/people-sc-semibold.woff?v=people-sdf256-1`;
   text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.whiteSpace='pre';text.lineHeight=1.4;
-  // Single-pass SDF inner stroke keeps contrast without another material/draw pass.
-  text.strokeWidth='5%';text.strokeColor=0x18201a;text.strokeOpacity=.9;
-  text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.color=tier==='name'?0xf4f0df:0xd5dbce;
+  text.strokeWidth=0;text.renderOrder=2;
+  text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.color=0xf4f0df;
   Object.assign(text.material,{fog:false,depthWrite:false,transparent:true,toneMapped:false,opacity:0});
   text.userData.tier=tier;text.visible=false;all.push(text);return text;
  }
@@ -124,6 +130,20 @@ export function createCourtyardGallery(data, initialRoute) {
     place(text,s,m,pixels,0,y/unit,cam);}
   }
  }
+ function updateShade(){
+  const visible=all.filter(text=>text.visible&&text.userData.bounds);
+  shade.visible=visible.length>0;if(!shade.visible)return;
+  const origin=visible[0].position,quaternion=visible[0].quaternion,inverse=quaternion.clone().invert(),box=new T.Box3();
+  for(const text of visible){text.updateMatrixWorld(true);const b=text.userData.bounds;
+   for(const x of [b.minX,b.maxX])for(const y of [b.minY,b.maxY])box.expandByPoint(new T.Vector3(x,y,0).applyMatrix4(text.matrixWorld).sub(origin).applyQuaternion(inverse));
+  }
+  const size=box.getSize(new T.Vector3()),center=box.getCenter(new T.Vector3());
+  // Broad feather, no border, outline or hard-edged card. Actual world depth.
+  const padding=visible[0].scale.x*1.4;
+  shade.scale.set(size.x+padding*2,size.y+padding*2,1);center.z=-.25;
+  shade.position.copy(center.applyQuaternion(quaternion).add(origin));shade.quaternion.copy(quaternion);
+  shade.material.uniforms.opacity.value=.42*Math.max(...visible.map(text=>text.material.opacity));
+ }
  function update(t,camera){
   if(disposed)return;group.visible=t>0;
   const sample=sampleCourtyard(route,t,viewport.width/viewport.height);
@@ -136,7 +156,7 @@ export function createCourtyardGallery(data, initialRoute) {
   // The measurement pass owns the member pool until every metric is recorded.
   // Partial metrics must not let animation repurpose its pending probe slot;
   // a timeout keeps this reservation until the original work completes.
-  if(!prepared)return;
+  if(!prepared){updateShade();return;}
   const desired=sample.visibleStations.filter(v=>route.stations[v.stationIndex].kind==='member');
   const wanted=new Set(desired.map(v=>route.stations[v.stationIndex].id));
   const buckets=new Map();for(let b=0;b<3;b++){const first=slots[b*7];if(first.desired&&wanted.has(first.desired.stationId))buckets.set(first.desired.stationId,b);}
@@ -161,9 +181,10 @@ export function createCourtyardGallery(data, initialRoute) {
    const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(active.map(slot=>projectTextBounds(camera,slot.text.matrixWorld,slot.text.userData.bounds,viewport,false).rect),viewport,v.opacity));
    active.forEach(slot=>{slot.text.material.opacity=opacity;slot.text.visible=opacity>0;});
   }
+  updateShade();
  }
  return {group,prepare,retry:prepare,update,resize,
   get ready(){return prepared&&!disposed;},get error(){return error;},get route(){return route;},glyphMetrics,
   adoptRoute(next){route=next;revision++;layoutLeaders();return route;},
-  dispose(){if(disposed)return;disposed=true;prepared=false;for(const slot of [...slots,...leaderSlots]){slot.desired=null;slot.cancel?.();}for(const text of all){text.dispose();text.material.dispose();}group.clear();group.visible=false;}};
+  dispose(){if(disposed)return;disposed=true;prepared=false;for(const slot of [...slots,...leaderSlots]){slot.desired=null;slot.cancel?.();}for(const text of all){text.dispose();text.material.dispose();}shade.geometry.dispose();shade.material.dispose();group.clear();group.visible=false;}};
 }
