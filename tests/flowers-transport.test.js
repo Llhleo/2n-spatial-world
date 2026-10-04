@@ -36,3 +36,10 @@ test('default autoplay completes the journey in 150 seconds and starts disabled'
  const player=createAutoplay();assert.equal(player.playing,false);player.toggle(0,true);
  assert.equal(player.advance(75),.5);assert.equal(player.advance(75),1);assert.equal(player.playing,false);
 });
+
+test('stalled optional cache reads and writes cannot block a valid HD model',async()=>{
+ const bytes=Buffer.from('glTFexact-hd-model'),hash=createHash('sha256').update(bytes).digest('hex');
+ const never=()=>new Promise(()=>{}),entry={url:'/packed.gz',sha256:hash,bytes:bytes.length};
+ const result=await transport.fetchAssetBytes('/original.glb',{entry,cacheTimeout:10,store:{match:never,put:never},fetcher:async()=>new Response(gzipSync(bytes))});
+ assert.deepEqual(Buffer.from(result),bytes);
+});

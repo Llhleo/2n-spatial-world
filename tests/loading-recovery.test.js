@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import * as T from 'three';
 import {createBiomes,prepareBiomePetals,limitUnreadyTravel} from '../src/biomes.js';
-import {fetchPetalBytes} from '../src/petal-loader.js';
+import {fetchPetalBytes,createPetalPipeline,cancelPendingModelLoads} from '../src/petal-loader.js';
 import {coastalColor,oceanHeight} from '../src/ocean-production.js';
 test('slow Garden never locks navigation or prevents Ocean preparation',async()=>{
  let release;const calls=[];const world=createBiomes(new T.Scene(),true,{garden:()=>{calls.push('garden');return new Promise(resolve=>release=resolve);},desert:async()=>{calls.push('desert');return {};},ocean:async()=>{calls.push('ocean');return {};}});
@@ -14,4 +14,15 @@ test('Desert and Ocean continue across a lit, shallow coastline rather than a bl
 test('failed region can retry while already prepared regions stay intact',async()=>{
  let attempts=0;const world=createBiomes(new T.Scene(),true,{garden:async()=>{attempts++;if(attempts===1)throw new Error('offline');return {};},desert:async()=>({}),ocean:async()=>({})});
  await prepareBiomePetals(world);assert.equal(world.petalStatus,'error');assert.equal(world.oceanPetalStatus,'ready');await prepareBiomePetals(world);assert.equal(world.petalStatus,'ready');assert.equal(attempts,2);
+});
+
+
+test('a failed batch can clear queued downloads without discarding the active successful model',async()=>{
+ const pipeline=createPetalPipeline(1,1);let release,queuedStarted=false;
+ const active=pipeline(()=>new Promise(resolve=>release=resolve),async bytes=>bytes);
+ const queued=pipeline(async()=>{queuedStarted=true;return 2;},async bytes=>bytes);
+ const rejection=assert.rejects(queued,/批次已停止/);
+ await new Promise(resolve=>setImmediate(resolve));cancelPendingModelLoads();release(1);
+ assert.equal(await active,1);await rejection;assert.equal(queuedStarted,false);
+ assert.equal(await pipeline(async()=>3,async bytes=>bytes),3,'queue cannot restart after cancellation');
 });

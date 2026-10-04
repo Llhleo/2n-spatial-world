@@ -95,3 +95,14 @@ test('decorative motion advances only with positive dt',()=>{
  const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();const snapshot=()=>rig.group.children.filter(m=>m.name.startsWith('courtyard-')).map(m=>Array.from(m.instanceMatrix.array));
  rig.update(1,0,.4,route);const initial=snapshot();rig.update(1,.05,.4,route);assert.notDeepEqual(snapshot(),initial);const moved=snapshot();for(let i=0;i<10;i++)rig.update(1,0,.4,route);assert.deepEqual(snapshot(),moved);rig.dispose();
 });
+
+test('new chains never intersect each other while breathing; old ring exits before first leader',()=>{
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
+ const first=route.windows[1].readStart;rig.update(1,0,first,route);
+ assert.ok(rig.group.children.filter(m=>m.name.startsWith('companion-')).every(m=>!m.visible));
+ for(let i=1;i<=120;i++){
+  const t=first+(1-first)*i/120;rig.update(1,.05,t,route);
+  const visible=boxes(rig,camera(route,t)).filter(b=>b.name.startsWith('courtyard-')&&Math.max(b.maxX-b.minX,b.maxY-b.minY)>1e-4);
+  for(let a=0;a<visible.length;a++)for(let b=a+1;b<visible.length;b++)assert.ok(separated(visible[a],visible[b]),`chain collision at ${t}: ${visible[a].name}/${visible[b].name}`);
+ }rig.dispose();
+});

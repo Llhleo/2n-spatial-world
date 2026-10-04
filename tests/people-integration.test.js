@@ -87,7 +87,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture}={}){
+function entry({constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false}={}){
  const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
@@ -96,7 +96,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  let complete;
  let frame,resize,oldReady=false,now=0,scrollY=0,currentReduced=reduced;
  const resource=()=>({group:new THREE.Group(),ready:true,prepare:async()=>{},update(){},resize(){},capture(){},install(){},prepared:7,displayPrepared:14});
- const companion=resource();companion.update=(...args)=>calls.companion.push(args);
+ const companion=resource();let openingAttempts=0;companion.prepare=async()=>{openingAttempts++;if(openingFailure&&openingAttempts===1)throw new Error('network interrupted');};companion.update=(...args)=>calls.companion.push(args);
  const gallery=galleryFactory?galleryFactory():resource();
  if(!galleryFactory){gallery.ready=false;gallery.error=null;
  gallery.glyphMetrics={members:[]};
@@ -110,7 +110,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
  const context={...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
-  createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
+  cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   preparePeopleDistance(route){calls.distancePrepared.push(route);return ()=>calls.distanceCancelled.push(route);},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
@@ -119,7 +119,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
- return {calls,gallery,elements,events,complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
+ return {calls,gallery,elements,events,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
 }
 
 test('people font failure cannot lock original opening; retry and resize do not reset camera progress',async()=>{
@@ -314,4 +314,15 @@ test('entry prepares only adopted routes and cancels previous preparation throug
  app.resize();assert.equal(app.calls.distancePrepared.at(-1),app.gallery.route);
  assert.deepEqual(app.calls.distanceCancelled,app.calls.distancePrepared.slice(0,-1));
  app.tick();assert.equal(app.elements.get('autoplay').textContent,'暂停播放');
+});
+
+
+test('opening failure retry button starts a fresh settled preparation without reloading the page',async()=>{
+ const app=entry({openingFailure:true});await app.settle();app.tick();
+ const button=app.elements.get('retry-models');assert.equal(button.hidden,false);assert.equal(button.disabled,false);
+ assert.equal(app.openingAttempts,1);assert.equal(app.calls.prepare,0);
+ app.events.get('retry-models:click')({stopPropagation(){}});app.tick();assert.equal(button.disabled,true);
+ await app.settle();app.open();app.tick();
+ assert.equal(app.openingAttempts,2);assert.equal(button.hidden,true);
+ assert.equal(app.elements.get('world').dataset.loadingIntro,'false');assert.equal(app.calls.prepare,1);
 });
