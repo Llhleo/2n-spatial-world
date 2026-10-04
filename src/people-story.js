@@ -37,7 +37,7 @@ export function capturePeoplePosition(route,t){
  return {kind:s.kind,sourceStationId:s.sourceStationId,memberIndex:s.memberIndices[0],fraction:(t-w.readStart)/(w.readEnd-w.readStart)};
 }
 export function restorePeoplePosition(route,token){
- const index=route.stations.findIndex(s=>s.kind===token.kind&&s.sourceStationId===token.sourceStationId&&(token.kind!=='member'||s.memberIndices.includes(token.memberIndex)));
+ const index=route.stations.findIndex(s=>s.kind===token.kind&&(token.kind==='member'?s.memberIndices.includes(token.memberIndex):s.sourceStationId===token.sourceStationId));
  const w=route.windows[Math.max(0,index)];return clamp(w.readStart+token.fraction*(w.readEnd-w.readStart));
 }
 

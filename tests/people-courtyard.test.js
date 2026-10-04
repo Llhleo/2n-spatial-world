@@ -27,7 +27,7 @@ test('camera derivatives and opacity remain continuous at every interval boundar
   const w = route.windows[1];
   const a = courtyard.sampleCourtyard(route,w.readStart), b = courtyard.sampleCourtyard(route,w.readEnd);
   assert.ok(new T.Vector3(...a.position).distanceTo(new T.Vector3(...b.position)) > 1);
-  const wanted = new T.Vector3(0,1,0).applyQuaternion(readingQuaternion);
+  const wanted = new T.Vector3(0,1,0);
   assert.ok(new T.Vector3(...b.up).distanceTo(wanted) < 1e-7, 'read up fails to align fixed text');
 });
 
@@ -49,7 +49,7 @@ test('groups preserve source order and remainder', () => {
 test('windows are continuous and deterministic', () => {
   assert.equal(typeof courtyard.createPeopleRoute, 'function');
   const route = courtyard.createPeopleRoute(data(95));
-  assert.equal(route.seconds, 2 + 5 + 7 + 14 * 5 + 3 + 17 * .9);
+  assert.ok(Math.abs(route.seconds-(2 + 4.5 + 6.5 + 14 * 3.2 + 2 + 17 * .9))<1e-10);
   assert.equal(route.windows[0].start, 0);
   assert.equal(route.windows.at(-1).end, 1);
   route.windows.forEach((window, index) => {

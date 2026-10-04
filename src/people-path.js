@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {lookbackPose} from './lookback.js';
 import {sampleCourtyard} from './people-courtyard.js';
-export const PEOPLE_UNITS=18;
+export const PEOPLE_UNITS=36;
 
 /** Missing people content retains the existing return shot. */
 export function peoplePose(t,camera,aspect=camera.aspect,route){

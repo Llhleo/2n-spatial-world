@@ -19,7 +19,7 @@ function spatialOpacity(rects,viewport,fallback) {
  const top=Math.min(...rects.map(r=>r.y)),bottom=Math.max(...rects.map(r=>r.y+r.height));
  const u=T.MathUtils.clamp(Math.min((left/viewport.width)/.12,(1-right/viewport.width)/.12,(top/viewport.height)/.30,(1-bottom/viewport.height)/.30),0,1);
  const smooth=u*u*u*(10+u*(-15+6*u));
- return Math.max(fallback,smooth);
+ return Math.min(fallback,smooth);
 }
 
 /** Route-backed text layer; no camera track or independently-owned windows. */
@@ -87,7 +87,7 @@ export function createCourtyardGallery(data, initialRoute) {
   await Promise.all(leaderSlots.map(async slot=>{const p=slot.text.userData.personId,tier=slot.text.userData.tier;await request(slot,{key:`leader:${p}:${tier}`,content:slot.text.text});if(disposed)return;
    (glyphMetrics.leaders[p]||= {})[tier]=slot.published.measured;layoutLeaders();}));
   if(disposed)return;
-  for(let i=0;i<people.members.length;i++){const binding={key:`measure:${i}`,content:people.members[i]};await request(slots[0],binding);if(disposed)return;glyphMetrics.members[i]=slots[0].published.measured;}
+  await Promise.all(slots.slice(0,7).map(async(slot,worker)=>{for(let i=worker;i<people.members.length;i+=7){const binding={key:`measure:${i}`,content:people.members[i]};await request(slot,binding);if(disposed)return;glyphMetrics.members[i]=slot.published.measured;}}));
   resize(viewport.width/viewport.height,viewport.height);prepared=true;error=null;
  }
  function prepare(timeoutMs=20000){
@@ -143,7 +143,7 @@ export function createCourtyardGallery(data, initialRoute) {
    for(let j=0;j<7;j++){const slot=slots[bucket*7+j],index=station.memberIndices[j];if(index===undefined){slot.desired=null;continue;}
     const metric=glyphMetrics.members[index];if(!metric)continue;
     const glyphHeight=Math.max(...metric.glyphs.map(g=>g[3]-g[1]));
-    request(slot,{key:`${revision}:${station.id}:${index}`,stationId:station.id,content:people.members[index],index,maxWidth:viewport.width*.74/station.columns/22*glyphHeight}).catch(reason=>{error=reason;});
+    request(slot,{key:`${revision}:${station.id}:${index}`,stationId:station.id,content:people.members[index],index,maxWidth:viewport.width*(station.columns===2?.34:.74)/22*glyphHeight}).catch(reason=>{error=reason;});
    }
    const complete=station.memberIndices.every((index,j)=>slots[bucket*7+j].published?.key===`${revision}:${station.id}:${index}`);
    if(!complete)continue;

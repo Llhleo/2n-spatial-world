@@ -25,90 +25,54 @@ function windowsFor(stations) {
   return {windows, seconds};
 }
 
-// Lift each complete shot by one scalar. The original tilted horizontal route,
-// relative camera/subject/petal geometry and shared Hermite derivatives survive.
-// 108+ units leaves the complete ink and rotating HD clusters above the finite
-// terrain triangle envelope (all terrain vertices are below -19), even in narrow views.
-function elevate(stations) {
- const floor=stations.find(s=>s.quaternion)?.target[1] ?? entry.target[1];
- return stations.map(s=>{
-  const lift=s.kind==='entry'?0:Math.max(0,floor-s.target[1]);
-  const move=p=>[p[0],p[1]+lift,p[2]];
-  return {...s,elevation:lift,position:move(s.position),target:move(s.target),cameraPosition:move(s.cameraPosition),
-   petalAnchors:s.petalAnchors.map(p=>({...p,position:move(p.position)}))};
- });
+const REGIONS=[['garden',130,260],['desert',325,465],['ocean',585,805],['jungle',965,1190],['hell',1400,1630]];
+const shotQuaternion=new T.Quaternion().setFromEuler(new T.Euler(-35*Math.PI/180,0,0));
+function balancedGroups(indices,capacity){
+ const count=Math.ceil(indices.length/capacity),groups=[];let cursor=0;
+ for(let i=0;i<count;i++){const size=Math.floor(indices.length/count)+(i<indices.length%count?1:0);groups.push(indices.slice(cursor,cursor+=size));}
+ return groups;
 }
-
-/** Pure data, with stable source IDs; position is a text anchor, not the camera. */
-export function createPeopleRoute(data) {
-  const people = normalizePeople(data);
-  if (people.errors.length) throw new Error(people.errors.join('\n'));
-  const memberGroups = [];
-  for (let start = 0; start < people.members.length; start += 7) {
-    memberGroups.push({id: `members-${start / 7}`, memberIndices: Array.from({length: Math.min(7, people.members.length - start)}, (_, i) => start + i)});
-  }
-  const stations = [{id: 'entry', sourceStationId: 'entry', kind: 'entry', memberIndices: [], position: [...entry.target], target: [...entry.target], cameraPosition: [...entry.position], up: [0, 1, 0], petalAnchors: [], readSeconds: 2}];
-  const subjects = [
-    ...people.leaders.map((person, leaderIndex) => ({id: person.id, kind: 'leader', leaderIndex, memberIndices: [], readSeconds: person.intro ? 7 : 5})),
-    ...memberGroups.map(group => ({...group, kind: 'member', readSeconds: 5})),
-  ];
-  subjects.forEach((subject, index) => {
-    // Lateral travel separates complete old/new name rectangles during transfer,
-    // rather than depth-only crossfading two subjects through the same center.
-    const x = 32 * Math.sin(index * .38) + index * 50;
-    const y = 8 * Math.sin(index * .21);
-    const z = -120 - index * 65;
-    const position = world(x, y, z);
-    const angle = .12 * Math.cos(index * .38);
-    const quaternion = readingQuaternion.clone().multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), angle)).toArray();
-    const petalAnchors = Array.from({length: 6}, (_, j) => {
-      const sourceIndex = (index * 5 + j) % FLOWER_SPECS.length;
-      const [kind, name, , extent] = FLOWER_SPECS[sourceIndex];
-      // Staggered side, above/below and rear layers, authored in the world once.
-      return {id: `${subject.id}-petal-${j}`, key: `${kind}:${name}`, sourceIndex,
-        position: world(x + (j % 2 ? 1 : -1) * (20 + (j % 3) * 7), y + [-23, 25, -29, 30, -20, 23][j], z + [12, -10, -26, 18, -35, -18][j]),
-        quaternion: [...quaternion], scale: [extent, extent, extent]};
-    });
-    stations.push({...subject, id: `${subject.kind}:${subject.id}`, personId:subject.kind==='leader'?subject.id:undefined, sourceStationId: subject.id, position, target: [...position], quaternion,
-      cameraPosition: world(x + Math.sin(angle) * 100, y, z + Math.cos(angle) * 100), up: new T.Vector3(0, 1, 0).applyQuaternion(readingQuaternion).toArray(), petalAnchors});
+// Bound every reading shot to the existing finite terrain, looking down 35°.
+function authorShots(stations){
+ const subjects=stations.filter(s=>s.kind==='leader'||s.kind==='member');let index=0;
+ const shots=stations.map(s=>{
+  if(s.kind==='entry'||s.kind==='ending')return s;
+  const progress=subjects.length>1?index/(subjects.length-1):0;
+  const regionIndex=Math.min(4,Math.floor(progress*5)),[region,x0,x1]=REGIONS[regionIndex];
+  const phase=progress===1?1:progress*5-regionIndex;
+  const position=[x0+(x1-x0)*phase,55,30+28*Math.sin(index*.7)],q=shotQuaternion.toArray();
+  const cameraPosition=new T.Vector3(0,0,100).applyQuaternion(shotQuaternion).add(new T.Vector3(...position)).toArray();
+  const petalAnchors=Array.from({length:6},(_,j)=>{
+   const sourceIndex=(index*5+j)%FLOWER_SPECS.length,[kind,name,,extent]=FLOWER_SPECS[sourceIndex];
+   return {id:`${s.id}-petal-${j}`,sourceIndex,key:`${kind}:${name}`,position:new T.Vector3((j%2?1:-1)*(20+j%3*7),[-23,25,-29,30,-20,23][j],[12,-10,-26,18,-35,-18][j]).applyQuaternion(shotQuaternion).add(new T.Vector3(...position)).toArray(),quaternion:[...q],scale:[extent,extent,extent]};
   });
-  const last = stations.at(-1);
-  stations.push({id: 'ending', sourceStationId: 'ending', kind: 'ending', memberIndices: [], position: [...last.position], target: [...last.target],
-    cameraPosition: mix(last.target,last.cameraPosition,1.08), up: [...last.up], petalAnchors: [], readSeconds: 3});
-  return {stations:elevate(stations), sourceStations:stations, memberGroups, ...windowsFor(stations), people};
+  index++;return {...s,region,elevation:0,position,target:[...position],cameraPosition,quaternion:q,up:[0,1,0],petalAnchors};
+ });
+ const last=shots.at(-2);
+ if(shots.at(-1)?.kind==='ending')shots[shots.length-1]={...shots.at(-1),region:last.region,position:[...last.position],target:[...last.target],cameraPosition:mix(last.target,last.cameraPosition,1.03),up:[...last.up]};
+ return shots;
 }
-
-/** The sole responsive window authority. Metrics are post-sync unit ink bounds. */
-export function resizeCourtyard(route, {width, height, glyphMetrics}) {
-  if (![width,height].every(v=>Number.isFinite(v)&&v>0)) throw new RangeError('viewport must be positive');
-  const sourceStations=route.sourceStations || route.stations;
-  const stations=[];let extra=0;
-  for(const source of sourceStations) {
-    const indices=source.memberIndices;
-    let columns=1, capacity=7, rowPixels=40;
-    if(source.kind==='member') {
-      const widest=Math.max(...indices.map(i=>{
-        const m=glyphMetrics?.members?.[i];
-        return m ? (m.maxX-m.minX)/Math.max(...m.glyphs.map(g=>g[3]-g[1]))*22 : Infinity;
-      }));
-      columns=widest*2+24<=width*.76 ? 2 : 1;
-      rowPixels=Math.max(40,Math.ceil(widest/(width*.74))*31+12);
-      capacity=Math.max(1,Math.min(7,Math.floor(height*.4/rowPixels)*columns));
-      // Unknown ink still reserves one member; its eventual layout must be finite.
-      if(!Number.isFinite(rowPixels))rowPixels=40;
-    }
-    const chunks=source.kind==='member' ? Array.from({length:Math.ceil(indices.length/capacity)},(_,i)=>indices.slice(i*capacity,(i+1)*capacity)) : [indices];
-    chunks.forEach((memberIndices,part)=>{
-      const offset=new T.Vector3(50*(extra+part),0,-35*(extra+part)).applyQuaternion(readingQuaternion).toArray();
-      const translated=key=>source[key].map((v,i)=>v+offset[i]);
-      const id=source.kind==='leader'?`leader:${route.people.leaders[source.leaderIndex].id}`:source.kind==='member'?`member:${source.sourceStationId}:${part}`:`courtyard:${source.kind}`;
-      stations.push({...source,id,personId:source.kind==='leader'?route.people.leaders[source.leaderIndex].id:undefined,
-        memberIndices:[...memberIndices],part,columns,rowPixels,position:translated('position'),target:translated('target'),cameraPosition:translated('cameraPosition'),
-        petalAnchors:source.petalAnchors.map(p=>({...p,id:`${id}:${p.id}`,position:p.position.map((v,i)=>v+offset[i])}))});
-    });
-    extra+=chunks.length-1;
-  }
-  return {...route,sourceStations,stations:elevate(stations),...windowsFor(stations),viewport:{width,height}};
+const memberSeconds=count=>count<=3?2:3.2;
+export function createPeopleRoute(data){
+ const people=normalizePeople(data);if(people.errors.length)throw new Error(people.errors.join('\n'));
+ const memberGroups=balancedGroups(people.members.map((_,i)=>i),7).map((memberIndices,i)=>({id:`members-${i}`,memberIndices}));
+ const stations=[{id:'entry',sourceStationId:'entry',kind:'entry',memberIndices:[],position:[...entry.target],target:[...entry.target],cameraPosition:[...entry.position],up:[0,1,0],petalAnchors:[],readSeconds:2}];
+ people.leaders.forEach((person,leaderIndex)=>stations.push({id:`leader:${person.id}`,personId:person.id,sourceStationId:person.id,kind:'leader',leaderIndex,memberIndices:[],readSeconds:person.intro?6.5:4.5,scrollRead:person.intro?1.4:1}));
+ memberGroups.forEach(g=>stations.push({...g,id:`member:${g.id}:0`,sourceStationId:g.id,kind:'member',readSeconds:memberSeconds(g.memberIndices.length),scrollRead:.9}));
+ stations.push({id:'ending',sourceStationId:'ending',kind:'ending',memberIndices:[],petalAnchors:[],readSeconds:2});
+ const authored=authorShots(stations);return {stations:authored,sourceStations:authored,memberGroups,...windowsFor(authored),people};
+}
+// Measured or conservative wrapped rows; balance the entire source roster.
+export function resizeCourtyard(route,{width,height,glyphMetrics}){
+ if(![width,height].every(v=>Number.isFinite(v)&&v>0))throw new RangeError('viewport must be positive');
+ const indices=route.people.members.map((_,i)=>i),columns=width>=280?2:1,columnWidth=width*(columns===2?.34:.74);
+ const widest=Math.max(0,...indices.map(i=>{const m=glyphMetrics?.members?.[i];return m?(m.maxX-m.minX)/Math.max(...m.glyphs.map(g=>g[3]-g[1]))*22:route.people.members[i].length*22*.7;}));
+ const rowPixels=Math.max(44,Math.ceil(widest/columnWidth)*31+12),capacity=Math.max(2,Math.min(7,Math.floor(height*.4/rowPixels)*columns));
+ const groups=balancedGroups(indices,capacity),sourceStations=route.sourceStations||route.stations;
+ const stations=sourceStations.filter(s=>s.kind==='entry'||s.kind==='leader').map(s=>({...s}));
+ groups.forEach((memberIndices,i)=>stations.push({id:`member:members-${i}:0`,sourceStationId:`members-${i}`,kind:'member',memberIndices,part:0,columns,rowPixels,readSeconds:memberSeconds(memberIndices.length),scrollRead:.9}));
+ stations.push({...sourceStations.at(-1)});const authored=authorShots(stations);
+ return {...route,sourceStations,stations:authored,memberGroups:groups.map((memberIndices,i)=>({id:`members-${i}`,memberIndices})),...windowsFor(authored),viewport:{width,height}};
 }
 
 /** Hermite interpolation with shared derivatives makes random seeks C1 continuous. */
@@ -151,7 +115,7 @@ export function sampleCourtyardView(route, t, aspect = 414 / 896) {
     const p = station.cameraPosition, target = station.target;
     const drift = window.stationIndex && window.stationIndex < route.stations.length - 1 ? .65 : 0;
     for (const [progress, direction] of [[window.readStart, -1], [window.readEnd, 1]]) {
-      const offset = new T.Vector3(0, 0, direction * drift).applyQuaternion(readingQuaternion).toArray();
+      const offset = new T.Vector3(0, 0, direction * drift).applyQuaternion(station.quaternion?new T.Quaternion(...station.quaternion):readingQuaternion).toArray();
       knots.push({time: progress * route.seconds, position: p.map((v, i) => v + offset[i]), target: [...target], up: [...station.up]});
     }
   });
@@ -176,7 +140,8 @@ export function sampleCourtyard(route,t,aspect=414/896) {
     const fadeStart = index ? route.windows[index - 1].readEnd : 0;
     const fadeEnd = index < route.windows.length - 1 ? route.windows[index + 1].readStart : 1;
     const keepLast = route.stations[index].kind === 'member' && route.stations[index + 1]?.kind === 'ending';
-    const opacity = t < w.readStart ? ease((t - fadeStart) / Math.max(w.readStart - fadeStart, 1e-9)) : t > w.readEnd && !keepLast ? 1 - ease((t - w.readEnd) / Math.max(fadeEnd - w.readEnd, 1e-9)) : 1;
+    const incoming=fadeStart+(w.readStart-fadeStart)*.54,outgoing=w.readEnd+(fadeEnd-w.readEnd)*.46;
+    const opacity=t<w.readStart?ease((t-incoming)/Math.max(w.readStart-incoming,1e-9)):t>w.readEnd&&!keepLast?1-ease((t-w.readEnd)/Math.max(outgoing-w.readEnd,1e-9)):1;
     visibleStations.push({stationIndex: index, opacity: index?Math.min(opacity,handoff.people):opacity, reading: t >= w.readStart && t <= w.readEnd});
   }
   const petals = route.stations.flatMap(s => s.petalAnchors.map(p => ({...p, position: [...p.position], quaternion: [...p.quaternion], scale: [...p.scale]})));

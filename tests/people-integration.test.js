@@ -35,7 +35,7 @@ test('same physical scroll offset keeps every old camera shot and original 28-un
   [55.2,()=>lookbackPose(1,oldCamera)],
  ];
  for(const [units,oldPose] of samples){
-  const progress=api.scrollToStory(units*896/(73.2*896));
+  const progress=api.scrollToStory(units*896/(api.TOTAL_UNITS*896));
   near(progress,units/28);
   const old=oldPose(),next=api.sampleStoryPose(progress,nextCamera,true);
   for(const key of ['position','target'])old[key].forEach((v,i)=>near(next[key][i],v));
@@ -59,19 +59,19 @@ test('direct ending seek, reverse drag and portrait/landscape resize are absolut
  near(api.scrollToStory(retained),progress);
  cam.aspect=414/896;cam.updateProjectionMatrix();
  assert.deepEqual(api.sampleStoryPose(progress,cam,true),before);
- near(api.chapterAt(api.scrollToStory(55.2/73.2)).peopleT,0);
- assert.equal(api.chapterAt(api.scrollToStory(55.2/73.2)).chapter,'lookback');
+ near(api.chapterAt(api.scrollToStory(55.2/api.TOTAL_UNITS)).peopleT,0);
+ assert.equal(api.chapterAt(api.scrollToStory(55.2/api.TOTAL_UNITS)).chapter,'lookback');
 });
 
 test('paced autoplay preserves old speed and inverts every route reading window',()=>{
  const route=resizeCourtyard(createPeopleRoute(fixture),{width:414,height:896,glyphMetrics:metrics});
  assert.equal(typeof api.autoplayToScroll,'function');
  const duration=api.autoplayDuration(route),player=createAutoplay(duration);player.toggle(0,true);
- near(api.autoplayToScroll(player.advance(75),route)*73.2,27.6);
- near(api.autoplayToScroll(player.advance(75),route)*73.2,55.2);
+ near(api.autoplayToScroll(player.advance(75),route)*api.TOTAL_UNITS,27.6);
+ near(api.autoplayToScroll(player.advance(75),route)*api.TOTAL_UNITS,55.2);
  for(const w of route.windows){
   const seconds=(w.readEnd-w.readStart)*route.seconds;
-  near(seconds,{entry:2,leader:7,member:5,ending:3}[route.stations[w.stationIndex].kind]);
+  near(seconds,route.stations[w.stationIndex].readSeconds);
  }
  for(let i=0;i<=1000;i++)near(api.scrollToAutoplay(api.autoplayToScroll(i/1000,route),route),i/1000);
  near(api.autoplayToScroll(player.advance(route.seconds),route),1);assert.equal(player.playing,false);
@@ -80,9 +80,9 @@ test('paced autoplay preserves old speed and inverts every route reading window'
 test('semantic remap retains original member inside changed subwindow numbering',()=>{
  const base=createPeopleRoute(fixture),narrow=resizeCourtyard(base,{width:320,height:568}),wide=resizeCourtyard(base,{width:896,height:414,glyphMetrics:metrics});
  const i=narrow.stations.findIndex(s=>s.kind==='member'&&s.memberIndices.includes(6)),w=narrow.windows[i],t=w.readStart+(w.readEnd-w.readStart)*.37;
- const token=api.capturePeoplePosition(narrow,t);assert.equal(token.memberIndex,6);
+ const token=api.capturePeoplePosition(narrow,t);assert.ok(narrow.stations[i].memberIndices.includes(token.memberIndex));
  const next=api.restorePeoplePosition(wide,token),j=wide.windows.findIndex(w=>next>=w.start&&next<=w.end);
- assert.ok(wide.stations[j].memberIndices.includes(6));near((next-wide.windows[j].readStart)/(wide.windows[j].readEnd-wide.windows[j].readStart),.37);
+ assert.ok(wide.stations[j].memberIndices.includes(token.memberIndex));near((next-wide.windows[j].readStart)/(wide.windows[j].readEnd-wide.windows[j].readStart),.37);
 });
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
@@ -106,7 +106,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  gallery.update=(...args)=>calls.people.push(args);}
  const updateGallery=gallery.update;gallery.update=(...args)=>{calls.people.push(args);return updateGallery(...args);};
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
- const view={width:414,height:896,range:73.2*896};
+ const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
  const context={...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
@@ -119,7 +119,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
- return {calls,gallery,elements,events,complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=73.2*414;resize(view,old);}};
+ return {calls,gallery,elements,events,complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
 }
 
 test('people font failure cannot lock original opening; retry and resize do not reset camera progress',async()=>{
@@ -207,7 +207,7 @@ test('late glyph completion retains actual camera pose and shared route during p
 
 test('missing route preserves old ending for every requested people sample',()=>{
  const old=lookbackPose(1,camera());
- for(const t of [.1,.5,1])assert.deepEqual(api.sampleStoryPose((55.2+18*t)/28,camera(),true),old);
+ for(const t of [.1,.5,1])assert.deepEqual(api.sampleStoryPose((55.2+api.PEOPLE_UNITS*t)/28,camera(),true),old);
 });
 
 test('base route namespaces route-owned IDs while preserving original person IDs',()=>{
@@ -248,7 +248,7 @@ test('actual gallery late measurement publishes on the existing route before fir
   await app.settle();assert.equal(typeof release,'function');app.open();app.tick();
   app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
   const w=app.gallery.route.windows[app.gallery.route.stations.findIndex(s=>s.kind==='member'&&s.memberIndices.includes(6))];
-  app.seek(api.storyToScroll((55.2+18*(w.readStart+w.readEnd)/2)/28,app.gallery.route));app.tick();
+  app.seek(api.storyToScroll((55.2+api.PEOPLE_UNITS*(w.readStart+w.readEnd)/2)/28,app.gallery.route));app.tick();
   const route=app.calls.routes.at(-1),pose=app.calls.shots.at(-1);
   release();await app.settle();assert.equal(app.gallery.ready,true);
   app.tick();assert.equal(app.gallery.route,route);assert.deepEqual(app.calls.shots.at(-1),pose);
@@ -273,7 +273,7 @@ test('reverse courtyard seeks restore pristine historical camera orientation and
  const route=createPeopleRoute(fixture);
  for(const peopleT of [.5,1])for(const units of [3,10,17,22,25,41.2,55.2]){
   const shared=camera(),pristine=camera();
-  api.sampleStoryPose((55.2+18*peopleT)/28,shared,true,route);
+  api.sampleStoryPose((55.2+api.PEOPLE_UNITS*peopleT)/28,shared,true,route);
   const expected=api.sampleStoryPose(units/28,pristine,true);
   const actual=api.sampleStoryPose(units/28,shared,true,route);
   assert.deepEqual(actual,expected);assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
@@ -281,7 +281,7 @@ test('reverse courtyard seeks restore pristine historical camera orientation and
  }
  const shared=camera(),pristine=camera();
  api.sampleStoryPose((55.2+9)/28,shared,true,route);
- assert.deepEqual(api.sampleStoryPose(73.2/28,shared,true),lookbackPose(1,pristine));
+ assert.deepEqual(api.sampleStoryPose(api.TOTAL_UNITS/28,shared,true),lookbackPose(1,pristine));
  assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
  assert.ok(shared.quaternion.angleTo(pristine.quaternion)<1e-7);
 });

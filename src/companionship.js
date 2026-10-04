@@ -1,3 +1,4 @@
+import {petalBreath} from './petal-breath.js';
 import * as T from 'three';
 import {Text} from 'troika-three-text';
 import {loadPetal} from './petal-loader.js';
@@ -106,7 +107,7 @@ export function createCompanionship(scene){
     point.lerp(sidePoint.fromArray(anchor.position),spread);
     rotation.slerp(sideRotation.fromArray(anchor.quaternion).multiply(face),spread);
     // The inherited ring is allowed only before the first people reading.
-    scale.multiplyScalar(1-smooth(peopleT/Math.max(route.windows[1].readStart,1e-6)));
+    scale.multiplyScalar(1-smooth((peopleT-route.windows[0].readEnd)/Math.max(route.windows[1].readStart-route.windows[0].readEnd,1e-6)));
    }
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
@@ -117,7 +118,13 @@ export function createCompanionship(scene){
    }
    const extras=batch.extras;if(extras)extras.visible=!!pose;
    if(pose){
-    const candidates=anchors.filter(p=>p.sourceIndex===index).map(p=>({p,d:new T.Vector3(...p.position).distanceTo(new T.Vector3(...pose.target))})).sort((a,b)=>a.d-b.d);
+    const candidates=anchors.filter(p=>p.sourceIndex===index).map(p=>{
+     const worldPoint=new T.Vector3(...p.position),local=worldPoint.clone().applyMatrix4(view.matrixWorldInverse),depth=-local.z;
+     const half=Math.max(1,depth)*Math.tan(Math.PI*24/180),x=local.x/(half*view.aspect),y=local.y/half;
+     // Continuous penalty prioritizes complete, visible top/bottom clusters.
+     const framing=Math.max(0,Math.abs(x)-.75)+Math.max(0,Math.abs(y)-.85)+Math.max(0,.55-Math.abs(y));
+     return {p,d:worldPoint.distanceTo(new T.Vector3(...pose.target))+framing*50+Math.max(0,10-depth)*20};
+    }).sort((a,b)=>a.d-b.d);
     const cutoff=candidates[2]?.d??Infinity;
     extras.userData.anchorIds=[];
     for(let slot=0;slot<2;slot++){
@@ -125,11 +132,13 @@ export function createCompanionship(scene){
      if(!candidate){extras.setMatrixAt(slot,matrix.makeScale(0,0,0));continue;}
      const p=candidate.p;extras.userData.anchorIds.push(p.id);
      point.fromArray(p.position);rotation.fromArray(p.quaternion).multiply(face);
-     rotation.multiply(sideRotation.setFromAxisAngle(sideAxis,Math.sin(ornamentTime*.35+index)*.12));
-     point.y+=Math.sin(ornamentTime*.4+index)*.3;
+     const initialDepth=-sidePoint.copy(point).applyMatrix4(view.matrixWorldInverse).z;
+     const breath=petalBreath(p.id,ornamentTime,route.viewport?.height??896,initialDepth);
+     rotation.multiply(sideRotation.setFromAxisAngle(sideAxis,breath.angle));
+     point.add(sidePoint.set(0,breath.offset,0).applyQuaternion(new T.Quaternion(...p.quaternion)));
      const dimensions=mesh.geometry.boundingBox.getSize(new T.Vector3());
      let amount=smooth((cutoff-candidate.d)/10)*smooth(peopleT/Math.max(route.windows[0].readEnd,1e-6));
-     const extent=p.scale[0],radius=dimensions.length()/Math.max(dimensions.x,dimensions.y,dimensions.z)*extent/2+.6;
+     const extent=p.scale[0],radius=dimensions.length()/Math.max(dimensions.x,dimensions.y,dimensions.z)*extent/2+breath.amplitude+.1;
      const local=sidePoint.copy(point).applyMatrix4(view.matrixWorldInverse),depth=-local.z;
      if(depth<=radius)amount=0;
      else {

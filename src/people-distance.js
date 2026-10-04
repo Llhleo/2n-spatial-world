@@ -1,8 +1,8 @@
 import {sampleCourtyardView} from './people-courtyard.js';
 const tables=new WeakMap();
 const clamp=t=>Math.max(0,Math.min(1,t));
-// A small positive metric through genuinely stationary entry/end moments keeps
-// time invertible. Reading drift still dominates this .04 world-units/sec floor.
+// Reading budgets and travel share one invertible manual scroll coordinate.
+const smooth=u=>u*u*u*(10+u*(-15+6*u));
 const pending=new WeakMap();
 function builder(route){
  const times=[0],distances=[0],aspect=route.viewport?route.viewport.width/route.viewport.height:414/896;
@@ -11,7 +11,13 @@ function builder(route){
  return {step(){
   if(j>=edges.length)return false;
   const t=edges[j-1]+(edges[j]-edges[j-1])*(.5-.5*Math.cos(Math.PI*i/256)),p=sampleCourtyardView(route,t,aspect).position;
-  distance+=Math.hypot(...p.map((v,k)=>v-previous[k]))+.04*(t-times.at(-1))*route.seconds;
+  const prior=times.at(-1),dt=(t-prior)*route.seconds,lo=edges[j-1],hi=edges[j],mid=(lo+hi)/2;
+  const read=route.windows.find(w=>mid>=w.readStart-1e-10&&mid<=w.readEnd+1e-10),travel=Math.hypot(...p.map((v,k)=>v-previous[k]));
+  if(read){const s=route.stations[read.stationIndex];distance+=dt*(s.scrollRead??.45)/s.readSeconds+travel/600;}
+  else{const before=route.windows.find(w=>Math.abs(w.readEnd-lo)<1e-8),after=route.windows.find(w=>Math.abs(w.readStart-hi)<1e-8);
+   const density=w=>{const s=route.stations[w.stationIndex];return (s.scrollRead??.45)/s.readSeconds;};
+   distance+=dt*(density(before)+density(after))/2+.45*(smooth((t-lo)/(hi-lo))-smooth((prior-lo)/(hi-lo)))+travel/600;
+  }
   times.push(t);distances.push(distance);previous=p;
   if(++i>256){i=1;j++;}return j<edges.length;
  },finish(){const result={times,distances:distances.map(d=>d/distance)};tables.set(route,result);return result;}};
