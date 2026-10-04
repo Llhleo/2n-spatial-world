@@ -18,7 +18,7 @@ export function peoplePose(t,camera,aspect=camera.aspect,route){
  * This is actual ink, not nominal em/fontSize; ascenders differ between fonts.
  * Bounds accept Troika's [minX,minY,maxX,maxY] or named coordinates with glyphs.
  */
-export function projectTextBounds(camera, worldMatrix, glyphBounds, viewport) {
+export function projectTextBounds(camera, worldMatrix, glyphBounds, viewport, measureInk = true) {
   const {width, height} = viewport;
   const [minX, minY, maxX, maxY] = Array.isArray(glyphBounds) || ArrayBuffer.isView(glyphBounds)
     ? glyphBounds : [glyphBounds.minX, glyphBounds.minY, glyphBounds.maxX, glyphBounds.maxY];
@@ -40,7 +40,7 @@ export function projectTextBounds(camera, worldMatrix, glyphBounds, viewport) {
   const top = Math.min(...points.map(p => p.y)), bottom = Math.max(...points.map(p => p.y));
   const rect = {x: left, y: top, width: right - left, height: bottom - top};
   const finite = [...points.flatMap(p => p.toArray())].every(Number.isFinite);
-  const glyphs = glyphBounds.glyphs;
+  const glyphs = measureInk ? glyphBounds.glyphs : null;
   const fontPixels = finite && valid ? (glyphs?.length
     ? Math.max(...glyphs.map(glyph => projectTextBounds(camera, worldMatrix, glyph, viewport).fontPixels))
     : Math.min(points[0].distanceTo(points[1]), points[2].distanceTo(points[3]))) : 0;

@@ -1,3 +1,4 @@
+import {cancelPendingModelLoads} from './petal-loader.js';
 import {preparePeopleDistance} from './people-distance.js';
 import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
@@ -58,12 +59,15 @@ if (renderer) {
   }
   async function prepareEverything(){
     if(preparingAll)return;
-    preparingAll=true;gpuReady=false;gpuError='';
+    preparingAll=true;gpuReady=false;gpuError='';world.prepare();
     try{
     const initMaps=mesh=>{for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])for(const value of Object.values(material))if(value?.isTexture)renderer.initTexture(value);};
-    await Promise.all([prepareBiomePetals(world),companionship.prepare(initMaps),flowers.prepare(initMaps)]);
+    // Settle every branch before enabling a retry: never overlap preparation runs.
+    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
+    const rejected=results.find(result=>result.status==='rejected');if(rejected)throw rejected.reason;
     if(Object.values(world.loading.failures).some(list=>list.length))return;
-    while(world.groundStatus!=='ready')await new Promise(resolve=>setTimeout(resolve,16));
+    const groundDeadline=performance.now()+15000;
+    while(world.groundStatus!=='ready'){if(world.groundStatus==='error')throw new Error('地图准备失败，请重试');if(performance.now()>groundDeadline)throw new Error('地图准备超时，请重试');await new Promise(resolve=>setTimeout(resolve,16));}
     companionship.capture();
     warming=true;
     await warmBiomeResources(renderer,scene);gpuReady=true;
@@ -87,7 +91,7 @@ if (renderer) {
   let player=createAutoplay(autoplayDuration(peopleRoute));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
-  retry.addEventListener('click',()=>prepareEverything());
+  retry.addEventListener('click',event=>{event.stopPropagation();void prepareEverything();});
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const startAtEnding=reduced.matches;
   const intro=createLoadingIntro();
@@ -211,9 +215,9 @@ if (renderer) {
     autoplayButton.textContent=player.playing?'暂停播放':'自动播放';
     if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
-    const loadingText=failed?'部分资源未能准备好，请重试':warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14 · 花朵 ${flowers.prepared}/7`;
+    const loadingText=failed?(preparingAll?'正在完成剩余资源，随后可重试':`资源准备失败，可重试${gpuError?' · '+gpuError:''}`):warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14 · 花朵 ${flowers.prepared}/7`;
     if(loadingText!==lastLoadingText){loading.querySelector('span').textContent=loadingText;lastLoadingText=loadingText;}
-    retry.hidden=!failed;retry.disabled=warming;
+    retry.hidden=!failed;retry.disabled=preparingAll;retry.textContent=preparingAll?'准备中…':'重新加载';
     const galleryReady=!!people?.ready;
     // Read the gallery getter every frame: late sync can clear a prior timeout.
     const galleryFailed=!galleryReady&&!!(people?.error||peopleError);

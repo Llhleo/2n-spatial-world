@@ -41,6 +41,7 @@ export function createMapFlowers(){
   const snap=!root.userData.facingReady||dt===0;
   // +Z is the inspected expression front for all seven original GLBs.
   for(let i=0;i<(snap?2:1);i++){target.position.copy(root.position);target.lookAt(camera.position);
+   if(!snap&&root.quaternion.angleTo(target.quaternion)<.001)continue;
    if(snap)root.quaternion.copy(target.quaternion);else root.quaternion.slerp(target.quaternion,1-Math.exp(-5*dt));ground(root);
   }root.userData.facingReady=true;
  }}

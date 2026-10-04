@@ -22,7 +22,9 @@ export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
- let previousRoute=null,ornamentTime=0;
+ let previousRoute=null,ornamentTime=0,anchorRoute=null;
+ const anchorGroups=new Map(),candidatePoint=new T.Vector3(),candidateTarget=new T.Vector3();
+ const packed=[];
  const view=new T.PerspectiveCamera(48,414/896,.2,2400);
  let previous=NaN,previousPeople=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
  const sidePoint=new T.Vector3(),sideRotation=new T.Quaternion(),sideAxis=new T.Vector3(0,0,1);
@@ -82,6 +84,8 @@ export function createCompanionship(scene){
   if(route&&peopleT>0){
    const aspect=route.viewport?route.viewport.width/route.viewport.height:view.aspect;
    pose=sampleCourtyard(route,peopleT,aspect);anchors=courtyardEnvironment(route);
+   if(anchorRoute!==route){anchorRoute=route;anchorGroups.clear();for(const p of anchors){if(!anchorGroups.has(p.sourceIndex))anchorGroups.set(p.sourceIndex,[]);anchorGroups.get(p.sourceIndex).push({p,d:0});}}
+   candidateTarget.fromArray(pose.target);
    view.aspect=aspect;view.updateProjectionMatrix();view.position.fromArray(pose.position);view.up.fromArray(pose.up);view.lookAt(new T.Vector3(...pose.target));view.updateMatrixWorld();
   }
   if(t<=0)flightTime=0;else flightTime+=step;
@@ -89,6 +93,7 @@ export function createCompanionship(scene){
   const orbitStep=step*.10*T.MathUtils.smoothstep(t,.74,.80);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
   if(t===previous&&peopleT===previousPeople&&route===previousRoute&&!step)return;previous=t;previousPeople=peopleT;previousRoute=route;
+  packed.length=0;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
@@ -102,12 +107,9 @@ export function createCompanionship(scene){
    const settle=T.MathUtils.smoothstep(t,.76,.92);
    scale.copy(nativeScale).multiplyScalar(flightGrowth(t-phase)).lerp(finalScale,settle).multiplyScalar(1+(layoutScale-1)*settle);
    if(pose){
-    const spread=smooth(peopleT/Math.max(route.windows[0].readEnd,1e-6));
-    const anchor=pose.petals.find(p=>p.id===`entry-petal-${index}`);
-    point.lerp(sidePoint.fromArray(anchor.position),spread);
-    rotation.slerp(sideRotation.fromArray(anchor.quaternion).multiply(face),spread);
-    // The inherited ring is allowed only before the first people reading.
-    scale.multiplyScalar(1-smooth((peopleT-route.windows[0].readEnd)/Math.max(route.windows[1].readStart-route.windows[0].readEnd,1e-6)));
+    // Exit the live ring in place; do not create a second pair of columns.
+    const exit=1-smooth((peopleT-route.windows[0].readEnd)/Math.max(route.windows[1].readStart-route.windows[0].readEnd,1e-6));
+    scale.multiplyScalar(exit);mesh.visible=taken&&exit>0;
    }
    matrix.compose(point,rotation,scale);pivot.makeTranslation(-center.x,-center.y,-center.z);matrix.multiply(pivot);mesh.setMatrixAt(0,matrix);
    mesh.instanceMatrix.needsUpdate=true;
@@ -118,13 +120,12 @@ export function createCompanionship(scene){
    }
    const extras=batch.extras;if(extras)extras.visible=!!pose;
    if(pose){
-    const candidates=anchors.filter(p=>p.sourceIndex===index).map(p=>{
-     const worldPoint=new T.Vector3(...p.position),local=worldPoint.clone().applyMatrix4(view.matrixWorldInverse),depth=-local.z;
-     const half=Math.max(1,depth)*Math.tan(Math.PI*24/180),x=local.x/(half*view.aspect),y=local.y/half;
-     // Continuous penalty prioritizes complete, visible top/bottom clusters.
+    const candidates=anchorGroups.get(index)||[];
+    for(const candidate of candidates){const p=candidate.p,worldPoint=candidatePoint.fromArray(p.position),distance=worldPoint.distanceTo(candidateTarget);
+     const local=worldPoint.applyMatrix4(view.matrixWorldInverse),depth=-local.z,half=Math.max(1,depth)*Math.tan(Math.PI*24/180),x=local.x/(half*view.aspect),y=local.y/half;
      const framing=Math.max(0,Math.abs(x)-.75)+Math.max(0,Math.abs(y)-.85)+Math.max(0,.55-Math.abs(y));
-     return {p,d:worldPoint.distanceTo(new T.Vector3(...pose.target))+framing*50+Math.max(0,10-depth)*20};
-    }).sort((a,b)=>a.d-b.d);
+     candidate.d=distance+framing*50+Math.max(0,10-depth)*20;
+    }candidates.sort((a,b)=>a.d-b.d);
     const cutoff=candidates[2]?.d??Infinity;
     extras.userData.anchorIds=[];
     for(let slot=0;slot<2;slot++){
@@ -148,7 +149,35 @@ export function createCompanionship(scene){
      }
      scale.setScalar(extent/Math.max(dimensions.x,dimensions.y,dimensions.z)*amount);
      matrix.compose(point,rotation,scale).multiply(pivot);extras.setMatrixAt(slot,matrix);
+     if(amount>0)packed.push({mesh:extras,slot,center:point.clone(),radius:dimensions.length()*scale.x/2+breath.amplitude+.15,factor:1});
     }extras.instanceMatrix.needsUpdate=true;
+   }
+  }
+  // Reserve oriented model bounds, including the full breathing envelope.
+  // A common pairwise shrink factor is continuous, so it adds no anchor swaps.
+  if(pose){
+   const tangent=Math.tan(Math.PI*24/180);
+   for(const item of packed){
+    const local=candidatePoint.copy(item.center).applyMatrix4(view.matrixWorldInverse),depth=-local.z;
+    const near=Math.max(.1,depth-item.radius);item.x=local.x/(depth*tangent*view.aspect);item.y=local.y/(depth*tangent);item.rx=0;item.ry=0;
+    item.mesh.getMatrixAt(item.slot,matrix);const box=item.mesh.geometry.boundingBox;
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+     candidatePoint.set(x,y,z).applyMatrix4(matrix).project(view);
+     item.rx=Math.max(item.rx,Math.abs(candidatePoint.x-item.x));item.ry=Math.max(item.ry,Math.abs(candidatePoint.y-item.y));
+    }
+    // Add full ±2° rotation and ±4px motion to the actual oriented vertex bounds.
+    const motion=item.radius*.035+.3;item.rx+=motion/(near*tangent*view.aspect);item.ry+=motion/(near*tangent);
+   }
+   for(let i=0;i<packed.length;i++)for(let j=i+1;j<packed.length;j++){
+    const a=packed[i],b=packed[j],gap=.025;
+    const space=Math.max((Math.abs(a.x-b.x)-gap)/(a.rx+b.rx),(Math.abs(a.y-b.y)-gap)/(a.ry+b.ry));
+    const factor=T.MathUtils.clamp(space,0,1);a.factor=Math.min(a.factor,factor);b.factor=Math.min(b.factor,factor);
+   }
+   for(const item of packed){if(item.factor>=1)continue;item.mesh.getMatrixAt(item.slot,matrix);
+    matrix.decompose(point,rotation,scale);scale.multiplyScalar(item.factor);
+    const center=item.mesh.geometry.boundingBox.getCenter(sidePoint);
+    matrix.compose(item.center,rotation,scale).multiply(pivot.makeTranslation(-center.x,-center.y,-center.z));
+    item.mesh.setMatrixAt(item.slot,matrix);item.mesh.instanceMatrix.needsUpdate=true;
    }
   }
   const opacity=T.MathUtils.smoothstep(t,.952,.962)*chapterHandoff(route,peopleT).footprints;

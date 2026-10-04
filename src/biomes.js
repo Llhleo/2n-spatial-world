@@ -139,18 +139,16 @@ export function createBiomes(scene,mobile,loaders={garden:loadOptimizedPetals,de
   function preloadDesertPetals(){if(desertPetalStatus==='loading'||desertPetalStatus==='ready')return desertLoad;desertPetalStatus='loading';desertLoad=start('desert',loaders.desert,installDesertPetals).then(status=>{desertPetalStatus=status;});return desertLoad;}
   function preloadOceanPetals(){if(oceanPetalStatus==='loading'||oceanPetalStatus==='ready')return oceanLoad;oceanPetalStatus='loading';oceanLoad=start('ocean',loaders.ocean||loadOceanPetals,installOceanPetals).then(status=>{oceanPetalStatus=status;});return oceanLoad;}
   function prepare(){
-    if(preparing)return;preparing=true;groundStatus='loading';
-    let i=0;
-    const step=()=>{
-      if(i>=spans.length){groundStatus='ready';return;}
-      build(i++);
-      if(i<spans.length){
-        if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:250});
-        else setTimeout(step,32);
-      }else {if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(applyRegionalFog(createOceanGround()));setTimeout(()=>{if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(applyRegionalFog(createJungleGround()));setTimeout(()=>{if(!hell.getObjectByName('florr-hell-ground'))hell.add(applyRegionalFog(createHellGround()));groundStatus='ready';},32);},32);}
-    };
-    if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:250});
-    else setTimeout(step,32);
+    if(preparing||groundStatus==='ready')return;preparing=true;groundStatus='loading';
+    const tasks=[...spans.map((_,i)=>()=>build(i)),
+      ()=>{if(!ocean.getObjectByName('florr-ocean-ground'))ocean.add(applyRegionalFog(createOceanGround()));},
+      ()=>{if(!jungle.getObjectByName('florr-jungle-ground'))jungle.add(applyRegionalFog(createJungleGround()));},
+      ()=>{if(!hell.getObjectByName('florr-hell-ground'))hell.add(applyRegionalFog(createHellGround()));}];
+    let cursor=0;
+    const schedule=()=>{if(typeof requestIdleCallback==='function')requestIdleCallback(step,{timeout:250});else setTimeout(step,16);};
+    const step=()=>{try{tasks[cursor++]();if(cursor<tasks.length)schedule();else {groundStatus='ready';preparing=false;}}
+      catch(error){groundStatus='error';preparing=false;console.error('Ground preparation failed',error);}};
+    schedule();
   }
   const sun=new T.DirectionalLight(0xd7cbb8,1.4);sun.position.set(260,80,28);scene.add(sun);
   const gardenAir=new T.Color(0x11151a),desertAir=new T.Color(0x342b25);

@@ -3,8 +3,11 @@
 import {fetchAssetBytes} from './asset-transport.js';
 const cache=new Map(),sceneCache=new Map();
 const later=()=>new Promise(resolve=>setTimeout(resolve,0));
+const queues=new Set();
+export function cancelPendingModelLoads(){for(const cancel of queues)cancel();}
 function scheduler(limit){
  const queue=[];let active=0;
+ queues.add(()=>{for(const job of queue.splice(0))job.reject(new Error('资源批次已停止，请重试'));});
  function drain(){while(active<limit&&queue.length){const job=queue.shift();active++;Promise.resolve().then(job.run).then(job.resolve,job.reject).finally(()=>{active--;drain();});}}
  return (run,priority=0)=>new Promise((resolve,reject)=>{queue.push({run,resolve,reject,priority});queue.sort((a,b)=>a.priority-b.priority);drain();});
 }
@@ -17,7 +20,7 @@ const pipeline=createPetalPipeline();
 const displayDownload=scheduler(2),decodeModel=scheduler(2);
 export async function fetchPetalBytes(url,fetcher=fetch,timeout=15000){
  const controller=new AbortController();let timer;
- try{return await Promise.race([(async()=>{const response=await fetcher(url,{signal:controller.signal});if(!response.ok)throw new Error(`Petal request returned ${response.status}`);const type=response.headers.get('content-type')||'';if(type.includes('text/html'))throw new Error('Petal request returned a login page');const bytes=await response.arrayBuffer();if(new DataView(bytes).getUint32(0,true)!==0x46546c67)throw new Error('Invalid GLB response');return bytes;})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Petal download timed out'));},timeout);})]);}finally{clearTimeout(timer);}
+ try{return await Promise.race([(async()=>{const response=await fetcher(url,{signal:controller.signal});if(!response.ok)throw new Error(`Petal request returned ${response.status}`);const type=response.headers.get('content-type')||'';if(type.includes('text/html'))throw new Error('Petal request returned a login page');const bytes=await response.arrayBuffer();if(bytes.byteLength<4||new DataView(bytes).getUint32(0,true)!==0x46546c67)throw new Error('Invalid GLB response');return bytes;})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Petal download timed out'));},timeout);})]);}finally{clearTimeout(timer);}
 }
 export function loadPetal(url,priority=0){
  if(cache.has(url))return cache.get(url);
@@ -28,10 +31,10 @@ export function loadModelScene(url,priority=0){
  const near=url.includes('companion-display')||url.includes('map-flowers');
  const parse=async bytes=>decodeModel(async()=>{
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');await later();let timer;
-  try{return (await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Model decoding timed out')),30000);})])).scene;}finally{clearTimeout(timer);}
+  try{return (await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Model decoding timed out')),90000);})])).scene;}finally{clearTimeout(timer);}
  },priority);
- const fetchBytes=async()=>{for(let attempt=0;attempt<2;attempt++){try{return near?await fetchAssetBytes(url):await fetchPetalBytes(url);}catch(error){if(attempt===1)throw error;await later();}}};
- const promise=near?displayDownload(fetchBytes,priority).then(parse):pipeline(fetchBytes,parse,priority);
+ const fetchBytes=async()=>{for(let attempt=0;attempt<(near?1:2);attempt++){try{return near?await fetchAssetBytes(url):await fetchPetalBytes(url);}catch(error){if(near||attempt===1)throw error;await later();}}};
+ const promise=near?displayDownload(async()=>parse(await fetchBytes()),priority):pipeline(fetchBytes,parse,priority);
  sceneCache.set(url,promise);promise.catch(()=>sceneCache.delete(url));return promise;
 }
 export async function loadPetalCatalog(entries,onAsset){

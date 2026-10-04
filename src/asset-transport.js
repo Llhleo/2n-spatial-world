@@ -1,5 +1,6 @@
 import manifest from './transport-manifest.js';
 const glb=bytes=>bytes.byteLength>=4&&new DataView(bytes).getUint32(0,true)===0x46546c67;
+async function unpack(bytes){return glb(bytes)?bytes:new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();}
 async function verified(bytes,entry){
  if(!glb(bytes))throw new Error('Invalid GLB response');
  if(entry){if(bytes.byteLength!==entry.bytes)throw new Error('Asset size mismatch');
@@ -10,7 +11,9 @@ async function verified(bytes,entry){
 function lookup(url){
  for(const [path,entry] of Object.entries(manifest))if(url.endsWith(path))return {...entry,url:url.slice(0,-path.length)+entry.url};
 }
-async function localStore(){try{return typeof caches!=='undefined'?await caches.open('2n-lossless-models-v1'):null;}catch{return null;}}
+function bounded(work,ms,fallback=null){let timer;return Promise.race([Promise.resolve(work).catch(()=>fallback),new Promise(resolve=>{timer=setTimeout(()=>resolve(fallback),ms);})]).finally(()=>clearTimeout(timer));}
+let localStorePromise;
+async function localStore(ms){try{localStorePromise??= typeof caches!=='undefined'?bounded(caches.open('2n-lossless-models-v1'),ms):Promise.resolve(null);return await localStorePromise;}catch{return null;}}
 async function download(url,fetcher,timeout){
  const controller=new AbortController();let timer;
  try{return await Promise.race([(async()=>{const response=await fetcher(url,{signal:controller.signal,cache:'force-cache'});
@@ -18,18 +21,19 @@ async function download(url,fetcher,timeout){
   if((response.headers.get('content-type')||'').includes('text/html'))throw new Error('Model request returned a login page');
   return response.arrayBuffer();})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Model download timed out'));},timeout);})]);}finally{clearTimeout(timer);}
 }
-export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000}={}){
+export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000,cacheTimeout=800}={}){
  if(!entry)return verified(await download(url,fetcher,timeout));
- if(store===undefined)store=await localStore();
+ if(store===undefined)store=await localStore(cacheTimeout);
  const key=entry.url;
- if(store){try{const hit=await store.match(key);if(hit)return await verified(await hit.arrayBuffer(),entry);}catch{try{await store.delete(key);}catch{}}}
- let bytes;
+ if(store){try{const hit=await bounded(store.match(key),cacheTimeout);if(hit){const bytes=await bounded(hit.arrayBuffer(),cacheTimeout);if(bytes)return await verified(await unpack(bytes),entry);}}catch{try{void bounded(store.delete(key),cacheTimeout);}catch{}}}
+ let bytes,cacheBytes;
  try{
-  bytes=await download(entry.url,fetcher,timeout);
+  bytes=await download(entry.url,fetcher,timeout);cacheBytes=bytes;
   // Some hosts decode Content-Encoding automatically; never decompress twice.
-  if(!glb(bytes))bytes=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  bytes=await unpack(bytes);
   await verified(bytes,entry);
- }catch{bytes=await verified(await download(url,fetcher,timeout),entry);}
- if(store){try{await store.put(key,new Response(bytes,{headers:{'content-type':'model/gltf-binary'}}));}catch{}}
+ }catch{bytes=await verified(await download(url,fetcher,timeout),entry);cacheBytes=bytes;}
+ // Persistence is optional: a slow/quota-limited Safari cache cannot hold up a valid model.
+ if(store){try{void bounded(store.put(key,new Response(cacheBytes,{headers:{'content-type':'application/octet-stream'}})),cacheTimeout);}catch{}}
  return bytes;
 }

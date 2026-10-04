@@ -144,8 +144,8 @@ export function sampleCourtyard(route,t,aspect=414/896) {
     const opacity=t<w.readStart?ease((t-incoming)/Math.max(w.readStart-incoming,1e-9)):t>w.readEnd&&!keepLast?1-ease((t-w.readEnd)/Math.max(outgoing-w.readEnd,1e-9)):1;
     visibleStations.push({stationIndex: index, opacity: index?Math.min(opacity,handoff.people):opacity, reading: t >= w.readStart && t <= w.readEnd});
   }
-  const petals = route.stations.flatMap(s => s.petalAnchors.map(p => ({...p, position: [...p.position], quaternion: [...p.quaternion], scale: [...p.scale]})));
-  // Original ring remains present at the seam and unfolds into a fixed entry cluster.
+  const petals = [...stationPetals(route)];
+  // Entry metadata remains available to old clients; the live ring now exits in place.
   FLOWER_SPECS.forEach(([kind, name, , extent], index) => {
     const start = flowerPose(index, 1).toArray();
     const end = world((index % 2 ? 1 : -1) * (24 + index % 3 * 6), -25 + index * 4, -95 - index % 4 * 12);
@@ -154,6 +154,8 @@ export function sampleCourtyard(route,t,aspect=414/896) {
   return {position, target, up, visibleStations, primaryStation, petals};
 }
 
+const stationPetalCache=new WeakMap();
+function stationPetals(route){if(!stationPetalCache.has(route))stationPetalCache.set(route,route.stations.flatMap(s=>s.petalAnchors));return stationPetalCache.get(route);}
 const environments = new WeakMap();
 /** Fixed world clusters authored once from the shared shots, including transfers.
  * Sampling their construction camera never creates a second rendered camera/path.
@@ -166,19 +168,23 @@ export function courtyardEnvironment(route) {
     times.push((w.readStart+w.readEnd)/2);
     if(i) for(const u of [.25,.5,.75]) times.push(route.windows[i-1].readEnd+(w.readStart-route.windows[i-1].readEnd)*u);
   });
-  const petals = [];
+  times.sort((a,b)=>a-b);
+  const petals = [], authoredViews=[];
   const camera = new T.PerspectiveCamera(48,aspect,.2,2400);
   times.forEach((t,cluster) => {
-    const view=sampleCourtyard(route,t,aspect);
+    const view=sampleCourtyardView(route,t,aspect);
     camera.position.fromArray(view.position);camera.up.fromArray(view.up);camera.lookAt(new T.Vector3(...view.target));camera.updateMatrixWorld();
+    // Reading drift and near-identical ending shots must not stack full clusters.
+    if(authoredViews.some(v=>v.position.distanceTo(camera.position)<12&&v.quaternion.angleTo(camera.quaternion)<.05))return;
+    authoredViews.push({position:camera.position.clone(),quaternion:camera.quaternion.clone()});
     for(let j=0;j<6;j++) {
       const sourceIndex=(cluster*5+j)%FLOWER_SPECS.length;
       const [kind,name,,extent]=FLOWER_SPECS[sourceIndex];
       const depth=j%2?112:84, half=depth*Math.tan(Math.PI*24/180);
       const x=[-.65,0,.65,-.65,0,.5][j], y=j<3?.73:-.73;
-      petals.push({id:`courtyard-${cluster}-${j}`,key:`${kind}:${name}`,sourceIndex,
+      petals.push({id:`courtyard-${cluster}-${j}`,cluster,time:t,key:`${kind}:${name}`,sourceIndex,
         position:new T.Vector3(x*half*aspect,y*half,-depth).applyMatrix4(camera.matrixWorld).toArray(),
-        quaternion:camera.quaternion.toArray(),scale:[extent*1.6,extent*1.6,extent*1.6]});
+        quaternion:camera.quaternion.toArray(),scale:[extent*1.15,extent*1.15,extent*1.15]});
     }
   });
   environments.set(route,petals);return petals;

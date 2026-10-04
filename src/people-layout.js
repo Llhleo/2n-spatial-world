@@ -34,6 +34,8 @@ export function createCourtyardGallery(data, initialRoute) {
  function label(tier){
   const text=new Text();text.font=`${import.meta.env?.BASE_URL||'/'}assets/fonts/people-sc-semibold.woff?v=people-sdf256-1`;
   text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.whiteSpace='pre';text.lineHeight=1.4;
+  // Single-pass SDF inner stroke keeps contrast without another material/draw pass.
+  text.strokeWidth='5%';text.strokeColor=0x18201a;text.strokeOpacity=.9;
   text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.color=tier==='name'?0xf4f0df:0xd5dbce;
   Object.assign(text.material,{fog:false,depthWrite:false,transparent:true,toneMapped:false,opacity:0});
   text.userData.tier=tier;text.visible=false;all.push(text);return text;
@@ -127,7 +129,7 @@ export function createCourtyardGallery(data, initialRoute) {
   const sample=sampleCourtyard(route,t,viewport.width/viewport.height);
   for(const text of all){text.visible=false;text.material.opacity=0;}
   for(const visible of sample.visibleStations){const s=route.stations[visible.stationIndex];if(s.kind!=='leader')continue;
-   const children=cards[s.leaderIndex].children,rects=children.filter(text=>text.userData.bounds).map(text=>{text.updateMatrixWorld(true);return projectTextBounds(camera,text.matrixWorld,text.userData.bounds,viewport).rect;});
+   const children=cards[s.leaderIndex].children,rects=children.filter(text=>text.userData.bounds).map(text=>{text.updateMatrixWorld(true);return projectTextBounds(camera,text.matrixWorld,text.userData.bounds,viewport,false).rect;});
    const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(rects,viewport,visible.opacity));
    for(const text of children){text.material.opacity=opacity;text.visible=Boolean(glyphMetrics.leaders[s.personId??people.leaders[s.leaderIndex].id]?.[text.userData.tier])&&opacity>0;}
   }
@@ -147,15 +149,16 @@ export function createCourtyardGallery(data, initialRoute) {
    }
    const complete=station.memberIndices.every((index,j)=>slots[bucket*7+j].published?.key===`${revision}:${station.id}:${index}`);
    if(!complete)continue;
-   const cam=poseFor(v.stationIndex),unit=viewport.height/(2*100*Math.tan(48*Math.PI/360));
+   const needsPlacement=slots.slice(bucket*7,bucket*7+station.memberIndices.length).some(slot=>slot.text.userData.placementKey!==slot.published.key);
+   const cam=needsPlacement?poseFor(v.stationIndex):null,unit=viewport.height/(2*100*Math.tan(48*Math.PI/360));
    for(let j=0;j<7;j++){const slot=slots[bucket*7+j],index=station.memberIndices[j];if(index===undefined){slot.desired=null;continue;}
     const row=Math.floor(j/station.columns),rows=Math.ceil(station.memberIndices.length/station.columns),x=station.columns===2?(j%2?1:-1)*viewport.width*.20/unit:0,y=((rows-1)/2-row)*station.rowPixels/unit;
-    place(slot.text,station,slot.published.measured,22,x,y,cam);
+    if(slot.text.userData.placementKey!==slot.published.key){place(slot.text,station,slot.published.measured,22,x,y,cam);slot.text.userData.placementKey=slot.published.key;}
     slot.text.userData.memberIndex=index;slot.text.userData.stationId=station.id;
     slot.text.visible=v.opacity>0;slot.text.material.opacity=v.opacity;
    }
    const active=slots.slice(bucket*7,bucket*7+station.memberIndices.length);
-   const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(active.map(slot=>projectTextBounds(camera,slot.text.matrixWorld,slot.text.userData.bounds,viewport).rect),viewport,v.opacity));
+   const opacity=Math.min(chapterHandoff(route,t).people,spatialOpacity(active.map(slot=>projectTextBounds(camera,slot.text.matrixWorld,slot.text.userData.bounds,viewport,false).rect),viewport,v.opacity));
    active.forEach(slot=>{slot.text.material.opacity=opacity;slot.text.visible=opacity>0;});
   }
  }
