@@ -11,14 +11,14 @@ export function createHistoryView(events,route){
   Object.assign(text.material,{transparent:true,depthWrite:false,fog:false,toneMapped:false,opacity:0});card.add(text);
  }});
  function measure(text){const b=text.textRenderInfo?.glyphBounds;if(!b?.length)throw new Error('历史文字字形尚未准备好');return {minX:Math.min(...Array.from(b).filter((_,i)=>i%4===0)),maxX:Math.max(...Array.from(b).filter((_,i)=>i%4===2)),minY:Math.min(...Array.from(b).filter((_,i)=>i%4===1)),maxY:Math.max(...Array.from(b).filter((_,i)=>i%4===3))};}
- function reshape(font){const jobs=[];for(const card of cards)for(const text of card.children){
+ function reshape(font,timeoutMs){const jobs=[];for(const card of cards)for(const text of card.children){
   const pixels=text.userData.tier==='title'?Math.min(32,viewport.width*.078):text.userData.tier==='body'?18:15;
   text.userData.pixels=pixels;text.maxWidth=viewport.width*.70/pixels;
   text.font=null;text.font=font;
-  jobs.push(new Promise((resolve,reject)=>{let timer;const finish=()=>{clearTimeout(timer);text.removeEventListener('synccomplete',finish);try{text.userData.ink=measure(text);resolve();}catch(e){reject(e);}};timer=setTimeout(()=>{text.removeEventListener('synccomplete',finish);reject(new Error('历史文字准备超时，可重试'));},20000);text.addEventListener('synccomplete',finish);try{text.sync();}catch(e){clearTimeout(timer);text.removeEventListener('synccomplete',finish);reject(e);}}));
+  jobs.push(new Promise((resolve,reject)=>{let settled=false;const timer=setTimeout(()=>{settled=true;reject(new Error('历史文字准备超时，可重试'));},timeoutMs);const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);try{if(!disposed)text.userData.ink=measure(text);resolve();}catch(e){reject(e);}};try{text.sync(finish);}catch(e){settled=true;clearTimeout(timer);reject(e);}}));
  }return Promise.all(jobs);}
- async function prepare(){if(disposed)throw new Error('历史章节已释放');if(prepared)return;if(inflight)return inflight;
- const current=revision;inflight=(async()=>{const {default:font}=await import('./guild-history-font.js');await reshape(font);if(disposed||current!==revision)return;prepared=true;})().finally(()=>{inflight=null;});return inflight;}
+ async function prepare(timeoutMs=20000){if(disposed)throw new Error('历史章节已释放');if(prepared)return;if(inflight)return inflight;
+ const current=revision;inflight=(async()=>{const {default:font}=await import('./guild-history-font.js');await reshape(font,timeoutMs);if(disposed||current!==revision)return;prepared=true;})().finally(()=>{inflight=null;});return inflight;}
  function resize(next){if(viewport.width===next.width&&viewport.height===next.height)return;viewport={width:next.width,height:next.height};revision++;prepared=false;group.visible=false;}
  function update(state,camera,next){readingBounds.makeEmpty();group.visible=prepared&&!disposed&&state.eventOpacity>0;if(!group.visible)return;
   camera.updateMatrixWorld();const depth=camera.position.distanceTo(new T.Vector3(...state.target)),half=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2)),unit=2*half/next.height;

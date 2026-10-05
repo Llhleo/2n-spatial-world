@@ -1,4 +1,4 @@
-import * as T from 'three';
+import {normalizeHistory} from './guild-history-data.js';
 export const HISTORY_SECONDS=31,HISTORY_UNITS=5.2;
 const clamp=t=>Math.max(0,Math.min(1,Number.isFinite(t)?t:0));
 const smooth=t=>{const u=clamp(t);return u*u*u*(10+u*(-15+6*u));};
@@ -19,4 +19,10 @@ export function sampleHistory(route,t,aspect){
  // without a speculative lateral path leaving the finite terrain footprint.
  const dolly=1+.03*smooth(seconds/31);
  return {position:entry.position.map((v,i)=>entry.target[i]+(v-entry.target[i])*dolly),target:[...entry.target],up:[...entry.up],eventIndex,eventId:route.events[eventIndex].id,eventOpacity:opacity,peopleOpacity:1-smooth(seconds/3),reading:opacity===1,historyT:clamp(t),replayVisible:seconds>=24};
+}
+
+export function sampleHistoryForData(raw,entry,t,aspect){
+ const normalized=normalizeHistory(raw);
+ if(normalized.errors.length)return {...entry,position:[...entry.position],target:[...entry.target],up:[...entry.up],eventOpacity:0,peopleOpacity:0,eventIndex:-1,eventId:null,replayVisible:true};
+ return sampleHistory(createHistoryRoute(normalized.events,entry),t,aspect);
 }

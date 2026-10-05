@@ -7,7 +7,7 @@ import {createHistoryRoute,sampleHistory} from '../src/guild-history-route.js';
 test('history view measures wrapped text and publishes one warm-white station without growing children',async()=>{
  assert.equal(typeof api.createHistoryView,'function');
  const original=Text.prototype.sync;
- Text.prototype.sync=function(){const b=[];let x=0,y=0;for(const ch of this.text){if(x+.7>this.maxWidth){x=0;y-=1.4;}b.push(x,y,x+.65,y+1);x+=.7;}this._textRenderInfo={glyphBounds:new Float32Array(b)};this.dispatchEvent({type:'synccomplete'});};
+ Text.prototype.sync=function(callback){const b=[];let x=0,y=0;for(const ch of this.text){if(x+.7>this.maxWidth){x=0;y-=1.4;}b.push(x,y,x+.65,y+1);x+=.7;}this._textRenderInfo={glyphBounds:new Float32Array(b)};this.dispatchEvent({type:'synccomplete'});callback?.();};
  const events=Array.from({length:3},(_,i)=>({id:String(i),date:'2026-08-18',title:'一片花瓣，见证繁盛',body:'一起走过的日子，留下值得铭记的印记。'.repeat(3)}));
  const route=createHistoryRoute(events,{position:[0,100,100],target:[0,55,30],up:[0,1,0]});let view;
  try{view=api.createHistoryView(events,route);await view.prepare();const count=view.group.children.length;
@@ -17,4 +17,10 @@ test('history view measures wrapped text and publishes one warm-white station wi
  assert.equal(view.group.children.length,count);}
  view.dispose();view.dispose();assert.equal(view.ready,false);
  }finally{Text.prototype.sync=original;view?.dispose();}
+});
+test('timed-out old font completion cannot publish a resized retry',async()=>{
+ const original=Text.prototype.sync,jobs=[];
+ Text.prototype.sync=function(callback){const text=this;jobs.push(()=>{text._textRenderInfo={glyphBounds:new Float32Array([0,0,1,1])};text.dispatchEvent({type:'synccomplete'});callback?.();});};
+ const events=Array.from({length:3},(_,i)=>({id:String(i),date:'2026-08-18',title:'标题',body:'正文'}));const view=api.createHistoryView(events);
+ try{await assert.rejects(view.prepare(5));const old=jobs.splice(0);view.resize({width:896,height:414});const retry=view.prepare(1000);await new Promise(resolve=>setImmediate(resolve));old.forEach(fn=>fn());await new Promise(resolve=>setImmediate(resolve));assert.equal(view.ready,false,'old glyph result published retry');jobs.splice(0).forEach(fn=>fn());await retry;assert.equal(view.ready,true);}finally{Text.prototype.sync=original;view.dispose();}
 });

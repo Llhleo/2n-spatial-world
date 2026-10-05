@@ -7,7 +7,7 @@ import {oceanPose} from './ocean-production.js';
 import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
 import {sampleCourtyard} from './people-courtyard.js';
-import {HISTORY_UNITS,HISTORY_SECONDS,createHistoryRoute,sampleHistory,historyTimeToDistance,historyDistanceToTime} from './guild-history-route.js';
+import {HISTORY_UNITS,HISTORY_SECONDS,sampleHistoryForData,historyTimeToDistance,historyDistanceToTime} from './guild-history-route.js';
 import historyData from '../content/history.json' with {type:'json'};
 
 export const LEGACY_TOTAL_UNITS=STORY_UNITS+PEOPLE_UNITS;
@@ -67,7 +67,7 @@ export function sampleStoryPose(progress,camera,portrait,route){
  const {chapter,peopleT,historyT,returnT,heroT,worldT}=chapterAt(progress);
  if(chapter==='history'){
   const entry=route?sampleCourtyard(route,1,camera.aspect):lookbackPose(1,camera);
-  const state={...sampleHistory(createHistoryRoute(historyData.events,{...entry,up:entry.up||[0,1,0]}),historyT,camera.aspect),entryPose:{...entry,up:entry.up||[0,1,0]}};
+  const state={...sampleHistoryForData(historyData,{...entry,up:entry.up||[0,1,0]},historyT,camera.aspect),entryPose:{...entry,up:entry.up||[0,1,0]}};
   camera.position.fromArray(state.position);camera.up.fromArray(state.up);camera.lookAt(...state.target);return state;
  }
  if(chapter==='people')return peoplePose(peopleT,camera,camera.aspect,route);
