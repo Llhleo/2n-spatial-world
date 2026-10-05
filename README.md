@@ -2,11 +2,15 @@
 
 2n 公会的五区域 3D 展示网站。现有模型、高清花瓣、花朵和人物文案均保留。
 
-- 在线网站：https://twon-dark-spatial-world.llhleo.chatgpt.site
+- GitHub Pages（正式发布）：https://llhleo.github.io/2n-spatial-world/
+- Sites（迭代预览）：https://twon-dark-spatial-world.llhleo.chatgpt.site
 - 当前开发分支：`experiment/lookback-v2`
 - 当前进展：[PROJECT_STATUS.md](PROJECT_STATUS.md)
 - 接续工作：[CODEX_HANDOFF.md](CODEX_HANDOFF.md)
 - 编辑人物姓名、职务和介绍：[content/people.json](content/people.json)，规则见 [content/README.md](content/README.md)
+- 公会故事提案（待确认、未实现）：[故事方案](docs/2026-10-05-guild-story-proposal.md)
+- 发布记录：[2026-10-05 Pages 发布](docs/2026-10-05-pages-release.md)
+- 仓库维护规则：[仓库指南](docs/REPOSITORY_GUIDE.md)
 - 文档目录：[docs/README.md](docs/README.md)
 
 ## 目录
@@ -26,4 +30,10 @@
 Node.js 环境安装依赖后运行 `npm run dev`；生产构建使用 `npm run build`。
 构建会自动生成花瓣实例和无损模型传输产物。`node_modules`、`dist` 和生成的模型传输目录不提交。
 
-GitHub Pages 保持花朵冻结版。人物版发布到 Sites；不改 `main`、Pages 配置或工作流。
+## 发布与开发边界
+
+2026-10-05 用户明确要求将当前版本发布到 GitHub Pages：`main` 已快进至 `e65616c7ac91d7a381eed03d959baf4c65e77c94`，构建与部署成功。此发布包含 Sites v48 同版运行时代码，不再是早期花朵冻结版。
+
+新视觉开发继续使用 `experiment/lookback-v2` 和原 Sites 项目；后续是否更新 Pages 需按当轮授权判断，不自动沿用本次发布授权。向 `main` 提交文档也会触发现有 Pages 工作流，运行时代码不变。
+
+旧仓库 `Llhleo/2n` 保持不动。禁止为整理仓库删除模型、研究、历史分支或改写 Git 历史。
