@@ -2,7 +2,11 @@
 
 更新时间：2026-10-05（北京时间）。当前开发分支 `experiment/lookback-v2`。
 
-## 最新：当前版本已发布到 GitHub Pages
+## 最新运行时：Sites v49 独立结尾原型
+
+已完成并部署独立 12 秒结尾：人物淡出 → 金属 2n 渐显 → 停留与重播。复用模型但不复制首页动画，保留原旅程与长链。208 项检查通过，一次生产构建和独立审阅完成。GitHub 代码 checkpoint `4f189f98cb7726c3be66e5357f833cae0dbeff09`；Sites 源码 `14008d174fe660fcb17f374a6d7c911d66494e74`。见 [v49 发布记录](docs/2026-10-05-guild-closure-v49.md)。实机视觉/GPU 验收待反馈；真实故事和影像尚未接入。Pages 本次未改。
+
+## 最近正式发布：当前版本已发布到 GitHub Pages
 
 2026-10-05，用户明确授权当前版本发布到 Pages。`main` 已快进至 `e65616c7ac91d7a381eed03d959baf4c65e77c94`；Actions run `37272779171` 的 build/deploy 均 success。发布所需 201 项检查通过，一次 Pages base 构建通过。旧仓库未改。Sites 保持 v48，不重部署。见 [发布记录](docs/2026-10-05-pages-release.md)。
 
