@@ -182,9 +182,14 @@ export function courtyardEnvironment(route) {
       const [kind,name,,extent]=FLOWER_SPECS[sourceIndex];
       const depth=j%2?112:84, half=depth*Math.tan(Math.PI*24/180);
       const x=[-.65,0,.65,-.65,0,.5][j], y=j<3?.73:-.73;
+      const position=new T.Vector3(x*half*aspect,y*half,-depth).applyMatrix4(camera.matrixWorld);
+      // Keep v45's world-depth layout and scale. Omit physical duplicates once,
+      // rather than shrinking the entire visible chain each animation frame.
+      const radius=extent*1.6*.8+.3;
+      if(petals.some(p=>position.distanceTo(new T.Vector3(...p.position))<radius+p.radius))continue;
       petals.push({id:`courtyard-${cluster}-${j}`,cluster,time:t,key:`${kind}:${name}`,sourceIndex,
-        position:new T.Vector3(x*half*aspect,y*half,-depth).applyMatrix4(camera.matrixWorld).toArray(),
-        quaternion:camera.quaternion.toArray(),scale:[extent*1.15,extent*1.15,extent*1.15]});
+        position:position.toArray(),radius,depth,
+        quaternion:camera.quaternion.toArray(),scale:[extent*1.6,extent*1.6,extent*1.6]});
     }
   });
   environments.set(route,petals);return petals;

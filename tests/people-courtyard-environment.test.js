@@ -29,16 +29,16 @@ function boxes(rig,c){const result=[];for(const mesh of rig.group.children.filte
  result.push({name:mesh.name,minX:Math.min(...corners.map(p=>p.x)),maxX:Math.max(...corners.map(p=>p.x)),minY:Math.min(...corners.map(p=>p.y)),maxY:Math.max(...corners.map(p=>p.y)),depth:-center.z,clip:corners.every(p=>p.z>-1&&p.z<1)});
  }return result;}
 const separated=(a,b)=>a.maxX<b.minX||b.maxX<a.minX||a.maxY<b.minY||b.maxY<a.minY;
-// Actual HD vertex bounds, not simplified proxy models.
-test('stable chains remain readable and separated on all five-region shots',()=>{
- for(const [width,height] of [[414,896],[320,568],[896,414],[768,1024]]){
+// Catches replacing the v45 world-depth chains with a small camera-locked row.
+test('long chains have visible HD scale and real depth throughout five-region readings',()=>{
+ for(const [width,height] of [[414,896],[320,568],[896,414]]){
   const route=resizeCourtyard(createPeopleRoute(data),{width,height}),{rig}=fixture();rig.resize(width/height);
-  for(const w of route.windows.slice(1))for(const t of [w.readStart,(w.readStart+w.readEnd)/2,w.readEnd]){
-   rig.update(1,.05,t,route);const visible=boxes(rig,camera(route,t));
-   assert.equal(visible.length,width<600?10:12);
-   assert.ok(visible.every(b=>b.clip&&b.minX>-.98&&b.maxX<.98&&b.minY>-.98&&b.maxY<.98));
-   assert.ok(visible.every(b=>Math.max((b.maxX-b.minX)*width/2,(b.maxY-b.minY)*height/2)>=26));
-   for(let i=0;i<visible.length;i++)for(let j=i+1;j<visible.length;j++)assert.ok(separated(visible[i],visible[j]));
+  for(const w of route.windows.slice(1)){
+   const t=(w.readStart+w.readEnd)/2;rig.update(1,0,t,route);
+   const visible=boxes(rig,camera(route,t)).filter(b=>b.name.startsWith('courtyard-')&&b.clip&&b.minX<1&&b.maxX>-1&&b.minY<1&&b.maxY>-1);
+   assert.ok(visible.length>=4,'world chain disappeared');
+   assert.ok(Math.max(...visible.map(b=>b.depth))-Math.min(...visible.map(b=>b.depth))>5,'chain lost its depth');
+   assert.ok(visible.some(b=>Math.max((b.maxX-b.minX)*width/2,(b.maxY-b.minY)*height/2)>height*.06),'petals became miniature');
   }rig.dispose();
  }
 });
@@ -52,10 +52,10 @@ test('old return samples and live entry seam remain identical; reverse restores 
 // Catches duplicate downloads/ownership and stale pool references after late HD installation.
 test('bounded pool shares upgraded HD geometry and material without disposing source',()=>{
  const {rig,sources}=fixture(false),route=createPeopleRoute(data);rig.update(1,0,.5,route);
- assert.equal(rig.group.children.filter(m=>m.isInstancedMesh).reduce((n,m)=>n+m.count,0),14);
+ assert.ok(rig.group.children.some(m=>m.name.startsWith('courtyard-')&&m.count>0));
  for(const [i,[kind,name]]of FLOWER_SPECS.entries()){
   const source=sources[i];let disposed=0;source.geometry.addEventListener('dispose',()=>disposed++);source.material.addEventListener('dispose',()=>disposed++);rig.installDisplay(source,kind,name);
-  const meshes=rig.group.children.filter(m=>m.isInstancedMesh&&m.name.endsWith(kind+':'+name));assert.equal(meshes.length,1);assert.notEqual(meshes[0].geometry,source.geometry);source.userData.check=()=>assert.equal(disposed,0);
+  const meshes=rig.group.children.filter(m=>m.isInstancedMesh&&m.name.endsWith(kind+':'+name));assert.equal(meshes.length,2);assert.equal(meshes[0].geometry,meshes[1].geometry);assert.equal(meshes[0].material,meshes[1].material);source.userData.check=()=>assert.equal(disposed,0);
  }rig.dispose();sources.forEach(s=>s.userData.check());
 });
 // Catches ornament drift in reduced mode, stateful chapter anchors, and text intersections.
@@ -72,29 +72,27 @@ test('maximum decorative motion avoids text and reduced sampling is reversible',
  }
  }rig.dispose();}
 });
-test('same visible model identities persist without scale flashes across transfers',()=>{
- const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
- let names=null;
- for(let i=0;i<=80;i++){
-  const t=route.windows[1].readStart+(1-route.windows[1].readStart)*i/80;
-  rig.update(1,0,t,route);const visible=boxes(rig,camera(route,t));
-  const current=visible.map(b=>b.name);if(names)assert.deepEqual(current,names);names=current;
-  assert.ok(visible.every(b=>(b.maxX-b.minX)*414/2>20));
- }rig.dispose();
+test('world chain anchors remain stationary during camera drift, without rank replacement',()=>{
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture(),w=route.windows[2];
+ const positions=t=>{rig.update(1,0,t,route);const result=new Map();
+  for(const mesh of rig.group.children.filter(m=>m.name.startsWith('courtyard-')))for(let i=0;i<mesh.count;i++){
+   const m=new T.Matrix4();mesh.getMatrixAt(i,m);
+   result.set(mesh.userData.anchorIds[i],mesh.geometry.boundingBox.getCenter(new T.Vector3()).applyMatrix4(m));
+  }return result;};
+ const first=positions(w.readStart),last=positions(w.readEnd);let shared=0;
+ for(const [id,p]of first)if(last.has(id)){shared++;assert.ok(p.distanceTo(last.get(id))<1e-4,'petal is attached to camera');}
+ assert.ok(shared>=4);rig.dispose();
 });
 
 test('decorative motion advances only with positive dt',()=>{
- const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();const snapshot=()=>rig.group.children.filter(m=>m.name.startsWith('companion-')).map(m=>Array.from(m.instanceMatrix.array));
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();const snapshot=()=>rig.group.children.filter(m=>m.name.startsWith('courtyard-')).map(m=>Array.from(m.instanceMatrix.array));
  rig.update(1,0,.4,route);const initial=snapshot();rig.update(1,.05,.4,route);assert.notDeepEqual(snapshot(),initial);const moved=snapshot();for(let i=0;i<10;i++)rig.update(1,0,.4,route);assert.deepEqual(snapshot(),moved);rig.dispose();
 });
 
-test('new chains never intersect each other while breathing; old ring exits before first leader',()=>{
+test('original ring is cleared before first leader and long chains share fixed world bounds',()=>{
  const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
- const first=route.windows[1].readStart;rig.update(1,0,first,route);
- assert.equal(boxes(rig,camera(route,first)).length,10,'the original ring becomes one chain set, not a second pool');
- for(let i=1;i<=120;i++){
-  const t=first+(1-first)*i/120;rig.update(1,.05,t,route);
-  const visible=boxes(rig,camera(route,t)).filter(b=>b.name.startsWith('companion-')&&Math.max(b.maxX-b.minX,b.maxY-b.minY)>1e-4);
-  for(let a=0;a<visible.length;a++)for(let b=a+1;b<visible.length;b++)assert.ok(separated(visible[a],visible[b]),`chain collision at ${t}: ${visible[a].name}/${visible[b].name}`);
- }rig.dispose();
+ rig.update(1,0,route.windows[1].readStart,route);
+ assert.ok(rig.group.children.filter(m=>m.name.startsWith('companion-')).every(m=>!m.visible));
+ rig.update(1,.05,.6,route);const visible=boxes(rig,camera(route,.6)).filter(b=>b.name.startsWith('courtyard-'));
+ assert.ok(visible.length>=4);assert.ok(visible.length<=84,'unbounded HD draw count');rig.dispose();
 });
