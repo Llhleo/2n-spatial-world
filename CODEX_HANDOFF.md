@@ -13,4 +13,4 @@
 
 此前接续记录保留在 [历史交接](docs/archive/2026-10-04-CODEX_HANDOFF.md)。
 
-最新发布：Sites v48，源码 `d334e77bdf31aadf1766439e5ac3fc2d0c530a37`，GitHub 代码 checkpoint `b20253a4e80e83221d84a6884a08fa1126107f78`。已恢复 v45 长链的尺度/前后空间布局，并保留 v47 的加载和白字改进。先等 iPhone Safari 验收，不把数学检查称作实机视觉通过。
+上一发布快照：Sites v48，源码 `d334e77bdf31aadf1766439e5ac3fc2d0c530a37`，GitHub 代码 checkpoint `b20253a4e80e83221d84a6884a08fa1126107f78`。已恢复 v45 长链的尺度/前后空间布局，并保留 v47 的加载和白字改进。先等 iPhone Safari 验收，不把数学检查称作实机视觉通过。
