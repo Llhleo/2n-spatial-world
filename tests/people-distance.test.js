@@ -21,7 +21,7 @@ for(const route of [base,resizeCourtyard(base,{width:240,height:568})])test(`man
  assert.ok(steps.every(Number.isFinite),'manual mapping produced non-finite local speed');
  const old=STORY_UNITS/TOTAL_UNITS;
  for(let i=0;i<=100;i++){const s=old*i/100;assert.ok(Math.abs(scrollToStory(s,route)-s*TOTAL_UNITS/28)<1e-12);}
- assert.equal(autoplayDuration(route),150+route.seconds+12);
+ assert.equal(autoplayDuration(route),150+route.seconds+31);
 });
 
 test('stationary entry and empty people remain strictly invertible',()=>{
@@ -64,3 +64,4 @@ test('busy idle deadline yields without sampling and stale cancellation cannot s
  assert.equal(idle.queue.size,1);stop();distance.preparePeopleDistance(route,idle);stop();assert.equal(idle.queue.size,1);
  while(idle.queue.size)idle.step();assert.ok(Number.isFinite(distance.peopleTimeToDistance(.5,route)));
 });
+

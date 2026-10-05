@@ -7,7 +7,9 @@ import {RETURN_START,STORY_UNITS} from './lookback.js';
 import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
-import {createClosureView} from './guild-closure-view.js';
+import {createHistoryView} from './guild-history-view.js';
+import {normalizeHistory} from './guild-history-data.js';
+import historyData from '../content/history.json';
 import {createCompanionship} from './companionship.js';
 import {createLoadingIntro,attachIntroInput,allBiomesReady} from './loading-intro.js';
 import {warmBiomeResources} from './biome-warmup.js';
@@ -33,7 +35,13 @@ if (renderer) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
   const openingMonument=createMonument();scene.add(openingMonument);
-  const closureView=createClosureView({monument:openingMonument});scene.add(closureView.group);
+  const historyRecords=normalizeHistory(historyData);
+  let history=null,historyPreparing=false,historyError=null;
+  if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
+  async function prepareHistory(){
+    if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
+    try{await history.prepare();}catch(error){historyError=error;}finally{historyPreparing=false;}
+  }
   createLighting(scene, renderer);
   createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
@@ -77,6 +85,7 @@ if (renderer) {
       warming=false;preparingAll=false;
       // Do not compete with the old opening's model decode and GPU preparation.
       if(gpuReady&&!peopleStarted)void preparePeople();
+      if(gpuReady)void prepareHistory();
     }
   }
   void prepareEverything();
@@ -88,6 +97,8 @@ if (renderer) {
   const arrival = document.querySelector('#arrival');
   const loading=document.querySelector('#loading-status'),retry=document.querySelector('#retry-models');
   const peopleStatus=document.querySelector('#people-status'),peopleRetry=document.querySelector('#retry-people');
+  const historyStatus=document.querySelector('#history-status'),historyRetry=document.querySelector('#retry-history');
+  historyRetry.addEventListener('click',event=>{event.stopPropagation();void prepareHistory();});
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
   const replayButton=document.querySelector('#replay');
@@ -122,6 +133,8 @@ if (renderer) {
     renderer.setSize(next.width,next.height);
     camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
     companionship.resize(camera.aspect);
+    history?.resize(next);
+    if(gpuReady)void prepareHistory();
     let nextScroll=retained;
     if(people){
       const currentChapter=chapterAt(progress);
@@ -136,7 +149,7 @@ if (renderer) {
   const takeControl = event => {
     if(introLocked)return;
     if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
-    if(event?.type!=='wheel'&&event?.target?.closest?.('#retry-people'))return;
+    if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
     player.pause();
     if (!controlled) {
@@ -193,13 +206,13 @@ if (renderer) {
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
-    const closing=chapter.chapter==='closure';
-    closureView.group.visible=false;
-    if(closing)closureView.update(state,state.entryPose,camera,view);
+    const closing=chapter.chapter==='history';
+    if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
+    if(gpuReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera,exclusionBox:closureView.bounds}:null);
+    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera,exclusionBox:history?.readingBounds}:null);
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
     if(closing&&people){
       people.group.traverse(object=>{
@@ -220,10 +233,10 @@ if (renderer) {
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
-    canvas.dataset.biome=closing?'closure':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.biome=closing?'history':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
     canvas.dataset.returnProgress=returnProgress.toFixed(3);
     canvas.dataset.peopleProgress=peopleProgress.toFixed(3);
-    canvas.dataset.closureProgress=chapter.closureT.toFixed(3);
+    canvas.dataset.historyProgress=chapter.historyT.toFixed(3);
     canvas.dataset.hellPetals=world.hellPetalStatus;
     canvas.dataset.loadingIntro=String(introLocked);canvas.dataset.junglePetals=world.junglePetalStatus;
     canvas.dataset.gardenAssets=world.gardenStatus;
@@ -246,6 +259,9 @@ if (renderer) {
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
+    historyStatus.hidden=introLocked||!closing||!!history?.ready;
+    historyStatus.querySelector('span').textContent=historyError?'历史文字暂未准备好，可重试':'正在准备公会历史，可继续滑动';
+    historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
     renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
@@ -253,3 +269,4 @@ if (renderer) {
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();renderer.setAnimationLoop(null);});
   canvas.addEventListener('webglcontextrestored',()=>{previous=performance.now();renderer.setAnimationLoop(frame);});
 }
+
