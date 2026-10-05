@@ -22,7 +22,7 @@ export function createCompanionship(scene){
  const group=new T.Group();group.name='companionship';
  const batches=new Map(),assets=new Map(),displayAssets=new Map(),labels=[];
  const point=new T.Vector3(),scale=new T.Vector3(),matrix=new T.Matrix4(),pivot=new T.Matrix4(),rotation=new T.Quaternion(),heading=new T.Quaternion();
- let previousRoute=null,ornamentTime=0,anchorRoute=null;
+ let previousRoute=null,ornamentTime=0,anchorRoute=null,previousClosure=false;
  const anchorGroups=new Map();
  const view=new T.PerspectiveCamera(48,414/896,.2,2400);
  let previous=NaN,previousPeople=NaN,prepared=false,layoutScale=1,orbitAngle=0,flightTime=0;
@@ -76,7 +76,7 @@ export function createCompanionship(scene){
   if(batch.extras){batch.extras.geometry=batch.mesh.geometry;batch.extras.material=batch.mesh.material;}
   batch.displayOwned=true;previous=NaN;
  }
- function update(t,dt=0,peopleT=0,route=null){
+ function update(t,dt=0,peopleT=0,route=null,closure=null){
   peopleT=route?T.MathUtils.clamp(peopleT,0,1):0;
   const step=Math.min(.05,Math.max(0,dt));ornamentTime+=step;
   let pose=null;
@@ -85,12 +85,13 @@ export function createCompanionship(scene){
    pose=sampleCourtyard(route,peopleT,aspect);
    if(anchorRoute!==route){anchorRoute=route;anchorGroups.clear();for(const p of courtyardEnvironment(route)){if(!anchorGroups.has(p.sourceIndex))anchorGroups.set(p.sourceIndex,[]);anchorGroups.get(p.sourceIndex).push(p);}}
    view.aspect=aspect;view.updateProjectionMatrix();view.position.fromArray(pose.position);view.up.fromArray(pose.up);view.lookAt(new T.Vector3(...pose.target));view.updateMatrixWorld();
+   if(closure?.camera){view.position.copy(closure.camera.position);view.quaternion.copy(closure.camera.quaternion);view.updateMatrixWorld();}
   }
   if(t<=0)flightTime=0;else flightTime+=step;
   if(t<.74)orbitAngle=0;
   const orbitStep=step*.10*T.MathUtils.smoothstep(t,.74,.80);
   orbitAngle=(orbitAngle+orbitStep)%(Math.PI*2);
-  if(t===previous&&peopleT===previousPeople&&route===previousRoute&&!step)return;previous=t;previousPeople=peopleT;previousRoute=route;
+  if(t===previous&&peopleT===previousPeople&&route===previousRoute&&!step&&!closure&&!previousClosure)return;previous=t;previousPeople=peopleT;previousRoute=route;previousClosure=!!closure;
   for(const batch of batches.values()){
    const {mesh,index,face,twist,original,nativeRotation,nativeScale,finalScale,center}=batch;
    const phase=flowerReveal(index),taken=t>=phase;
@@ -132,6 +133,7 @@ export function createCompanionship(scene){
     if(Math.abs(x)>1.5||Math.abs(y)>1.4)continue;
     const breath=petalBreath(p.id,ornamentTime,route.viewport?.height??896,p.depth);
     const extent=p.scale[0],radius=dimensions.length()/maximum*extent/2+breath.amplitude+.1;
+    if(closure?.exclusionBox&&!closure.exclusionBox.isEmpty()&&closure.exclusionBox.distanceToPoint(point)<radius)continue;
     if(depth<=radius)continue;
     const rx=radius/((depth-radius)*Math.tan(Math.PI*24/180)*view.aspect),ry=radius/((depth-radius)*Math.tan(Math.PI*24/180));
     const clearance=Math.max(Math.abs(x)-rx-.76,Math.abs(y)-ry-.4);

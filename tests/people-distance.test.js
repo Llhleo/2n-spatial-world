@@ -21,7 +21,7 @@ for(const route of [base,resizeCourtyard(base,{width:240,height:568})])test(`man
  assert.ok(steps.every(Number.isFinite),'manual mapping produced non-finite local speed');
  const old=STORY_UNITS/TOTAL_UNITS;
  for(let i=0;i<=100;i++){const s=old*i/100;assert.ok(Math.abs(scrollToStory(s,route)-s*TOTAL_UNITS/28)<1e-12);}
- assert.equal(autoplayDuration(route),150+route.seconds);
+ assert.equal(autoplayDuration(route),150+route.seconds+12);
 });
 
 test('stationary entry and empty people remain strictly invertible',()=>{
@@ -32,7 +32,7 @@ test('stationary entry and empty people remain strictly invertible',()=>{
    assert.ok(s>previous,'stationary entry collapsed to a flat scroll coordinate');
    assert.ok(Math.abs(chapterAt(scrollToStory(s,route)).peopleT-t)<1e-10);previous=s;
   }
-  assert.equal(scrollAt(route,1),1);
+  assert.equal(scrollAt(route,1),(STORY_UNITS+PEOPLE_UNITS)/TOTAL_UNITS);
  }
 });
 

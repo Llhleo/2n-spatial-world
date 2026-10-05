@@ -4,9 +4,10 @@ import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
+import {createClosureView} from './guild-closure-view.js';
 import {createCompanionship} from './companionship.js';
 import {createLoadingIntro,attachIntroInput,allBiomesReady} from './loading-intro.js';
 import {warmBiomeResources} from './biome-warmup.js';
@@ -31,7 +32,8 @@ if (renderer) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
-  scene.add(createMonument());
+  const openingMonument=createMonument();scene.add(openingMonument);
+  const closureView=createClosureView({monument:openingMonument});scene.add(closureView.group);
   createLighting(scene, renderer);
   createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
@@ -88,6 +90,7 @@ if (renderer) {
   const peopleStatus=document.querySelector('#people-status'),peopleRetry=document.querySelector('#retry-people');
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
+  const replayButton=document.querySelector('#replay');
   let player=createAutoplay(autoplayDuration(peopleRoute));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
@@ -121,7 +124,8 @@ if (renderer) {
     companionship.resize(camera.aspect);
     let nextScroll=retained;
     if(people){
-      const token=old&&chapterAt(progress).peopleT>0?capturePeoplePosition(peopleRoute,chapterAt(progress).peopleT):null;
+      const currentChapter=chapterAt(progress);
+      const token=old&&currentChapter.chapter==='people'?capturePeoplePosition(peopleRoute,currentChapter.peopleT):null;
       const nextRoute=people.resize(camera.aspect,next.height);
       if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress,nextRoute);}
       adoptPeopleRoute(nextRoute);
@@ -131,7 +135,7 @@ if (renderer) {
   },TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
-    if(event?.target?.closest?.('#autoplay'))return;
+    if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
     if(event?.type!=='wheel'&&event?.target?.closest?.('#retry-people'))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
     player.pause();
@@ -151,6 +155,11 @@ if (renderer) {
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
+  replayButton.addEventListener('click',event=>{
+    event.stopPropagation();if(introLocked)return;
+    player.pause();progress=0;auto=0;controlled=true;
+    scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
+  });
   attachIntroInput(window,()=>introLocked,()=>{});
   function frame(now) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
@@ -168,7 +177,7 @@ if (renderer) {
     // Initial reduced-motion landing is not a permanent scroll lock. Preference
     // changes hold the current shot; manual reduced-motion reads sample directly.
     const initialEnding=startAtEnding&&!introLocked&&!controlled;
-    const requested=initialEnding?1:controlled?scroll:reduced.matches?progress:auto;
+    const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?scroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
     if(!wasPlaying){
       if(reduced.matches)progress=target;
@@ -184,11 +193,22 @@ if (renderer) {
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
+    const closing=chapter.chapter==='closure';
+    closureView.group.visible=false;
+    if(closing)closureView.update(state,state.entryPose,camera,view);
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute);
+    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera,exclusionBox:closureView.bounds}:null);
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
+    if(closing&&people){
+      people.group.traverse(object=>{
+        const materials=Array.isArray(object.material)?object.material:[object.material];
+        for(const material of materials){if(!material)continue;if(material.uniforms?.opacity)material.uniforms.opacity.value*=state.peopleOpacity;else material.opacity*=state.peopleOpacity;}
+      });
+      people.group.visible=people.group.visible&&state.peopleOpacity>0;
+    }
+    replayButton.hidden=introLocked||!closing||!state.replayVisible;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
     const readingPixelRatio=Math.min(devicePixelRatio,returnProgress>.95?2:1.5);
@@ -200,9 +220,10 @@ if (renderer) {
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
-    canvas.dataset.biome=chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.biome=closing?'closure':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
     canvas.dataset.returnProgress=returnProgress.toFixed(3);
     canvas.dataset.peopleProgress=peopleProgress.toFixed(3);
+    canvas.dataset.closureProgress=chapter.closureT.toFixed(3);
     canvas.dataset.hellPetals=world.hellPetalStatus;
     canvas.dataset.loadingIntro=String(introLocked);canvas.dataset.junglePetals=world.junglePetalStatus;
     canvas.dataset.gardenAssets=world.gardenStatus;
@@ -221,7 +242,7 @@ if (renderer) {
     const galleryReady=!!people?.ready;
     // Read the gallery getter every frame: late sync can clear a prior timeout.
     const galleryFailed=!galleryReady&&!!(people?.error||peopleError);
-    peopleStatus.hidden=introLocked||progress<(STORY_UNITS-2)/28||galleryReady;
+    peopleStatus.hidden=introLocked||closing||progress<(STORY_UNITS-2)/28||galleryReady;
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;

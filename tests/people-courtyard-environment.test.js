@@ -29,6 +29,14 @@ function boxes(rig,c){const result=[];for(const mesh of rig.group.children.filte
  result.push({name:mesh.name,minX:Math.min(...corners.map(p=>p.x)),maxX:Math.max(...corners.map(p=>p.x)),minY:Math.min(...corners.map(p=>p.y)),maxY:Math.max(...corners.map(p=>p.y)),depth:-center.z,clip:corners.every(p=>p.z>-1&&p.z<1)});
  }return result;}
 const separated=(a,b)=>a.maxX<b.minX||b.maxX<a.minX||a.maxY<b.minY||b.maxY<a.minY;
+test('closure exclusion retires intersecting petals and reverse restores them without dt',()=>{
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896}),{rig}=fixture();
+ const counts=()=>rig.group.children.filter(m=>m.name.startsWith('courtyard-')).map(m=>m.count);
+ rig.update(1,0,1,route);const before=counts();assert.ok(before.some(n=>n>0));
+ const exclusionBox=new T.Box3(new T.Vector3(-10000,-10000,-10000),new T.Vector3(10000,10000,10000));
+ rig.update(1,0,1,route,{camera:camera(route,1),exclusionBox});assert.ok(counts().every(n=>n===0));
+ rig.update(1,0,1,route);assert.deepEqual(counts(),before);rig.dispose();
+});
 // Catches replacing the v45 world-depth chains with a small camera-locked row.
 test('long chains have visible HD scale and real depth throughout five-region readings',()=>{
  for(const [width,height] of [[414,896],[320,568],[896,414]]){

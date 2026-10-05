@@ -16,6 +16,8 @@ import {oceanPose} from '../src/ocean-production.js';
 import {junglePose} from '../src/jungle-production.js';
 import {hellPose} from '../src/hell-production.js';
 import {scrollProgress} from '../src/viewport.js';
+import {createClosureView} from '../src/guild-closure-view.js';
+import {createMonument} from '../src/monument.js';
 
 const api=await import('../src/people-story.js').catch(()=>({}));
 const requireApi=()=>assert.equal(typeof api.sampleStoryPose,'function','appended story scheduler is missing');
@@ -47,7 +49,7 @@ test('direct ending seek, reverse drag and portrait/landscape resize are absolut
  requireApi();
  const cam=camera(),end=api.scrollToStory(1);
  near(api.chapterAt(end).peopleT,1);
- assert.equal(api.chapterAt(end).chapter,'people');
+ assert.equal(api.chapterAt(end).chapter,'closure');
  const before=api.sampleStoryPose(api.scrollToStory(.88),cam,true);
  api.sampleStoryPose(end,cam,true);
  assert.deepEqual(api.sampleStoryPose(api.scrollToStory(.88),cam,true),before);
@@ -74,7 +76,7 @@ test('paced autoplay preserves old speed and inverts every route reading window'
   near(seconds,route.stations[w.stationIndex].readSeconds);
  }
  for(let i=0;i<=1000;i++)near(api.scrollToAutoplay(api.autoplayToScroll(i/1000,route),route),i/1000);
- near(api.autoplayToScroll(player.advance(route.seconds),route),1);assert.equal(player.playing,false);
+ near(api.autoplayToScroll(player.advance(route.seconds+12),route),1);assert.equal(player.playing,false);
 });
 
 test('semantic remap retains original member inside changed subwindow numbering',()=>{
@@ -109,7 +111,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
  const context={...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
-  createMonument:()=>new THREE.Group(),createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
+  createMonument,createClosureView,createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   preparePeopleDistance(route){calls.distancePrepared.push(route);return ()=>calls.distanceCancelled.push(route);},
@@ -121,6 +123,32 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
  return {calls,gallery,elements,events,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
 }
+
+test('closure survives orientation change, reversed seeks and five replays without rebuilding resources',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(.995);app.tick();
+ assert.equal(app.elements.get('world').dataset.biome,'closure');
+ const t=Number(app.elements.get('world').dataset.closureProgress),prepared=app.calls.prepare;
+ app.resize();app.tick();assert.equal(Number(app.elements.get('world').dataset.closureProgress),t);
+ assert.equal(app.elements.get('replay').hidden,false);
+ for(let i=0;i<5;i++){
+  app.events.get('replay:click')({stopPropagation(){}});app.tick();
+  assert.equal(app.elements.get('world').dataset.progress,'0.000');assert.equal(app.elements.get('replay').hidden,true);
+  app.seek(.995);app.tick();assert.equal(app.elements.get('replay').hidden,false);
+ }
+ assert.equal(app.calls.prepare,prepared);
+ app.seek(.85);app.tick();assert.equal(app.elements.get('replay').hidden,true);
+ assert.equal(app.calls.companion.at(-1)[4],null);
+});
+
+test('closure and replay remain available when people font preparation failed',async()=>{
+ const app=entry({reduced:true,preparationError:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(1);app.tick();
+ assert.equal(app.elements.get('world').dataset.biome,'closure');
+ assert.equal(app.elements.get('people-status').hidden,true);
+ app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.elements.get('world').dataset.progress,'0.000');
+});
 
 test('people font failure cannot lock original opening; retry and resize do not reset camera progress',async()=>{
  requireApi();
@@ -163,7 +191,7 @@ test('invalid people content preserves the original scene and intro',async()=>{
 test('reduced motion reaches appended ending while gallery and companion receive no drift time',async()=>{
  requireApi();
  const app=entry({reduced:true});await app.settle();app.open();app.tick();
- assert.equal(app.elements.get('world').dataset.biome,'people');
+ assert.equal(app.elements.get('world').dataset.biome,'closure');
  assert.equal(app.elements.get('world').dataset.peopleProgress,'1.000');
  const companion=app.calls.companion.at(-1),gallery=app.calls.people.at(-1);
  near(companion[0],1);near(companion[1],0);near(companion[2],1);
@@ -281,7 +309,7 @@ test('reverse courtyard seeks restore pristine historical camera orientation and
  }
  const shared=camera(),pristine=camera();
  api.sampleStoryPose((55.2+9)/28,shared,true,route);
- assert.deepEqual(api.sampleStoryPose(api.TOTAL_UNITS/28,shared,true),lookbackPose(1,pristine));
+ assert.deepEqual(api.sampleStoryPose(api.LEGACY_TOTAL_UNITS/28,shared,true),lookbackPose(1,pristine));
  assert.deepEqual(shared.up.toArray(),pristine.up.toArray());
  assert.ok(shared.quaternion.angleTo(pristine.quaternion)<1e-7);
 });
@@ -295,7 +323,7 @@ test('entry applies manual distance inverse, and play/pause retain the rendered 
   app.calls.shots.at(-1).forEach((v,i)=>near(v,expected.position[i]));
   const t=app.calls.companion.at(-1)[2];
   app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
-  near(app.calls.companion.at(-1)[2],t+.02/route.seconds);
+  near(app.calls.companion.at(-1)[2],Math.min(1,t+.02/route.seconds));
   const playingPose=app.calls.shots.at(-1);
   app.events.get('wheel')({type:'wheel',target:{closest:()=>false}});app.tick();
   app.calls.shots.at(-1).forEach((v,i)=>near(v,playingPose[i]));
