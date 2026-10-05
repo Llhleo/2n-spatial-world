@@ -19,3 +19,11 @@ v47 的固定 5/6 片屏幕两排丢失 v45 长链层次，用户明确要求恢
 针对实际高清 GLB 的尺寸/深度、原旅程无改动、共享资产所有权、正反寻址、文字净空、固定世界锚点、呼吸和旧圆环清理进行必要检查，再一次构建与发布。
 
 当前不具备 Sites 指定浏览器验收环境，因此实际 iPhone Safari 长链审美、瞬时卡顿和 GPU 成本仍需用户反馈；不声称截图级验收完成。先验收本轮恢复，不继续新章节开发。
+
+## 保存与发布
+
+- 35 项针对性检查通过，Vite 生产构建成功（2.00s）；diff 检查无错误。
+- Sites v48，状态 succeeded；地址 https://twon-dark-spatial-world.llhleo.chatgpt.site 。
+- Sites 源码 `d334e77bdf31aadf1766439e5ac3fc2d0c530a37`。
+- GitHub 代码 checkpoint `b20253a4e80e83221d84a6884a08fa1126107f78`。
+- 未完成：iPhone Safari 实机观感、GPU 性能验收。不动 Pages，不继续新章节。
