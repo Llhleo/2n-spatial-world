@@ -9,7 +9,9 @@ for(const folder of folders)for(const name of readdirSync(new URL(`public/assets
  const raw=readFileSync(new URL(`public/assets/${folder}/${name}`,repo)),sha256=createHash('sha256').update(raw).digest('hex'),packed=gzipSync(raw,{level:9,mtime:0});
  if(!gunzipSync(packed).equals(raw))throw new Error('Lossless model roundtrip failed');
  const filename=`${folder}-${name.slice(0,-4)}-${sha256.slice(0,16)}.glb.gz`;
- writeFileSync(new URL(filename,out),packed);entries[`assets/${folder}/${name}`]={url:`assets/model-transport/${filename}`,sha256,bytes:raw.length};original+=raw.length;compressed+=packed.length;
+ writeFileSync(new URL(filename,out),packed);
+ entries[`assets/${folder}/${name}`]={url:`assets/model-transport/${filename}`,sha256,bytes:raw.length,compressedBytes:packed.length};
+ original+=raw.length;compressed+=packed.length;
 }
 writeFileSync(new URL('src/transport-manifest.js',repo),`// Generated immutable lossless transport descriptors.\nexport default ${JSON.stringify(entries)};\n`);
 console.log(JSON.stringify({models:Object.keys(entries).length,original,compressed,savedPercent:Math.round((1-compressed/original)*1000)/10}));
