@@ -7,3 +7,13 @@
 已验证：确定性布局、前后深度跨度、阅读区留白、路径采样间距、全实例保留、反向轨迹、资源复用和释放；历史时间/距离映射、人物入口和播放暂停衔接的相关 34 项测试通过。布局最终调整后的 5 项测试通过。生产构建通过。
 
 保留开头、五境、人物介绍、原高清模型及纹理。仅更新 experiment/lookback-v2 和原 Sites；不修改 main 或 GitHub Pages。尚未做真实手机视觉验收；既有计划中的花朵点缀和人物到故事入口的进一步衔接润色待后续安排。
+
+
+## 已发布：立体花瓣记忆廊（2026-10-06）
+
+- 实现提交：62c63a7f9ecfcf8cb8b94771ef0f1000e5d077b2
+- Sites 来源提交：2f10e9d76831d07f23db7052c49c5636009e2823
+- 部署：appgdep_6ac4836ec1308191801d9095c581761c，状态 succeeded
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；直达故事预览：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+- 正式故事和预览均支持滑动切换文字与立体包围，同一批高清花瓣连续迁移；main / Pages 未改。
+- 后续：先做真实手机视觉验收，再安排花朵点缀和人物到故事入口的衔接润色；不可重新制作已完成的开头、五境或人物模块。

@@ -15,3 +15,13 @@
 8. 减少重复完整测试与审阅；仅因新增修改或重要失败再次验证。已完成资源和历史文档不删除。
 
 此前接续内容见历史发布记录和 `docs/archive/`。
+
+
+## 已发布：立体花瓣记忆廊（2026-10-06）
+
+- 实现提交：62c63a7f9ecfcf8cb8b94771ef0f1000e5d077b2
+- Sites 来源提交：2f10e9d76831d07f23db7052c49c5636009e2823
+- 部署：appgdep_6ac4836ec1308191801d9095c581761c，状态 succeeded
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；直达故事预览：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+- 正式故事和预览均支持滑动切换文字与立体包围，同一批高清花瓣连续迁移；main / Pages 未改。
+- 后续：先做真实手机视觉验收，再安排花朵点缀和人物到故事入口的衔接润色；不可重新制作已完成的开头、五境或人物模块。
