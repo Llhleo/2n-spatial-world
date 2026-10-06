@@ -11,12 +11,12 @@ export function createMemoryScene({mobile=true}={}){
  const ambient=new T.AmbientLight(0xffffff,1.15);group.add(ambient);
  const key=new T.DirectionalLight(0xffffff,2.8);key.position.set(-28,35,55);group.add(key);
  const fill=new T.DirectionalLight(0xffffff,1.2);fill.position.set(30,-12,-30);group.add(fill);group.add(key.target,fill.target);
- const dustCount=mobile?240:480,positions=new Float32Array(dustCount*3),brightness=new Float32Array(dustCount);let seed=260206;
+ const dustCount=mobile?360:640,positions=new Float32Array(dustCount*3),brightness=new Float32Array(dustCount);let seed=260206;
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
- for(let i=0;i<dustCount;i++){positions.set([(random()-.5)*130,(random()-.5)*100,-random()*180],i*3);brightness[i]=.25+random()*.5;}
+ for(let i=0;i<dustCount;i++){const depth=45+random()*145,half=depth*Math.tan(Math.PI*24/180);positions.set([(random()-.5)*2.2*half,(random()-.5)*2.2*half,-depth],i*3);brightness[i]=.4+random()*.5;}
  const dustGeometry=new T.BufferGeometry();dustGeometry.setAttribute('position',new T.BufferAttribute(positions,3));dustGeometry.setAttribute('aLight',new T.BufferAttribute(brightness,1));
- const dustMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{color:{value:new T.Color(palette[0])},time:{value:0}},vertexShader:'uniform float time;attribute float aLight;varying float lit;void main(){vec3 drift=position+vec3(sin(time*.13+position.z*.07)*.5,sin(time*.18+position.x*.1)*.8,0.);vec4 p=modelViewMatrix*vec4(drift,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(130./max(1.,-p.z),1.,3.);lit=aLight;}',fragmentShader:'uniform vec3 color;varying float lit;void main(){float a=1.-smoothstep(.08,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(color,a*lit*.6);}'});
- group.add(new T.Points(dustGeometry,dustMaterial));owned.push(dustGeometry,dustMaterial);
+ const dustMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{color:{value:new T.Color(palette[0])},time:{value:0}},vertexShader:'uniform float time;attribute float aLight;varying float lit;void main(){vec3 drift=position+vec3(sin(time*.13+position.z*.07)*.5,sin(time*.18+position.x*.1)*.8,0.);vec4 p=modelViewMatrix*vec4(drift,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(220./max(1.,-p.z),1.,4.);lit=aLight;}',fragmentShader:'uniform vec3 color;varying float lit;void main(){float a=1.-smoothstep(.08,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(color,a*lit*.75);}'});
+ const dust=new T.Points(dustGeometry,dustMaterial);dust.name="memory-dust";dust.matrixAutoUpdate=false;dust.frustumCulled=false;group.add(dust);owned.push(dustGeometry,dustMaterial);
  for(let i=0;i<3;i++){
   const geometry=new T.PlaneGeometry(16,190),material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,uniforms:{color:{value:new T.Color(palette[0])}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform vec3 color;void main(){float edge=pow(max(0.,1.-abs(v.x-.5)*2.),3.);float end=smoothstep(0.,.2,v.y)*(1.-smoothstep(.7,1.,v.y));gl_FragColor=vec4(color,edge*end*.028);}'});
   const beam=new T.Mesh(geometry,material);beam.position.set(-35+i*35,5,-60-i*15);beam.rotation.z=-.45;group.add(beam);owned.push(geometry,material);
@@ -116,6 +116,16 @@ export function createMemoryScene({mobile=true}={}){
   const flightCamera=camera.clone(),flightFrame=new T.Group();
   if(state?.entryPose)applyMemoryEntry(flightCamera,flightFrame,state.entryPose,state.entryBlend??1);
   const storyInverse=flightFrame.matrix.clone().invert();
+  // Original courtyard clusters have uneven projected gaps. Redistribute only
+  // these same followers by rank early in departure, anchored at the chain head.
+  const packing=new Map();
+  for(const branch of [0,1]){
+   const followers=layout.anchors.filter(a=>a.branch===branch).sort((a,b)=>a.u-b.u);
+   if(followers.length<2)continue;
+   const first=locations.get(followers[0].id).clone().applyMatrix4(camera.matrixWorldInverse),last=locations.get(followers.at(-1).id).clone().applyMatrix4(camera.matrixWorldInverse);
+   const head=entrySources.get(followers.at(-1).id)?.viewPosition;
+   if(head)packing.set(branch,{head:head.x/-head.z,span:last.x/-last.z-first.x/-first.z});
+  }
   for(const pool of pools.values()){
    let count=0;
    for(const [slot,a] of pool.anchors.entries()){point.copy(locations.get(a.id));
@@ -134,7 +144,8 @@ export function createMemoryScene({mobile=true}={}){
      // Interpolate angular positions, keeping the head in the visible height
      // band while depth and the camera's physical position change continuously.
      const depth=T.MathUtils.lerp(-origin.z,-destination.z,travel);
-     point.set(T.MathUtils.lerp(origin.x/-origin.z,destination.x/-destination.z,travel)*depth,T.MathUtils.lerp(origin.y/-origin.z,destination.y/-destination.z,travel)*depth,-depth);
+     const pack=packing.get(a.branch),originX=pack?T.MathUtils.lerp(origin.x/-origin.z,pack.head-pack.span*(1-a.u),eased(u/.32)):origin.x/-origin.z;
+     point.set(T.MathUtils.lerp(originX,destination.x/-destination.z,travel)*depth,T.MathUtils.lerp(origin.y/-origin.z,destination.y/-destination.z,travel)*depth,-depth);
      point.applyMatrix4(flightCamera.matrixWorld).applyMatrix4(storyInverse);
      if(start){const worldStart=new T.Quaternion().setFromRotationMatrix(flightFrame.matrix).multiply(start.quaternion);
       const tracked=new T.Quaternion().setFromRotationMatrix(flightFrame.matrix).invert().multiply(flightCamera.quaternion).multiply(entryView.quaternion.clone().invert()).multiply(worldStart);
@@ -146,6 +157,10 @@ export function createMemoryScene({mobile=true}={}){
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;
   }
   applyMemoryEntry(camera,group,state?.entryPose,state?.entryBlend??1);
+  // Dust is a view-volume layer during both flight and reading, so the camera
+  // never leaves it behind in the destination space. Petal and beam roots stay fixed.
+  dust.matrix.copy(group.matrix).invert().multiply(camera.matrixWorld).multiply(new T.Matrix4().makeScale(camera.aspect,1,1));
+  dust.updateMatrixWorld(true);
  }
  return {group,install,prepare,captureEntry,setPreview,update,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
 }

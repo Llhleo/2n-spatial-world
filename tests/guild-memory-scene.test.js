@@ -11,7 +11,7 @@ test('memory scene reuses HD assets, accepts late installs and owns only its res
  scene.update({eventIndex:0},camera,0);
  assert.equal(scene.assetCount,1);assert.ok(scene.instanceCount>=48);assert.ok(scene.instanceCount<=96);
  for(let i=0;i<3;i++){scene.update({eventIndex:i,showText:false},camera,0);const drawn=scene.group.children.filter(c=>c.isInstancedMesh).reduce((n,c)=>n+c.count,0);assert.equal(drawn,scene.instanceCount,'text-off preview must preserve the full long chain');}
- assert.equal(scene.dustCount,240);assert.equal(scene.group.visible,true);
+ assert.equal(scene.dustCount,360);assert.equal(scene.group.visible,true);
  scene.update({eventIndex:0},camera,0);const p=camera.position.clone();scene.setPreview(2);scene.update({eventIndex:2},camera,0);assert.ok(p.distanceTo(camera.position)>5);
  scene.dispose();scene.dispose();assert.equal(disposed,0);assert.equal(scene.group.children.length,0);
 });
