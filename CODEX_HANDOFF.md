@@ -35,3 +35,10 @@
 - 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；故事直达：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
 - 双链交错 → 球壳包围慢转 → 扩展停转、呼吸浮动。日期/标题/正文共同靠左；尘埃连续保留。35 项相关测试及构建通过。
 - 待办：真实手机视觉反馈、花朵点缀、人物至故事入口润色。不要重做已完成部分，不修改 main / Pages 或旧 2n 仓库。
+
+
+## 2026-10-06 · 双链与球壳修复已部署
+
+代码：f97bf75f727e19965a0d3a2cf7e80cc56adb26a3；Sites 来源：6b4e96e15785220129dfa2338b2aa83250a38f63；部署 appgdep_6ac49a47ca2481919294b009fa2ece91 已成功。
+地址：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1。
+已移除使球体变方的屏幕矩形位置推移，增加可感知的长链呼吸，平衡第三幕前景尺寸。减少动态效果保留低幅呼吸并关闭自转。37 项相关测试和构建通过；真实手机视觉验收待用户反馈。详细记录 docs/2026-10-06-memory-motion-fix.md。main / Pages 不变。
