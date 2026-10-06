@@ -397,14 +397,16 @@ test('manual fling lands on first history text and clears the old far scroll tar
  app.seek(api.storyToScroll((api.LEGACY_TOTAL_UNITS+6.4*.55)/28,app.gallery.route));for(let i=0;i<160;i++)app.tick();assert.ok(Number(app.elements.get('world').dataset.historyProgress)>.5,'new manual scroll can continue after landing');
 });
 
- test('next chapter runs through shared memory renderer and returns to Garden without changing old coordinates',async()=>{
+ test('next ending has only replay and hides autoplay, while replay restores normal controls',async()=>{
  const app=entry({reduced:true});app.open();await app.settle();app.tick();await app.settle();for(let i=0;i<10;i++)app.tick();
  assert.equal(app.elements.get('world').dataset.biome,'next');
  assert.equal(app.calls.memory.at(-1).nextT,1);assert.equal(app.calls.next.at(-1).nextOpacity,1);
- assert.equal(app.elements.get('return-world').hidden,false);
- const captures=app.calls.captures;for(let i=0;i<5;i++)app.tick();assert.equal(app.calls.captures,captures,'next does not recapture the member chains');
- app.events.get('return-world:click')({stopPropagation(){}});app.tick();
- const p=api.scrollToStory(app.calls.scroll.at(-1)/(api.TOTAL_UNITS*896),app.gallery.route);assert.ok(Math.abs(p-6/28)<1e-6);assert.notEqual(app.elements.get('world').dataset.biome,'next');
+ assert.equal(app.elements.get('replay').hidden,false);
+ assert.equal(app.elements.get('autoplay').hidden,true);
+ assert.equal(app.events.has('return-world:click'),false);
+ const captures=app.calls.captures;for(let i=0;i<5;i++)app.tick();assert.equal(app.calls.captures,captures);
+ app.events.get('replay:click')({stopPropagation(){}});app.tick();
+ assert.equal(app.elements.get('world').dataset.progress,'0.000');assert.equal(app.elements.get('autoplay').hidden,false);
  });
  test('next ending replay resets progress and keeps controls out of the takeover gesture',async()=>{
  const app=entry({reduced:true});app.open();await app.settle();app.tick();await app.settle();app.tick();

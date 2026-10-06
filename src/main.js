@@ -118,7 +118,6 @@ if (renderer) {
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
   const replayButton=document.querySelector('#replay');
-  const returnWorldButton=document.querySelector('#return-world');
   let player=createAutoplay(autoplayDuration(peopleRoute));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
@@ -168,7 +167,7 @@ if (renderer) {
   const takeControl = event => {
     if(introLocked)return;
     if(memoryPreview){controlled=true;player.pause();return;}
-    if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay')||event?.target?.closest?.('#return-world'))return;
+    if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
     if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
     player.pause();
@@ -192,11 +191,6 @@ if (renderer) {
     event.stopPropagation();if(introLocked)return;
     player.pause();progress=0;auto=0;controlled=true;
     scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
-  });
-  returnWorldButton.addEventListener('click',event=>{
-    event.stopPropagation();if(introLocked)return;player.pause();controlled=true;progress=HERO_END;auto=HERO_END;
-    scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
-    returnWorldButton.hidden=true;replayButton.hidden=true;
   });
   attachIntroInput(window,()=>introLocked,()=>{});
   function frame(now) {
@@ -262,7 +256,6 @@ if (renderer) {
     }
     const nextButtons=inNext&&state.buttonsVisible&&nextView.ready;
     replayButton.hidden=introLocked||!closing||!(nextButtons||state.replayVisible);
-    returnWorldButton.hidden=introLocked||!nextButtons;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
     const readingPixelRatio=Math.min(devicePixelRatio,(memoryPreview||closing)?2.5:returnProgress>.95?2:1.5);
@@ -285,7 +278,7 @@ if (renderer) {
     canvas.dataset.desertPetals=world.desertPetalStatus;
     const counts=world.loading.counts;
     loading.hidden=!introLocked;
-    autoplayButton.hidden=introLocked;
+    autoplayButton.hidden=introLocked||inNext;
     autoplayButton.setAttribute('aria-pressed',String(player.playing));
     autoplayButton.textContent=player.playing?'暂停播放':'自动播放';
     if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
@@ -305,7 +298,7 @@ if (renderer) {
     historyStatus.querySelector('span').textContent=historyError?'文字暂未准备好，可重试':inNext?'正在准备结尾文字，可继续滑动':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
     if(memoryPreview&&!introLocked){
-      memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;returnWorldButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
+      memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
       historyStatus.hidden=!memoryText||!!history?.ready;
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
