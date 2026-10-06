@@ -1,3 +1,4 @@
+import {limitManualHistoryEntry} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
 import {preparePeopleDistance} from './people-distance.js';
 import {createPeopleRoute} from './people-courtyard.js';
@@ -214,7 +215,8 @@ if (renderer) {
         // Damp the physical distance coordinate, then sample its inverse. Time
         // damping would reintroduce the hold/transfer sensitivity cliff.
         const current=storyToScroll(progress,peopleRoute);
-        progress=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+        const candidate=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+        progress=initialEnding?candidate:limitManualHistoryEntry(progress,candidate,dt);
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
