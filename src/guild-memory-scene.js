@@ -3,7 +3,7 @@ import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
- const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,disposed=false;
+ const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
  const ambient=new T.AmbientLight(0x899bb4,.95);group.add(ambient);
@@ -13,7 +13,7 @@ export function createMemoryScene({mobile=true}={}){
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<dustCount;i++){positions.set([(random()-.5)*130,(random()-.5)*100,-random()*180],i*3);brightness[i]=.25+random()*.5;}
  const dustGeometry=new T.BufferGeometry();dustGeometry.setAttribute('position',new T.BufferAttribute(positions,3));dustGeometry.setAttribute('aLight',new T.BufferAttribute(brightness,1));
- const dustMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{color:{value:new T.Color(palette[0])}},vertexShader:'attribute float aLight;varying float lit;void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(130./max(1.,-p.z),1.,3.);lit=aLight;}',fragmentShader:'uniform vec3 color;varying float lit;void main(){float a=1.-smoothstep(.08,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(color,a*lit*.6);}'});
+ const dustMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{color:{value:new T.Color(palette[0])},time:{value:0}},vertexShader:'uniform float time;attribute float aLight;varying float lit;void main(){vec3 drift=position+vec3(sin(time*.13+position.z*.07)*.5,sin(time*.18+position.x*.1)*.8,0.);vec4 p=modelViewMatrix*vec4(drift,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(130./max(1.,-p.z),1.,3.);lit=aLight;}',fragmentShader:'uniform vec3 color;varying float lit;void main(){float a=1.-smoothstep(.08,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(color,a*lit*.6);}'});
  group.add(new T.Points(dustGeometry,dustMaterial));owned.push(dustGeometry,dustMaterial);
  for(let i=0;i<3;i++){
   const geometry=new T.PlaneGeometry(16,190),material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,uniforms:{color:{value:new T.Color(palette[0])}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform vec3 color;void main(){float edge=pow(max(0.,1.-abs(v.x-.5)*2.),3.);float end=smoothstep(0.,.2,v.y)*(1.-smoothstep(.7,1.,v.y));gl_FragColor=vec4(color,edge*end*.028);}'});
@@ -44,15 +44,43 @@ export function createMemoryScene({mobile=true}={}){
   const index=Number.isInteger(state?.eventIndex)?Math.max(0,Math.min(2,state.eventIndex)):preview,shot=layout.shots[index];
   const phase=Number.isFinite(state?.memoryPhase)?Math.max(0,Math.min(2,state.memoryPhase)):index;
   const from=Math.min(1,Math.floor(phase)),blend=phase-from;
+  const eased=v=>{const u=Math.max(0,Math.min(1,v));return u*u*(3-2*u);};
+  const elapsed=Math.min(.05,Math.max(0,dt));
+  spin+=elapsed*.10*eased(phase)*(1-eased(phase-1));
+  dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);camera.lookAt(...shot.target);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
   key.color.copy(color);dustMaterial.uniforms.color.value.copy(color);
   for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
+  const locations=new Map();
+  for(const a of layout.anchors){point.fromArray(memoryPoint(a,phase,spin));
+    // Chains adapt to wide viewports; the spherical shell retains real 3D depth.
+    point.x*=1+(Math.max(.8,Math.min(2.8,camera.aspect/.6))-1)*(1-eased(phase));
+    const breathing=.25+.35*eased(phase-1);
+    point.y+=Math.sin(time*(.78+a.u*.3)+a.u*6+a.branch*1.7)*breathing;
+    // A continuous front reading aperture, with no instance deletion or flashing.
+    const local=point.clone().sub(new T.Vector3(0,0,-14));
+    if(local.z>0){
+     const projected=point.clone().project(camera),r=Math.max(Math.abs(projected.x)/.90,Math.abs(projected.y)/.42);
+     if(r<1&&r>1e-5){
+      const strength=eased(local.z/12)*(1-r);
+      const right=new T.Vector3(1,0,0).applyQuaternion(camera.quaternion),up=new T.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+      const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z,half=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2));
+      point.addScaledVector(right,projected.x/r*strength*half*camera.aspect).addScaledVector(up,projected.y/r*strength*half);
+     }
+    }
+    locations.set(a.id,point.clone());
+  }
+  // Bounded, deterministic separation prevents petals crossing during the morph.
+  const delta=new T.Vector3();
+  for(let pass=0;pass<8;pass++)for(let i=0;i<layout.anchors.length;i++)for(let j=0;j<i;j++){
+   const a=layout.anchors[i],b=layout.anchors[j],p=locations.get(a.id),q=locations.get(b.id);
+   delta.copy(p).sub(q);const distance=delta.length(),clearance=a.radius+b.radius+.65;
+   if(distance<clearance){if(distance<1e-8)delta.set(1,.1,.1).normalize();else delta.divideScalar(distance);const correction=(clearance-distance)*.5;p.addScaledVector(delta,correction);q.addScaledVector(delta,-correction);}
+  }
   for(const pool of pools.values()){
    let count=0;
-   for(const a of pool.anchors){point.fromArray(memoryPoint(a,phase));
-    point.x*=Math.max(.75,Math.min(2.8,camera.aspect/.6));
-    point.y+=Math.sin(time*.55+a.u*6+a.branch)*.28;
+   for(const a of pool.anchors){point.copy(locations.get(a.id));
     rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist))).multiply(pool.face);
     scale.setScalar(pool.factor);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }

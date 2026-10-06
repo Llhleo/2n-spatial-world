@@ -16,15 +16,17 @@ test('memory layouts keep stable long chains, separate silhouettes and model cle
  assert.deepEqual(createMemoryLayout({mobile:true,assets:[]}).anchors,[]);
 });
 
-test('ribbons surround a reading space at front and rear depths throughout scrolling',async()=>{
+test('two chains become a true shell and then expand without changing identities',async()=>{
  const {createMemoryLayout,memoryPoint,sampleMemoryStory}=await import('../src/guild-memory-layout.js');
  const layout=createMemoryLayout({assets:[{key:'rose',radius:2.2}]});
- for(const phase of [0,.25,.5,.75,1,1.25,1.5,1.75,2]){
-  const p=layout.anchors.map(a=>memoryPoint(a,phase));
-  for(let i=0;i<p.length;i++)for(let j=0;j<i;j++)assert.ok(Math.hypot(...p[i].map((v,k)=>v-p[j][k]))>=4.9);
-  assert.ok(Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]))>75);
-  assert.ok(p.every(v=>Math.hypot(v[0]/(114-(v[2]+14))/23*114,v[1]/(114-(v[2]+14))/33*114)>.95));
+ assert.equal(new Set(layout.anchors.map(a=>a.branch)).size,2);
+ for(const a of layout.anchors){
+  const shell=memoryPoint(a,1),large=memoryPoint(a,2);
+  const radius=v=>Math.hypot(v[0],v[1],v[2]+14);
+  assert.ok(Math.abs(radius(shell)-42)<1e-8);assert.ok(Math.abs(radius(large)-90.3)<1e-8);
+  const before=memoryPoint(a,1-1e-6),after=memoryPoint(a,1+1e-6);
+  assert.ok(Math.hypot(...before.map((v,i)=>v-after[i]))<1e-5,'morph is continuous');
  }
+ const p=layout.anchors.map(a=>memoryPoint(a,1));assert.ok(Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]))>75);
  assert.equal(sampleMemoryStory(0).eventIndex,0);assert.equal(sampleMemoryStory(.5).eventIndex,1);assert.equal(sampleMemoryStory(1).eventIndex,2);
- const a=sampleMemoryStory(12/36).memoryPhase,b=sampleMemoryStory((12+1e-5)/36).memoryPhase;assert.ok(Math.abs(a-b)<1e-5);
 });

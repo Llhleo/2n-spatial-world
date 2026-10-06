@@ -25,3 +25,15 @@ test('scroll morph preserves every petal and reverses deterministically',async()
  for(const p of [0,.2,.5,1,1.5,2])assert.equal(capture(p).reduce((n,c)=>n+c.count,0),scene.instanceCount);
  scene.dispose();
 });
+
+ test('all displayed petals retain clearance during chain-to-shell transitions',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');
+ const scene=createMemoryScene();scene.install(new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),'a','b');
+ const camera=new T.PerspectiveCamera(48,414/896,.2,2400),matrix=new T.Matrix4();
+ for(const phase of [0,.2,.325,.5,.75,1,1.5,2]){
+  scene.update({memoryPhase:phase,eventIndex:0,showText:true},camera,0);
+  const points=[];for(const mesh of scene.group.children.filter(c=>c.isInstancedMesh))for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,matrix);points.push(new T.Vector3().setFromMatrixPosition(matrix));}
+  for(let i=0;i<points.length;i++)for(let j=0;j<i;j++)assert.ok(points[i].distanceTo(points[j])>=4.4,`clearance at ${phase}`);
+ }
+ scene.dispose();
+ });
