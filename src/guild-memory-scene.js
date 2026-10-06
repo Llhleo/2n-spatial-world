@@ -58,15 +58,35 @@ export function createMemoryScene({mobile=true}={}){
      if(Math.abs(screen.x)>1.4||Math.abs(screen.y)>1.4||screen.z>1)continue;
      const matrix=new T.Matrix4().multiplyMatrices(frame,world),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);
      scale.multiplyScalar(sphere.radius/asset.source.geometry.boundingSphere.radius);
-     captured.get(key).push({position:position.applyMatrix4(frame),quaternion,scale,branch:screen.y>0?0:1,x:screen.x});
+     captured.get(key).push({position:position.applyMatrix4(frame),quaternion,scale,viewPosition:sphere.center.clone().applyMatrix4(world).applyMatrix4(entryCamera.matrixWorldInverse),branch:screen.y>0?0:1,x:screen.x});
     }
    }
   });
   for(const branch of [0,1]){
    const starts=[...captured].flatMap(([key,poses])=>poses.filter(p=>p.branch===branch).map(p=>({...p,key}))).sort((a,b)=>a.x-b.x);
    const targets=layout.anchors.filter(a=>a.branch===branch).sort((a,b)=>a.u-b.u);
-   const kept=starts.slice(-targets.length),offset=targets.length-kept.length;
-   kept.forEach((pose,i)=>{const anchor=targets[offset+i];anchor.key=pose.key;entrySources.set(anchor.id,pose);});
+   // Keep actual members at their screen spacing; fill intervening slots
+   // instead of parking every captured petal at the far end of a new chain.
+   const known=new Map(),head=starts.at(-1);let previousSlot=targets.length;
+   for(const pose of starts.slice().reverse()){
+    const slot=Math.min(previousSlot-1,targets.length-1-Math.round((head.x-pose.x)/.17));
+    if(slot<0)continue;previousSlot=slot;targets[slot].key=pose.key;known.set(slot,pose);
+   }
+   const slots=[...known.keys()].sort((a,b)=>a-b);
+   const angular=p=>new T.Vector3(p.x/-p.z,p.y/-p.z,-p.z);
+   for(const [slot,anchor] of targets.entries()){
+    if(known.has(slot)){entrySources.set(anchor.id,known.get(slot));continue;}
+    const lo=slots.filter(i=>i<slot).at(-1),hi=slots.find(i=>i>slot);
+    const first=known.get(lo??hi),second=known.get(hi??lo);let view;
+    if(first){
+     view=angular(first.viewPosition);
+     if(lo!==undefined&&hi!==undefined)view.lerp(angular(second.viewPosition),(slot-lo)/(hi-lo));
+     else view.x+=(slot-(lo??hi))*.17*Math.tan(T.MathUtils.degToRad(entryCamera.fov/2))*entryCamera.aspect;
+     view.set(view.x*view.z,view.y*view.z,-view.z);
+    }else view=new T.Vector3((anchor.u*4.6-2.8)*90*Math.tan(T.MathUtils.degToRad(entryCamera.fov/2))*entryCamera.aspect,(branch===0?1:-1)*90*.32,-90);
+    const asset=sources.get(anchor.key),radius=first?sources.get(first.key).source.geometry.boundingSphere.radius*first.scale.x:2.2;
+    entrySources.set(anchor.id,{viewPosition:view,position:view.clone().applyMatrix4(entryCamera.matrixWorld).applyMatrix4(frame),quaternion:new T.Quaternion().setFromRotationMatrix(frame).multiply(entryCamera.quaternion).multiply(asset.face),scale:new T.Vector3().setScalar(radius/asset.source.geometry.boundingSphere.radius)});
+   }
   }
   rebuildPools();
  }
@@ -124,9 +144,9 @@ export function createMemoryScene({mobile=true}={}){
      const start=entrySources.get(a.id),u=state.entryBlend;
      // Track the moving camera through world space, with a separate sliding
      // coordinate for every follower. The story root itself never follows it.
-     const delay=start?.0:.18+.16*(1-a.u),travel=eased((u-delay)/(1-delay));
+     const travel=eased(u);
      const destination=point.clone().applyMatrix4(camera.matrixWorldInverse);
-     const origin=start&&entryView?start.position.clone().applyMatrix4(flightFrame.matrix).applyMatrix4(entryView.matrixWorldInverse):destination.clone();
+     const origin=start?.viewPosition?.clone()||destination.clone();
      if(!start)origin.x=-Math.abs(origin.z)*Math.tan(T.MathUtils.degToRad(camera.fov/2))*camera.aspect*(1.6+2*(1-a.u));
      // Interpolate angular positions, keeping the head in the visible height
      // band while depth and the camera's physical position change continuously.

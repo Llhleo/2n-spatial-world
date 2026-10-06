@@ -1,5 +1,7 @@
 # Codex 接续入口
 
+最新优先：读取 docs/2026-10-06-glide-chain-date.md。已根据手机反馈调整镜头缓慢掠行、连续长链和日期主导排版。以下旧记录仅作背景。
+
 优先读取 [花瓣记忆廊预览记录](docs/2026-10-06-memory-corridor-preview.md)。新构图已部署专用 `?historyPreview=1` 入口；先等待构图反馈，再继续三幕连续动画。不要将本阶段称为完整36秒故事已完成。方案与计划在 `docs/superpowers/`，旧主入口暂时保留。
 
 
@@ -92,3 +94,7 @@ First four existing story seconds now lift/retreat from the actual last member c
 ## 2026-10-06 Camera-chain departure checkpoint
 Members → guild memory now uses a fixed story world frame outside the final map. Terrain position/rotation/scale/opacity and transition fog remain unchanged. Camera follows an outward/upward curve; member clones are recognized by asset key and rebased geometry is normalized when capturing their exact rendered world poses. Captured chains retain global branch order; heads lead full-size followers entering from the left. Followers have independent sliding coordinates while following camera flight, then settle into fixed story locations before text fades in. Opening monument is suppressed only during memory rendering. Resize invalidates entry capture. Stage 2 rotation and stage 3 individual bob preserved.
 Validation: 38 related tests passed; production build passed; fresh independent review found no blockers. No mobile browser visual QA this round (supported control-browser capability unavailable). Do not claim iPhone visual acceptance. Check the published transition on device before broadening scope. GitHub main/Pages unchanged.
+
+
+## 2026-10-06 Slow glide / connected chains / date hierarchy
+Departure lasts seven seconds with more scroll distance, a low initial control point and delayed camera rotation. Map remains stationary. Captured member chain slots reflect projected spacing; missing followers interpolate the same angular chain instead of starting elsewhere with delays. Actual member poses and assets retained. First date fades after seven-second arrival. Date font ~46px, title23px, body16px; aligned left. Stage2/3 unchanged. Validation: 44 focused tests and build passed; independent reviewer found no blockers. On-device visual acceptance pending; no supported browser-control skill available here. GitHub main/Pages untouched.

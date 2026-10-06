@@ -7,12 +7,12 @@ export function createHistoryView(events,route){
  let viewport={width:414,height:896};const cards=[];
  const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,toneMapped:false,uniforms:{opacity:{value:0}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform float opacity;void main(){vec2 p=(v-.5)*2.;float a=1.-smoothstep(.25,1.,length(p));gl_FragColor=vec4(.025,.035,.03,a*opacity);}'}));shade.renderOrder=1;group.add(shade);
  events.forEach(event=>{const card=new T.Group();group.add(card);cards.push(card);for(const [tier,content] of [['date',event.date.replaceAll('-','.')],['title',event.title],['body',event.body]]){
-  const text=new Text();text.text=content;text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.lineHeight=1.45;text.whiteSpace='normal';text.overflowWrap='break-word';text.color=0xf4f0df;text.strokeWidth=0;text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.renderOrder=2;text.userData.tier=tier;
+  const text=new Text();text.text=content;text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.lineHeight=1.45;text.whiteSpace='normal';text.overflowWrap='break-word';text.color=tier==='body'?0xc8cbbc:0xf4f0df;text.strokeWidth=0;text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.renderOrder=2;text.userData.tier=tier;
   Object.assign(text.material,{transparent:true,depthWrite:false,depthTest:true,fog:false,toneMapped:false,opacity:0});card.add(text);
  }});
  function measure(text){const b=text.textRenderInfo?.glyphBounds;if(!b?.length)throw new Error('历史文字字形尚未准备好');return {minX:Math.min(...Array.from(b).filter((_,i)=>i%4===0)),maxX:Math.max(...Array.from(b).filter((_,i)=>i%4===2)),minY:Math.min(...Array.from(b).filter((_,i)=>i%4===1)),maxY:Math.max(...Array.from(b).filter((_,i)=>i%4===3))};}
  function reshape(font,timeoutMs){const jobs=[];for(const card of cards)for(const text of card.children){
-  const pixels=text.userData.tier==='title'?Math.min(32,viewport.width*.078):text.userData.tier==='body'?18:15;
+  const pixels=text.userData.tier==='date'?Math.min(48,viewport.width*.112):text.userData.tier==='title'?Math.max(18,Math.min(23,viewport.width*.056)):16;
   text.userData.pixels=pixels;text.maxWidth=Math.max(120,viewport.width-64)/pixels;
   text.font=null;text.font=font;
   jobs.push(new Promise((resolve,reject)=>{let settled=false;const timer=setTimeout(()=>{settled=true;reject(new Error('历史文字准备超时，可重试'));},timeoutMs);const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);try{if(!disposed)text.userData.ink=measure(text);resolve();}catch(e){reject(e);}};try{text.sync(finish);}catch(e){settled=true;clearTimeout(timer);reject(e);}}));

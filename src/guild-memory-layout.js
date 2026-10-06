@@ -28,7 +28,7 @@ export function sampleMemoryStory(t=0){
  const seconds=clamp(Number.isFinite(t)?t:0)*36;
  const phase=smooth((seconds-12)/3)+smooth((seconds-24)/3);
  const eventIndex=seconds<13.5?0:seconds<25.5?1:2;
- const start=[4,15,27][eventIndex],end=[12,24,36][eventIndex];
+ const start=[7,15,27][eventIndex],end=[12,24,36][eventIndex];
  const eventOpacity=smooth((seconds-start)/.8)*(eventIndex===2?1:1-smooth(seconds-end+1));
  return {memoryPhase:phase,eventIndex,eventOpacity,target:[0,0,-14]};
 }
