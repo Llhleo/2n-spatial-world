@@ -29,7 +29,7 @@ export function createHistoryView(events,route){
    text.quaternion.copy(camera.quaternion);text.scale.setScalar(scale);text.position.copy(origin).add(new T.Vector3(-half*camera.aspect*(1-64/next.width)-b.minX*scale,(cursor-height/2)*unit-(b.minY+b.maxY)/2*scale,0).applyQuaternion(camera.quaternion));cursor-=height+gap*fit;text.material.opacity=state.eventOpacity;text.visible=true;text.updateMatrixWorld(true);
    for(const x of [b.minX,b.maxX])for(const y of [b.minY,b.maxY])readingBounds.expandByPoint(new T.Vector3(x,y,0).applyMatrix4(text.matrixWorld));
   }
-  shade.position.copy(origin).add(new T.Vector3(0,0,-.35).applyQuaternion(camera.quaternion));shade.quaternion.copy(camera.quaternion);shade.scale.set(half*camera.aspect*1.85,half*.9,1);shade.material.uniforms.opacity.value=.58*state.eventOpacity;
+  shade.position.copy(origin).add(new T.Vector3(0,0,-.35).applyQuaternion(camera.quaternion));shade.quaternion.copy(camera.quaternion);shade.scale.set(half*camera.aspect*1.85,half*.9,1);shade.material.uniforms.opacity.value=.22*state.eventOpacity;
  }
  return {group,readingBounds,prepare,resize,update,get ready(){return prepared&&!disposed;},dispose(){if(disposed)return;disposed=true;prepared=false;cards.forEach(c=>c.children.forEach(t=>t.dispose()));shade.geometry.dispose();shade.material.dispose();group.clear();}};
 }

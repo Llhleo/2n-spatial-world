@@ -20,6 +20,7 @@ import {hellPose} from '../src/hell-production.js';
 import {scrollProgress} from '../src/viewport.js';
 import {createClosureView} from '../src/guild-closure-view.js';
 import {createMonument} from '../src/monument.js';
+import {historyTimeToDistance} from '../src/guild-history-route.js';
 import {renderMemoryPreview} from '../src/guild-memory-preview.js';
 
 const api=await import('../src/people-story.js').catch(()=>({}));
@@ -93,7 +94,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
 function entry({constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false}={}){
- const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
+ const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
@@ -113,7 +114,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,setPreview(){},update(_,camera){camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
@@ -374,4 +375,14 @@ test('opening failure retry button starts a fresh settled preparation without re
  const before=app.elements.get('world').dataset.progress;app.events.get('retry-history:click')({stopPropagation(){}});await app.settle();app.tick();
  assert.equal(app.calls.historyPrepare,2);assert.equal(app.elements.get('history-status').hidden,true);assert.equal(app.elements.get('world').dataset.progress,before);
  app.events.get('autoplay:click')({stopPropagation(){}});app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.elements.get('autoplay').textContent,'自动播放');assert.equal(app.elements.get('world').dataset.progress,'0.000');
+ });
+
+ test('normal website entry uses all three memory stages after members without preview mode',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ for(const [t,stage] of [[.14,0],[.52,1],[.86,2]]){
+ app.seek((api.LEGACY_TOTAL_UNITS+6.4*historyTimeToDistance(t))/api.TOTAL_UNITS);app.tick();
+ assert.equal(app.elements.get('world').dataset.biome,'history');
+ assert.equal(app.calls.memory.at(-1).eventIndex,stage);assert.equal(app.calls.memory.at(-1).showText,true);
+ }
  });
