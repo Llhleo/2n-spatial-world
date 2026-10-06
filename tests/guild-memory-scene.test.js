@@ -37,3 +37,16 @@ test('scroll morph preserves every petal and reverses deterministically',async()
  }
  scene.dispose();
  });
+
+function renderedCenters(scene){const matrix=new T.Matrix4();return scene.group.children.filter(c=>c.isInstancedMesh).flatMap(mesh=>Array.from({length:mesh.count},(_,i)=>{mesh.getMatrixAt(i,matrix);return {point:new T.Vector3().setFromMatrixPosition(matrix),scale:new T.Vector3().setFromMatrixScale(matrix).x};}));}
+test('rendered shell remains spherical with text both visible and hidden',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');const scene=createMemoryScene();scene.install(new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),'a','b');const camera=new T.PerspectiveCamera(48,414/896,.2,2400);
+ for(const showText of [false,true])for(const phase of [1,2]){scene.update({memoryPhase:phase,eventIndex:phase,showText},camera,0);const radius=phase===1?42:90.3;for(const {point} of renderedCenters(scene))assert.ok(Math.abs(point.distanceTo(new T.Vector3(0,0,-14))-radius)<1.6,'screen edges must not distort the shell');}scene.dispose();
+});
+test('idle chains have visible breathing and enlarged shell has balanced foreground scale',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');const scene=createMemoryScene();scene.install(new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),'a','b');const camera=new T.PerspectiveCamera(48,414/896,.2,2400);
+ scene.update({memoryPhase:0,eventIndex:0},camera,0);const initial=renderedCenters(scene).map(p=>p.point.clone().project(camera).y);let movement=0;
+ for(let frame=0;frame<180;frame++){scene.update({memoryPhase:0,eventIndex:0},camera,1/60);renderedCenters(scene).forEach((p,i)=>{movement=Math.max(movement,Math.abs(p.point.clone().project(camera).y-initial[i])*896/2);});}
+ assert.ok(movement>=7,'chain movement must be perceptible while scroll is stationary');
+ scene.update({memoryPhase:2,eventIndex:2},camera,0);const sizes=renderedCenters(scene).map(({point,scale})=>scale/-point.clone().applyMatrix4(camera.matrixWorldInverse).z);assert.ok(Math.max(...sizes)/Math.min(...sizes)<2.1,'front petals must remain part of the same composition');scene.dispose();
+});

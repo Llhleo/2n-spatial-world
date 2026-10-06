@@ -281,10 +281,10 @@ if (renderer) {
     if(memoryPreview&&!introLocked){
       memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
       historyStatus.hidden=!memoryText||!!history?.ready;
-      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt:reduced.matches?0:dt,showText:memoryText});
+      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&memory.assetCount===14){
-      renderMemoryPreview({scene,renderer,camera,memory,history,progress:chapter.historyT,viewport:view,dt:reduced.matches?0:dt,showText:true});
+      renderMemoryPreview({scene,renderer,camera,memory,history,progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);

@@ -5,7 +5,7 @@ export function createHistoryView(events,route){
  const group=new T.Group();group.name='guild-history';group.visible=false;
  const readingBounds=new T.Box3();let prepared=false,disposed=false,inflight=null,revision=0;
  let viewport={width:414,height:896};const cards=[];
- const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({transparent:true,depthWrite:false,toneMapped:false,uniforms:{opacity:{value:0}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform float opacity;void main(){vec2 p=(v-.5)*2.;float a=1.-smoothstep(.25,1.,length(p));gl_FragColor=vec4(.025,.035,.03,a*opacity);}'}));shade.renderOrder=1;group.add(shade);
+ const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,toneMapped:false,uniforms:{opacity:{value:0}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform float opacity;void main(){vec2 p=(v-.5)*2.;float a=1.-smoothstep(.25,1.,length(p));gl_FragColor=vec4(.025,.035,.03,a*opacity);}'}));shade.renderOrder=1;group.add(shade);
  events.forEach(event=>{const card=new T.Group();group.add(card);cards.push(card);for(const [tier,content] of [['date',event.date.replaceAll('-','.')],['title',event.title],['body',event.body]]){
   const text=new Text();text.text=content;text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.lineHeight=1.45;text.whiteSpace='normal';text.overflowWrap='break-word';text.color=0xf4f0df;text.strokeWidth=0;text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.renderOrder=2;text.userData.tier=tier;
   Object.assign(text.material,{transparent:true,depthWrite:false,depthTest:false,fog:false,toneMapped:false,opacity:0});card.add(text);
@@ -29,7 +29,7 @@ export function createHistoryView(events,route){
    text.quaternion.copy(camera.quaternion);text.scale.setScalar(scale);text.position.copy(origin).add(new T.Vector3(-half*camera.aspect*(1-64/next.width)-b.minX*scale,(cursor-height/2)*unit-(b.minY+b.maxY)/2*scale,0).applyQuaternion(camera.quaternion));cursor-=height+gap*fit;text.material.opacity=state.eventOpacity;text.visible=true;text.updateMatrixWorld(true);
    for(const x of [b.minX,b.maxX])for(const y of [b.minY,b.maxY])readingBounds.expandByPoint(new T.Vector3(x,y,0).applyMatrix4(text.matrixWorld));
   }
-  shade.position.copy(origin).add(new T.Vector3(0,0,-.35).applyQuaternion(camera.quaternion));shade.quaternion.copy(camera.quaternion);shade.scale.set(half*camera.aspect*1.85,half*.9,1);shade.material.uniforms.opacity.value=.44*state.eventOpacity;
+  shade.position.copy(origin).add(new T.Vector3(0,0,-.35).applyQuaternion(camera.quaternion));shade.quaternion.copy(camera.quaternion);shade.scale.set(half*camera.aspect*1.85,half*.9,1);shade.material.uniforms.opacity.value=.58*state.eventOpacity;
  }
  return {group,readingBounds,prepare,resize,update,get ready(){return prepared&&!disposed;},dispose(){if(disposed)return;disposed=true;prepared=false;cards.forEach(c=>c.children.forEach(t=>t.dispose()));shade.geometry.dispose();shade.material.dispose();group.clear();}};
 }

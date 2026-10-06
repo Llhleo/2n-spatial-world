@@ -46,7 +46,7 @@ export function createMemoryScene({mobile=true}={}){
   const from=Math.min(1,Math.floor(phase)),blend=phase-from;
   const eased=v=>{const u=Math.max(0,Math.min(1,v));return u*u*(3-2*u);};
   const elapsed=Math.min(.05,Math.max(0,dt));
-  spin+=elapsed*.10*eased(phase)*(1-eased(phase-1));
+  spin+=elapsed*.10*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);camera.lookAt(...shot.target);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
@@ -56,19 +56,13 @@ export function createMemoryScene({mobile=true}={}){
   for(const a of layout.anchors){point.fromArray(memoryPoint(a,phase,spin));
     // Chains adapt to wide viewports; the spherical shell retains real 3D depth.
     point.x*=1+(Math.max(.8,Math.min(2.8,camera.aspect/.6))-1)*(1-eased(phase));
-    const breathing=.25+.35*eased(phase-1);
-    point.y+=Math.sin(time*(.78+a.u*.3)+a.u*6+a.branch*1.7)*breathing;
-    // A continuous front reading aperture, with no instance deletion or flashing.
-    const local=point.clone().sub(new T.Vector3(0,0,-14));
-    if(local.z>0){
-     const projected=point.clone().project(camera),r=Math.max(Math.abs(projected.x)/.90,Math.abs(projected.y)/.42);
-     if(r<1&&r>1e-5){
-      const strength=eased(local.z/12)*(1-r);
-      const right=new T.Vector3(1,0,0).applyQuaternion(camera.quaternion),up=new T.Vector3(0,1,0).applyQuaternion(camera.quaternion);
-      const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z,half=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2));
-      point.addScaledVector(right,projected.x/r*strength*half*camera.aspect).addScaledVector(up,projected.y/r*strength*half);
-     }
-    }
+    const chainWeight=1-eased(phase),motion=state?.reducedMotion?.2:1;
+    // Coherent wave plus individual breathing is perceptible during idle reading.
+    point.y+=motion*chainWeight*(1.6*Math.sin(time*.65+a.u*4+a.branch*1.7)+.65*Math.sin(time*.9+a.u*9));
+    point.x+=motion*chainWeight*.5*Math.sin(time*.42+a.u*5+a.branch);
+    // Shell motion follows its surface; text never pushes petals to screen edges.
+    const radial=point.clone().sub(new T.Vector3(0,0,-14));
+    if(radial.lengthSq()>0)point.addScaledVector(radial.normalize(),motion*eased(phase)*(.35+.45*eased(phase-1))*Math.sin(time*(.78+a.u*.3)+a.u*6+a.branch*1.7));
     locations.set(a.id,point.clone());
   }
   // Bounded, deterministic separation prevents petals crossing during the morph.
@@ -81,8 +75,11 @@ export function createMemoryScene({mobile=true}={}){
   for(const pool of pools.values()){
    let count=0;
    for(const a of pool.anchors){point.copy(locations.get(a.id));
-    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist))).multiply(pool.face);
-    scale.setScalar(pool.factor);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
+    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist+(state?.reducedMotion?0:.035*(1-eased(phase))*Math.sin(time*.6+a.u*5))))).multiply(pool.face);
+    const depth=Math.max(1,-point.clone().applyMatrix4(camera.matrixWorldInverse).z);
+    const reference=camera.position.distanceTo(new T.Vector3(0,0,-14));
+    const balance=1+(Math.max(.65,Math.min(1.2,Math.pow(depth/reference,.4)))-1)*eased(phase-1);
+    scale.setScalar(pool.factor*balance);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;
   }
