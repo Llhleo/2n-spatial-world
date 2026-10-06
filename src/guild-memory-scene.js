@@ -33,15 +33,17 @@ export function createMemoryScene({mobile=true}={}){
  }
  function prepare(){
   if(disposed||layout)return;
-  for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
+  for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}pools.clear();
   layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:2.2}))});
   rebuildPools();
  }
  function rebuildPools(){
-  for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
+  for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}pools.clear();
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
-   const material=(entrySources.get(anchors[0].id)?.material||asset.source.material).clone();material.fog=entrySources.size?entrySources.get(anchors[0].id)?.material.fog!==false:false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
+   const material=(entrySources.get(anchors[0].id)?.material||asset.source.material).clone();material.fog=entrySources.size?entrySources.get(anchors[0].id)?.material.fog!==false:false;const geometry=asset.source.geometry.clone(),alpha=new T.InstancedBufferAttribute(new Float32Array(anchors.length).fill(1),1);alpha.setUsage(T.DynamicDrawUsage);geometry.setAttribute('memoryAlpha',alpha);
+   material.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float memoryAlpha; varying float vMemoryAlpha;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMemoryAlpha=memoryAlpha;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vMemoryAlpha;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vMemoryAlpha;');};material.customProgramCacheKey=()=> 'memory-instance-alpha-v1';
+   const mesh=new T.InstancedMesh(geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors,nativeTransparent:material.transparent,nativeDepthWrite:material.depthWrite});
   }
  }
  function captureEntry(sourceGroup,entryCamera){
@@ -162,5 +164,26 @@ export function createMemoryScene({mobile=true}={}){
   dust.matrix.copy(group.matrix).invert().multiply(camera.matrixWorld).multiply(new T.Matrix4().makeScale(camera.aspect,1,1));
   dust.updateMatrixWorld(true);
  }
- return {group,install,prepare,captureEntry,setPreview,update,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
+ function updateTextOcclusion(camera,bounds,phase=0){
+  group.updateMatrixWorld(true);camera.updateMatrixWorld();
+  const weight=bounds&&!bounds.isEmpty()?Math.max(0,Math.min(1,phase-1)):0;
+  const rect={left:Infinity,right:-Infinity,bottom:Infinity,top:-Infinity};let textDepth=Infinity;
+  if(weight)for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){
+   const p=new T.Vector3(x,y,z),view=p.clone().applyMatrix4(camera.matrixWorldInverse),screen=p.project(camera);textDepth=Math.min(textDepth,-view.z);rect.left=Math.min(rect.left,screen.x);rect.right=Math.max(rect.right,screen.x);rect.bottom=Math.min(rect.bottom,screen.y);rect.top=Math.max(rect.top,screen.y);
+  }
+  for(const pool of pools.values()){
+   const enabled=weight>0,transparent=enabled||pool.nativeTransparent;if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
+   pool.material.depthWrite=enabled?false:pool.nativeDepthWrite;pool.mesh.renderOrder=enabled?3:0;
+   const alpha=pool.mesh.geometry.getAttribute('memoryAlpha'),sphere=pool.mesh.geometry.boundingSphere;
+   for(let i=0;i<pool.mesh.count;i++){
+    pool.mesh.getMatrixAt(i,matrix);matrix.premultiply(pool.mesh.matrixWorld);
+    const world=sphere.center.clone().applyMatrix4(matrix),view=world.clone().applyMatrix4(camera.matrixWorldInverse),depth=-view.z,radius=sphere.radius*Math.max(...new T.Vector3().setFromMatrixScale(matrix).toArray());let overlap=0;
+    if(weight&&depth>radius&&depth<textDepth-.1){const p=world.project(camera),ry=radius/((depth-radius)*Math.tan(T.MathUtils.degToRad(camera.fov/2))),rx=ry/camera.aspect;
+     const width=Math.max(0,Math.min(rect.right,p.x+rx)-Math.max(rect.left,p.x-rx)),height=Math.max(0,Math.min(rect.top,p.y+ry)-Math.max(rect.bottom,p.y-ry));overlap=Math.min(1,width*height/(4*rx*ry)*3);
+    }
+    alpha.setX(i,1-.3*weight*overlap);
+   }alpha.needsUpdate=true;
+  }
+ }
+ return {group,install,prepare,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
 }

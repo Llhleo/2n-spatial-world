@@ -26,6 +26,7 @@ export function renderMemoryPreview({scene,renderer,camera,memory,history,entryP
   // Leaving terrain is produced solely by camera motion, never by map fading.
   scene.fog=original.fog;scene.background=original.background;
   if(showText&&history)history.update({...state,target:memory.shot.target},camera,viewport);
+  memory.updateTextOcclusion?.(camera,showText?history?.readingBounds:null,state.memoryPhase??index??0);
   renderer.render(scene,camera);
  }finally{
   visibility.forEach(([object,value])=>{object.visible=value;});

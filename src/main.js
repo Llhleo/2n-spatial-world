@@ -1,4 +1,4 @@
-import {limitManualHistoryEntry} from './manual-history-entry.js';
+import {limitManualHistoryEntry,manualHistoryEntryEnd} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
 import {preparePeopleDistance} from './people-distance.js';
 import {createPeopleRoute} from './people-courtyard.js';
@@ -216,7 +216,12 @@ if (renderer) {
         // damping would reintroduce the hold/transfer sensitivity cliff.
         const current=storyToScroll(progress,peopleRoute);
         const candidate=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+        const before=progress;
         progress=initialEnding?candidate:limitManualHistoryEntry(progress,candidate,dt);
+        if(!initialEnding&&before<manualHistoryEntryEnd&&progress>=manualHistoryEntryEnd&&target>manualHistoryEntryEnd){
+          // Discard the fling overshoot at the first readable story event.
+          scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
+        }
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
