@@ -52,3 +52,12 @@
 - Preview: https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
 - Native DOM story text replaces active SDF draw (which remains fallback); no dark reading shade over HD petals. Open spherical belt targets reserve the central reading space while maintaining real front/rear depth and continuous chains/shell/expansion. Neutral white light and fog-free cloned story materials preserve source colors; dust/beam accents remain colored.
 - 40 targeted checks pass; Vite build passes. Real-phone visual acceptance pending. Do not alter main/Pages. Detail: docs/2026-10-06-memory-reading-fix.md.
+
+
+## 2026-10-06: restore full sphere, allow petals in front of story text
+
+User rejected the peripheral open-belt composition. Current deployed runtime is e6003b8e0369a0f9772ad7e203dc6a5bb961edf7 (experiment/lookback-v2). Layout, camera and model lighting restored from f97bf75. Story text is again in the 3D scene with depthTest=true, including its shade, so foreground petals can occlude glyphs naturally; story/preview DPR cap is 2.5. Full spherical depth, chain breathing and continuous transitions are preserved. Do not restore the open belt/native overlay unless requested.
+
+Sites source 042f481cbd3f0d4e91bb08e30eb7e1aa075c0676; successful deployment appgdep_6ac4c20ce3d0819196f4424f70573fc2. https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+
+38 targeted checks and production build pass. Phone visual acceptance pending. Initial archives were truncated; regenerated complete archive with identical dist/manifest and verified gzip integrity before successful upload. No main/Pages changes. Detail: docs/2026-10-06-memory-depth-restore.md.
