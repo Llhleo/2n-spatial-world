@@ -5,14 +5,16 @@ const smooth=v=>{const u=clamp(v);return u*u*(3-2*u);};
 export function memoryPoint(a,phase=0,spin=0){
  const p=Math.max(0,Math.min(2,phase));
  const join=smooth(p),expand=smooth(p-1),angle=a.longitude+spin;
- const radial=Math.sqrt(1-a.latitude*a.latitude),radius=42*(1+expand*1.15);
- const shell=[Math.cos(angle)*radial*radius,a.latitude*radius,Math.sin(angle)*radial*radius-14];
+ // An open spherical belt surrounds the reading space, including its rear side.
+ // Keep every point on the sphere; never clamp to a rectangular screen boundary.
+ const depth=a.latitude*.45,radial=Math.sqrt(1-depth*depth),radius=52*(1+expand*1.15);
+ const shell=[Math.cos(angle)*radial*radius,Math.sin(angle)*radial*radius,depth*radius-14];
  return a.chain.map((v,k)=>mix(v,shell[k],join));
 }
 export function createMemoryLayout({mobile=true,assets=[],seed=260206}={}){
  const usable=assets.filter(a=>a.key&&Number.isFinite(a.radius)&&a.radius>0);
  const anchors=[],perChain=mobile?28:42;
- const shots=[{position:[0,3,190],target:[0,0,-14]},{position:[6,-4,190],target:[0,0,-14]},{position:[-4,7,198],target:[0,0,-14]}];
+ const shots=[{position:[0,3,190],target:[0,0,-14]},{position:[6,-4,190],target:[0,0,-14]},{position:[-4,7,250],target:[0,0,-14]}];
  for(let branch=0;branch<2&&usable.length;branch++)for(let slot=0;slot<perChain;slot++){
   const u=slot/(perChain-1),sign=branch===0?1:-1;
   const asset=usable[(slot+branch*7+seed)%usable.length];

@@ -6,9 +6,9 @@ export function createMemoryScene({mobile=true}={}){
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
- const ambient=new T.AmbientLight(0x899bb4,.95);group.add(ambient);
- const key=new T.DirectionalLight(palette[0],2.1);key.position.set(-28,35,55);group.add(key);
- const fill=new T.DirectionalLight(0x596e92,.9);fill.position.set(30,-12,-30);group.add(fill);
+ const ambient=new T.AmbientLight(0xffffff,1.8);group.add(ambient);
+ const key=new T.DirectionalLight(0xffffff,3);key.position.set(-28,35,55);group.add(key);
+ const fill=new T.DirectionalLight(0xffffff,1.5);fill.position.set(30,-12,-30);group.add(fill);
  const dustCount=mobile?240:480,positions=new Float32Array(dustCount*3),brightness=new Float32Array(dustCount);let seed=260206;
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<dustCount;i++){positions.set([(random()-.5)*130,(random()-.5)*100,-random()*180],i*3);brightness[i]=.25+random()*.5;}
@@ -35,7 +35,7 @@ export function createMemoryScene({mobile=true}={}){
   layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:2.2}))});
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
-   const material=asset.source.material.clone();const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
+   const material=asset.source.material.clone();material.fog=false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
   }
  }
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
@@ -50,7 +50,7 @@ export function createMemoryScene({mobile=true}={}){
   dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);camera.lookAt(...shot.target);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
-  key.color.copy(color);dustMaterial.uniforms.color.value.copy(color);
+  dustMaterial.uniforms.color.value.copy(color);
   for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
   const locations=new Map();
   for(const a of layout.anchors){point.fromArray(memoryPoint(a,phase,spin));
