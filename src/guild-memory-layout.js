@@ -17,7 +17,7 @@ export function createMemoryLayout({mobile=true,assets=[],seed=260206}={}){
   const u=slot/(perChain-1),sign=branch===0?1:-1;
   const asset=usable[(slot+branch*7+seed)%usable.length];
   const a={id:`memory-${branch}-${slot}`,key:asset.key,radius:asset.radius,branch,u,
-   chain:[(u-.5)*(mobile?156:224)*sign,sign*(42+7*Math.sin(u*Math.PI*2))+Math.sin(u*Math.PI)*3,sign*(u-.5)*54-14],
+   chain:[(u-.5)*(mobile?196:260),sign*(42+7*Math.sin(u*Math.PI*2))+Math.sin(u*Math.PI)*3,sign*(u-.5)*54-14],
    latitude:sign*(.96-(slot+.5)/perChain*.92),longitude:slot*Math.PI*(3-Math.sqrt(5))+branch*Math.PI,
    twist:((slot*17+branch*5+seed)%21-10)*.013};
   a.positions=[0,1,2].map(p=>memoryPoint(a,p));anchors.push(a);

@@ -41,17 +41,23 @@ export function createMemoryScene({mobile=true}={}){
   }
  }
  function captureEntry(sourceGroup,entryCamera){
-  entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();
+  prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();
   const ref=new T.PerspectiveCamera();ref.position.set(0,3,190);ref.lookAt(0,0,-14);ref.updateMatrixWorld();
-  const frame=new T.Matrix4().multiplyMatrices(ref.matrixWorld,entryCamera.matrixWorldInverse);
+  const frame=new T.Matrix4().multiplyMatrices(ref.matrixWorld,entryCamera.matrixWorldInverse),captured=new Map();
   sourceGroup.traverse(mesh=>{if(!mesh.isInstancedMesh||!mesh.visible||!mesh.count)return;
    for(const [key,asset] of sources){if(mesh.geometry!==asset.source.geometry)continue;
-    if(!entrySources.has(key))entrySources.set(key,[]);
+    if(!captured.has(key))captured.set(key,[]);
     for(let i=0;i<mesh.count;i++){const local=new T.Matrix4();mesh.getMatrixAt(i,local);const world=new T.Matrix4().multiplyMatrices(mesh.matrixWorld,local);if(new T.Vector3().setFromMatrixScale(world).length()<1e-6)continue;
-     const matrix=new T.Matrix4().multiplyMatrices(frame,world),position=asset.center.clone().applyMatrix4(matrix),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);entrySources.get(key).push({position,quaternion,scale});
+     const matrix=new T.Matrix4().multiplyMatrices(frame,world),position=asset.center.clone().applyMatrix4(matrix),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);captured.get(key).push({position,quaternion,scale});
     }
    }
   });
+  for(const [key,asset] of sources){
+   const starts=(captured.get(key)||[]).sort((a,b)=>a.position.x-b.position.x);
+   const targets=layout.anchors.filter(a=>a.key===key).sort((a,b)=>memoryPoint(a,0)[0]-memoryPoint(b,0)[0]);
+   const assigned=Array(targets.length).fill(null);
+   starts.slice(0,targets.length).forEach((pose,i)=>{assigned[i]=pose;});entrySources.set(key,assigned);
+  }
  }
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
  function update(state,camera,dt=0){

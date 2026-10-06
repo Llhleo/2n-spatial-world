@@ -17,8 +17,10 @@ test('memory scene reuses HD assets, accepts late installs and owns only its res
 });
 
 test('scroll morph preserves every petal and reverses deterministically',async()=>{
- const {createMemoryScene}=await import('../src/guild-memory-scene.js');
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');const {createMemoryLayout,memoryPoint}=await import('../src/guild-memory-layout.js');
  const scene=createMemoryScene();scene.install(new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),'a','b');
+ const layout=createMemoryLayout({mobile:true,assets:[{key:'a',radius:2.2},{key:'b',radius:2.2}]});
+ for(const branch of [0,1]){const chain=layout.anchors.filter(a=>a.branch===branch).sort((a,b)=>a.u-b.u);assert.ok(memoryPoint(chain[0],0)[0]<memoryPoint(chain.at(-1),0)[0],'both chain heads should enter from the left and travel right');}
  const camera=new T.PerspectiveCamera(48,.6,.2,2400);
  const capture=phase=>{scene.update({memoryPhase:phase,eventIndex:0,showText:true},camera,0);return scene.group.children.filter(c=>c.isInstancedMesh).map(c=>({count:c.count,matrix:Array.from(c.instanceMatrix.array)}));};
  const first=capture(.47);capture(1.6);assert.deepEqual(capture(.47),first);

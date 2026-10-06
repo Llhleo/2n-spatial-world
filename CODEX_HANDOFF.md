@@ -79,3 +79,11 @@ Runtime GitHub 8233ed12202f1a98758de4c608b437400928a8f3. Sites source 0001a35def
 First four existing story seconds now lift/retreat from the actual last member camera, follow with captured HD chain instance poses, retire terrain through fog before traveling between coordinate spaces, and arrange the first story chains. First story text starts only after arrival. Member names fade in the first second. Absolute camera/frame sampling supports reverse and direct seek. Story lighting targets/dust/beams follow the same frame. Subsequent sphere/individual bobs unchanged. Standalone historyPreview intentionally has no map departure.
 
 44 distinct relevant checks pass across targeted runs, including actual original HD-instance initial world pose/scale and follow projection, start/end continuity, lift, world retirement/restoration, delayed text and normal root integration. Final build and archive integrity pass. Phone visual acceptance pending. Main/Pages unchanged. See docs/2026-10-06-members-to-story-transition.md.
+
+
+## 2026-10-06: camera departure and left-to-right chain handoff corrected
+
+- Published Site source: 00d3a382494b9ea5774f9cae9a140bb2de403caa; deployment appgdep_6ac4da784050819199e81887c172293a succeeded at https://twon-dark-spatial-world.llhleo.chatgpt.site.
+- Corrected map handling: world/terrain roots remain fixed and renderable while the camera lifts and retreats; transition no longer hides/moves the map. The member chain is replaced by its captured story copy.
+- Chain handoff now captures poses in story-camera space and pairs identical HD petal assets left-to-right; both story chains start off the left edge and enter toward the right. Camera lift/retreat enlarged for a clear departure before the dark story setting.
+- 35 relevant tests and production build pass; archive integrity checked. The GitHub development branch contains this checkpoint only; main/Pages are unchanged. Real-device visual confirmation remains pending.

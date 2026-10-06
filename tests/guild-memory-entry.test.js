@@ -12,10 +12,10 @@ test('departure starts at the member camera, lifts out, arrives continuously and
  assert.equal(memoryEntryProgress(0),0);assert.equal(memoryEntryProgress(4/36),1);
  assert.equal(sampleMemoryStory(3.9/36).eventOpacity,0);assert.equal(sampleMemoryStory(4/36).eventOpacity,0);assert.equal(sampleMemoryStory(5/36).eventOpacity,1);
 });
-test('world stays visible while lifting, retires before transit and restores after drawing',async()=>{
+test('map stays fixed and visible while the camera departs, then restores after drawing',async()=>{
  const {renderMemoryPreview}=await import('../src/guild-memory-preview.js');const scene=new T.Scene(),terrain=new T.Group(),oldChain=new T.Group(),group=new T.Group();scene.add(terrain,oldChain,group);group.visible=false;
  const camera=new T.PerspectiveCamera(),memory={group,setPreview(){},update(state){group.visible=true;assert.ok(state.entryPose);}};
- for(const [progress,visible] of [[0,true],[.04,true],[.1,false]]){renderMemoryPreview({scene,camera,memory,entryPose:entry,departureGroups:[oldChain],progress,renderer:{render(){assert.equal(terrain.visible,visible);assert.equal(oldChain.visible,false);}},viewport:{width:414,height:896}});assert.equal(terrain.visible,true);assert.equal(oldChain.visible,true);}
+ for(const progress of [0,.04,.1,.5,1]){renderMemoryPreview({scene,camera,memory,entryPose:entry,departureGroups:[oldChain],progress,renderer:{render(){assert.equal(terrain.visible,true);assert.equal(oldChain.visible,false);}},viewport:{width:414,height:896}});assert.equal(terrain.visible,true);assert.equal(oldChain.visible,true);}
 });
 test('existing HD chain instances start at their rendered world pose before following camera',async()=>{
  const {createMemoryScene}=await import('../src/guild-memory-scene.js');const geometry=new T.BoxGeometry(3,1,2),material=new T.MeshStandardMaterial();
