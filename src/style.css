@@ -20,3 +20,7 @@ html.loading-intro,html.loading-intro body{overflow:hidden;touch-action:pinch-zo
 
 
 #history-status{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);color:#f4f0df;background:rgba(6,7,9,.65);padding:10px 15px;border-radius:18px;max-width:80%;font:14px system-ui;z-index:20}#history-status[hidden]{display:none}#retry-history{font:inherit;color:inherit;background:transparent;border:1px solid #aaa;border-radius:14px;padding:8px;margin-left:8px}
+:root .memory-preview-controls{position:fixed;z-index:30;top:calc(env(safe-area-inset-top) + 12px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:8px 10px;background:rgba(10,16,27,.68);border:1px solid rgba(244,240,223,.16);border-radius:24px;color:#f4f0df;font:12px/1.2 sans-serif;white-space:nowrap}
+:root .memory-preview-controls[hidden]{display:none}
+:root .memory-preview-controls button{font:inherit;color:inherit;border:0;border-radius:18px;background:transparent;padding:8px}
+:root .memory-preview-controls button[aria-pressed=true]{background:rgba(244,240,223,.18)}

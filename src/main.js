@@ -8,6 +8,8 @@ import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToS
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createHistoryView} from './guild-history-view.js';
+import {createMemoryScene} from './guild-memory-scene.js';
+import {renderMemoryPreview} from './guild-memory-preview.js';
 import {normalizeHistory} from './guild-history-data.js';
 import historyData from '../content/history.json';
 import {createCompanionship} from './companionship.js';
@@ -36,6 +38,17 @@ if (renderer) {
   const scene = new THREE.Scene();
   const openingMonument=createMonument();scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
+  const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
+  const memory=memoryPreview?createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches}):null;
+  if(memory)scene.add(memory.group);
+  let memoryIndex=0,memoryText=false;
+  const memoryControls=memoryPreview?document.createElement('nav'):null;
+  if(memoryControls){
+    memoryControls.className='memory-preview-controls';memoryControls.setAttribute('aria-label','工会故事构图预览');memoryControls.hidden=true;
+    const label=document.createElement('span');label.textContent='构图预览';memoryControls.append(label);
+    ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
+    document.body.append(memoryControls);
+  }
   let history=null,historyPreparing=false,historyError=null;
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){
@@ -73,7 +86,7 @@ if (renderer) {
     try{
     const initMaps=mesh=>{for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])for(const value of Object.values(material))if(value?.isTexture)renderer.initTexture(value);};
     // Settle every branch before enabling a retry: never overlap preparation runs.
-    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
+    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps,(source,kind,name)=>memory?.install(source,kind,name)),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
     const rejected=results.find(result=>result.status==='rejected');if(rejected)throw rejected.reason;
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     const groundDeadline=performance.now()+15000;
@@ -262,11 +275,15 @@ if (renderer) {
     historyStatus.hidden=introLocked||!closing||!!history?.ready;
     historyStatus.querySelector('span').textContent=historyError?'历史文字暂未准备好，可重试':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
-    renderer.render(scene, camera);
+    if(memoryPreview&&!introLocked){
+      memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
+      historyStatus.hidden=!memoryText||!!history?.ready;
+      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,viewport:view,dt:reduced.matches?0:dt,showText:memoryText});
+      canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
+    }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
   document.addEventListener('visibilitychange', () => {previous=performance.now();renderer.setAnimationLoop(document.hidden ? null : frame);});
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();renderer.setAnimationLoop(null);});
   canvas.addEventListener('webglcontextrestored',()=>{previous=performance.now();renderer.setAnimationLoop(frame);});
 }
-
