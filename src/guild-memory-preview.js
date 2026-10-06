@@ -8,17 +8,16 @@ export function renderMemoryPreview({scene,renderer,camera,memory,history,entryP
   const entryBlend=entryPose?memoryEntryProgress(progress):1;
   const departing=!!entryPose&&entryBlend<.6;
   visibility.forEach(([object,value])=>{
-   // Keep the original map fixed and visible; only replace the live member chain.
+   // The map/world roots stay where they are and remain renderable while the
+   // camera departs. Only the live member chain is replaced by its captured copy.
    if(object===memory.group)object.visible=true;
-   else if(departureGroups.includes(object)||object===history?.group)object.visible=false;
+   else if(object.name==='opening-monument'||departureGroups.includes(object)||object===history?.group)object.visible=false;
    else object.visible=value;
   });
   const state=Number.isFinite(progress)?sampleMemoryStory(progress):{eventIndex:index,eventOpacity:1};
   memory.setPreview(state.eventIndex);memory.update({...state,entryPose,entryBlend,showText,reducedMotion},camera,dt);
-  const fade=Math.min(1,Math.max(0,(entryBlend-.48)/.5));
-  const fogColor=original.fog?.color||new T.Color(0x0a101b);
-  scene.fog=departing?new T.FogExp2(fogColor,original.fog?.density||.0018):new T.FogExp2(fogColor.clone().lerp(new T.Color(0x0a101b),fade),(original.fog?.density||.0018)+fade*.008);
-  scene.background=original.background?.isColor?original.background.clone().lerp(new T.Color(0x0a101b),fade):new T.Color(0x0a101b);
+  // Leaving terrain is produced solely by camera motion, never by map fading.
+  scene.fog=original.fog;scene.background=original.background;
   if(showText&&history)history.update({...state,target:memory.shot.target},camera,viewport);
   renderer.render(scene,camera);
  }finally{

@@ -36,7 +36,7 @@ if (renderer) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
-  const openingMonument=createMonument();scene.add(openingMonument);
+  const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
@@ -231,7 +231,9 @@ if (renderer) {
     const departureCamera=closing?camera.clone():null;
     if(departureCamera){departureCamera.position.fromArray(state.entryPose.position);departureCamera.up.fromArray(state.entryPose.up);departureCamera.lookAt(...state.entryPose.target);departureCamera.updateMatrixWorld();}
     companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera:departureCamera}:null);
-    if(closing&&chapter.historyT<4/36)memory.captureEntry?.(companionship.group,departureCamera);
+    const entryKey=closing?JSON.stringify([state.entryPose.position,state.entryPose.target,camera.aspect]):null;
+    if(!closing)memory.group.userData.entryCaptured=null;
+    if(closing&&memory.group.userData.entryCaptured!==entryKey){memory.captureEntry?.(companionship.group,departureCamera);memory.group.userData.entryCaptured=entryKey;}
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
     if(closing&&people){
       people.group.traverse(object=>{

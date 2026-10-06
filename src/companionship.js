@@ -55,7 +55,7 @@ export function createCompanionship(scene){
   if(!original)return; // Garden may still be detached while its ground is prepared.
   const nativeRotation=new T.Quaternion(),nativeScale=new T.Vector3();original.world.decompose(new T.Vector3(),nativeRotation,nativeScale);
   const material=source.material.clone(),mesh=new T.InstancedMesh(geometry,material,1);
-  mesh.name='companion-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+  mesh.userData.assetKey=key;mesh.name='companion-'+key;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   const twist=new T.Quaternion().setFromEuler(new T.Euler((index%3-1)*.13,(index%4-1.5)*.06,(index-6)*.075));
   const finalScale=new T.Vector3().setScalar(FLOWER_SPECS[index][3]/Math.max(size.x,size.y,size.z));
   const extras=null; // Allocate the optional courtyard pool only on route entry.

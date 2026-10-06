@@ -1,16 +1,21 @@
 import * as T from 'three';
 const smooth=v=>{const u=T.MathUtils.clamp(v,0,1);return u*u*u*(10+u*(-15+6*u));};
 export function memoryEntryProgress(t){return smooth(t*36/4);}
-// Raise and retreat the camera; the original world remains fixed in place.
+// A stationary story space beyond the final map. Never parent it to the camera.
+export function memoryEntryFrame(entry){
+ const frame=new T.Matrix4();if(!entry)return frame;
+ const rotation=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),-Math.PI/2);
+ const arrival=new T.Vector3(...entry.position).add(new T.Vector3(280,260,130));
+ const origin=arrival.sub(new T.Vector3(0,3,190).applyQuaternion(rotation));
+ return frame.compose(origin,rotation,new T.Vector3(1,1,1));
+}
 export function applyMemoryEntry(camera,group,entry,u){
- group.matrixAutoUpdate=false;group.matrix.identity();
- if(!entry||u>=1){group.updateMatrixWorld(true);return;}
- const reference=camera.matrixWorld.clone(),referenceInverse=camera.matrixWorldInverse.clone();
- const origin=new T.Vector3(...entry.position),start=new T.PerspectiveCamera();
- start.position.copy(origin);start.up.fromArray(entry.up||[0,1,0]);start.lookAt(...entry.target);start.updateMatrixWorld();
- const lifted=origin.clone().add(new T.Vector3(0,280,0)).addScaledVector(new T.Vector3(0,0,1).applyQuaternion(start.quaternion),105);
- if(u<.6)camera.position.copy(origin).lerp(lifted,smooth(u/.6));
- else camera.position.copy(lifted).lerp(new T.Vector3().setFromMatrixPosition(reference),smooth((u-.6)/.4));
- camera.quaternion.copy(start.quaternion).slerp(new T.Quaternion().setFromRotationMatrix(reference),smooth((u-.35)/.65));
- camera.updateMatrixWorld();group.matrix.multiplyMatrices(camera.matrixWorld,referenceInverse);group.updateMatrixWorld(true);
+ group.matrixAutoUpdate=false;group.matrix.copy(memoryEntryFrame(entry));group.updateMatrixWorld(true);
+ if(!entry)return;
+ const destination=camera.position.clone().applyMatrix4(group.matrix);
+ const finalRotation=new T.Quaternion().setFromRotationMatrix(group.matrix).multiply(camera.quaternion);
+ const start=new T.PerspectiveCamera();start.position.fromArray(entry.position);start.up.fromArray(entry.up||[0,1,0]);start.lookAt(...entry.target);start.updateMatrixWorld();
+ const origin=start.position,control1=origin.clone().add(new T.Vector3(65,185,35)),control2=destination.clone().add(new T.Vector3(-95,-10,-30));
+ camera.position.copy(new T.CubicBezierCurve3(origin,control1,control2,destination).getPoint(T.MathUtils.clamp(u,0,1)));
+ camera.quaternion.copy(start.quaternion).slerp(finalRotation,smooth((u-.08)/.84));camera.updateMatrixWorld();
 }

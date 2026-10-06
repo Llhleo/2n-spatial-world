@@ -1,10 +1,10 @@
 import * as T from 'three';
-import {applyMemoryEntry} from './guild-memory-entry.js';
+import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
- const entrySources=new Map();
+ const entrySources=new Map();let entryView=null;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
@@ -35,30 +35,42 @@ export function createMemoryScene({mobile=true}={}){
   if(disposed||layout)return;
   for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
   layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:2.2}))});
+  rebuildPools();
+ }
+ function rebuildPools(){
+  for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
    const material=asset.source.material.clone();material.fog=false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
   }
  }
  function captureEntry(sourceGroup,entryCamera){
-  prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();
-  const ref=new T.PerspectiveCamera();ref.position.set(0,3,190);ref.lookAt(0,0,-14);ref.updateMatrixWorld();
-  const frame=new T.Matrix4().multiplyMatrices(ref.matrixWorld,entryCamera.matrixWorldInverse),captured=new Map();
+  prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();entryView=entryCamera.clone();
+  const entry={position:entryCamera.position.toArray(),target:entryCamera.position.clone().add(new T.Vector3(0,0,-1).applyQuaternion(entryCamera.quaternion)).toArray()};
+  const frame=memoryEntryFrame(entry).invert(),captured=new Map();
   sourceGroup.traverse(mesh=>{if(!mesh.isInstancedMesh||!mesh.visible||!mesh.count)return;
-   for(const [key,asset] of sources){if(mesh.geometry!==asset.source.geometry)continue;
+   const assetKey=mesh.userData.assetKey||mesh.name.replace(/^(companion|courtyard)-/,'');
+   for(const [key,asset] of sources){if(assetKey!==key&&mesh.geometry!==asset.source.geometry)continue;
+    mesh.geometry.computeBoundingSphere();const sphere=mesh.geometry.boundingSphere;
     if(!captured.has(key))captured.set(key,[]);
     for(let i=0;i<mesh.count;i++){const local=new T.Matrix4();mesh.getMatrixAt(i,local);const world=new T.Matrix4().multiplyMatrices(mesh.matrixWorld,local);if(new T.Vector3().setFromMatrixScale(world).length()<1e-6)continue;
-     const matrix=new T.Matrix4().multiplyMatrices(frame,world),position=asset.center.clone().applyMatrix4(matrix),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);captured.get(key).push({position,quaternion,scale});
+     const position=sphere.center.clone().applyMatrix4(world),screen=position.clone().project(entryCamera);
+     if(Math.abs(screen.x)>1.4||Math.abs(screen.y)>1.4||screen.z>1)continue;
+     const matrix=new T.Matrix4().multiplyMatrices(frame,world),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);
+     scale.multiplyScalar(sphere.radius/asset.source.geometry.boundingSphere.radius);
+     captured.get(key).push({position:position.applyMatrix4(frame),quaternion,scale,branch:screen.y>0?0:1,x:screen.x});
     }
    }
   });
-  for(const [key,asset] of sources){
-   const starts=(captured.get(key)||[]).sort((a,b)=>a.position.x-b.position.x);
-   const targets=layout.anchors.filter(a=>a.key===key).sort((a,b)=>memoryPoint(a,0)[0]-memoryPoint(b,0)[0]);
-   const assigned=Array(targets.length).fill(null);
-   starts.slice(0,targets.length).forEach((pose,i)=>{assigned[i]=pose;});entrySources.set(key,assigned);
+  for(const branch of [0,1]){
+   const starts=[...captured].flatMap(([key,poses])=>poses.filter(p=>p.branch===branch).map(p=>({...p,key}))).sort((a,b)=>a.x-b.x);
+   const targets=layout.anchors.filter(a=>a.branch===branch).sort((a,b)=>a.u-b.u);
+   const kept=starts.slice(-targets.length),offset=targets.length-kept.length;
+   kept.forEach((pose,i)=>{const anchor=targets[offset+i];anchor.key=pose.key;entrySources.set(anchor.id,pose);});
   }
+  rebuildPools();
  }
+
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
  function update(state,camera,dt=0){
   if(disposed)return;prepare();group.visible=!!layout?.anchors.length;time+=Math.min(.05,Math.max(0,dt));
@@ -97,6 +109,9 @@ export function createMemoryScene({mobile=true}={}){
    delta.copy(p).sub(q);const distance=delta.length(),clearance=a.radius+b.radius+.65;
    if(distance<clearance){if(distance<1e-8)delta.set(1,.1,.1).normalize();else delta.divideScalar(distance);const correction=(clearance-distance)*.5;p.addScaledVector(delta,correction);q.addScaledVector(delta,-correction);}
   }
+  const flightCamera=camera.clone(),flightFrame=new T.Group();
+  if(state?.entryPose)applyMemoryEntry(flightCamera,flightFrame,state.entryPose,state.entryBlend??1);
+  const storyInverse=flightFrame.matrix.clone().invert();
   for(const pool of pools.values()){
    let count=0;
    for(const [slot,a] of pool.anchors.entries()){point.copy(locations.get(a.id));
@@ -106,9 +121,22 @@ export function createMemoryScene({mobile=true}={}){
     const balance=1+(Math.max(.65,Math.min(1.2,Math.pow(depth/reference,.4)))-1)*eased(phase-1);
     scale.setScalar(pool.factor*balance);
     if(state?.entryPose&&state.entryBlend<1){
-     const start=entrySources.get(a.key)?.[slot],u=state.entryBlend;
-     if(start){point.lerp(start.position,1-u);rotation.slerp(start.quaternion,1-u);scale.lerp(start.scale,1-u);}
-     else scale.multiplyScalar(eased((u-.1)/.8));
+     const start=entrySources.get(a.id),u=state.entryBlend;
+     // Track the moving camera through world space, with a separate sliding
+     // coordinate for every follower. The story root itself never follows it.
+     const delay=start?.0:.18+.16*(1-a.u),travel=eased((u-delay)/(1-delay));
+     const destination=point.clone().applyMatrix4(camera.matrixWorldInverse);
+     const origin=start&&entryView?start.position.clone().applyMatrix4(flightFrame.matrix).applyMatrix4(entryView.matrixWorldInverse):destination.clone();
+     if(!start)origin.x=-Math.abs(origin.z)*Math.tan(T.MathUtils.degToRad(camera.fov/2))*camera.aspect*(1.6+2*(1-a.u));
+     // Interpolate angular positions, keeping the head in the visible height
+     // band while depth and the camera's physical position change continuously.
+     const depth=T.MathUtils.lerp(-origin.z,-destination.z,travel);
+     point.set(T.MathUtils.lerp(origin.x/-origin.z,destination.x/-destination.z,travel)*depth,T.MathUtils.lerp(origin.y/-origin.z,destination.y/-destination.z,travel)*depth,-depth);
+     point.applyMatrix4(flightCamera.matrixWorld).applyMatrix4(storyInverse);
+     if(start){const worldStart=new T.Quaternion().setFromRotationMatrix(flightFrame.matrix).multiply(start.quaternion);
+      const tracked=new T.Quaternion().setFromRotationMatrix(flightFrame.matrix).invert().multiply(flightCamera.quaternion).multiply(entryView.quaternion.clone().invert()).multiply(worldStart);
+      rotation.slerp(tracked,1-travel);scale.lerp(start.scale,1-travel);}
+
     }
     matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
@@ -116,5 +144,5 @@ export function createMemoryScene({mobile=true}={}){
   }
   applyMemoryEntry(camera,group,state?.entryPose,state?.entryBlend??1);
  }
- return {group,install,prepare,captureEntry,setPreview,update,get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){return layout?.shots[preview];},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,captureEntry,setPreview,update,get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
 }
