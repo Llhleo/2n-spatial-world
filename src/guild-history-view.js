@@ -5,10 +5,10 @@ export function createHistoryView(events,route){
  const group=new T.Group();group.name='guild-history';group.visible=false;
  const readingBounds=new T.Box3();let prepared=false,disposed=false,inflight=null,revision=0;
  let viewport={width:414,height:896};const cards=[];
- const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,toneMapped:false,uniforms:{opacity:{value:0}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform float opacity;void main(){vec2 p=(v-.5)*2.;float a=1.-smoothstep(.25,1.,length(p));gl_FragColor=vec4(.025,.035,.03,a*opacity);}'}));shade.renderOrder=1;group.add(shade);
+ const shade=new T.Mesh(new T.PlaneGeometry(1,1),new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,toneMapped:false,uniforms:{opacity:{value:0}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform float opacity;void main(){vec2 p=(v-.5)*2.;float a=1.-smoothstep(.25,1.,length(p));gl_FragColor=vec4(.025,.035,.03,a*opacity);}'}));shade.renderOrder=1;group.add(shade);
  events.forEach(event=>{const card=new T.Group();group.add(card);cards.push(card);for(const [tier,content] of [['date',event.date.replaceAll('-','.')],['title',event.title],['body',event.body]]){
   const text=new Text();text.text=content;text.fontSize=1;text.anchorX='left';text.anchorY='bottom';text.lineHeight=1.45;text.whiteSpace='normal';text.overflowWrap='break-word';text.color=0xf4f0df;text.strokeWidth=0;text.sdfGlyphSize=256;text.gpuAccelerateSDF=false;text.renderOrder=2;text.userData.tier=tier;
-  Object.assign(text.material,{transparent:true,depthWrite:false,depthTest:false,fog:false,toneMapped:false,opacity:0});card.add(text);
+  Object.assign(text.material,{transparent:true,depthWrite:false,depthTest:true,fog:false,toneMapped:false,opacity:0});card.add(text);
  }});
  function measure(text){const b=text.textRenderInfo?.glyphBounds;if(!b?.length)throw new Error('历史文字字形尚未准备好');return {minX:Math.min(...Array.from(b).filter((_,i)=>i%4===0)),maxX:Math.max(...Array.from(b).filter((_,i)=>i%4===2)),minY:Math.min(...Array.from(b).filter((_,i)=>i%4===1)),maxY:Math.max(...Array.from(b).filter((_,i)=>i%4===3))};}
  function reshape(font,timeoutMs){const jobs=[];for(const card of cards)for(const text of card.children){

@@ -20,7 +20,6 @@ import {hellPose} from '../src/hell-production.js';
 import {scrollProgress} from '../src/viewport.js';
 import {createClosureView} from '../src/guild-closure-view.js';
 import {createMonument} from '../src/monument.js';
-import {createMemoryText} from '../src/guild-memory-text.js';
 import {renderMemoryPreview} from '../src/guild-memory-preview.js';
 
 const api=await import('../src/people-story.js').catch(()=>({}));
@@ -114,7 +113,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={createMemoryText,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,setPreview(){},update(_,camera){camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,setPreview(){},update(_,camera){camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
@@ -368,10 +367,10 @@ test('opening failure retry button starts a fresh settled preparation without re
 });
 
 
- test('native history stays readable during optional 3D font failure and retry',async()=>{
+ test('history failure retries in place while preceding world remains unlocked',async()=>{
  const app=entry({reduced:true,historyFailure:true});await app.settle();app.open();app.tick();
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(1);app.tick();
- assert.equal(app.elements.get('world').dataset.loadingIntro,'false');assert.equal(app.elements.get('history-status').hidden,true);assert.equal(app.elements.get('preview-section').hidden,false);
+ assert.equal(app.elements.get('world').dataset.loadingIntro,'false');assert.equal(app.elements.get('history-status').hidden,false);
  const before=app.elements.get('world').dataset.progress;app.events.get('retry-history:click')({stopPropagation(){}});await app.settle();app.tick();
  assert.equal(app.calls.historyPrepare,2);assert.equal(app.elements.get('history-status').hidden,true);assert.equal(app.elements.get('world').dataset.progress,before);
  app.events.get('autoplay:click')({stopPropagation(){}});app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.elements.get('autoplay').textContent,'自动播放');assert.equal(app.elements.get('world').dataset.progress,'0.000');

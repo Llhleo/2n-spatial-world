@@ -9,7 +9,6 @@ import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createHistoryView} from './guild-history-view.js';
 import {createMemoryScene} from './guild-memory-scene.js';
-import {createMemoryText} from './guild-memory-text.js';
 import {renderMemoryPreview} from './guild-memory-preview.js';
 import {normalizeHistory} from './guild-history-data.js';
 import historyData from '../content/history.json';
@@ -39,7 +38,6 @@ if (renderer) {
   const scene = new THREE.Scene();
   const openingMonument=createMonument();scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
-  const memoryTextView=historyRecords.errors.length?null:createMemoryText(historyRecords.events,document);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
@@ -225,7 +223,7 @@ if (renderer) {
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
     const closing=chapter.chapter==='history';
-    if(history){history.group.visible=false;if(closing&&!memoryTextView)history.update(state,camera,view);}
+    if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
     if(gpuReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
@@ -242,7 +240,7 @@ if (renderer) {
     replayButton.hidden=introLocked||!closing||!state.replayVisible;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
-    const readingPixelRatio=Math.min(devicePixelRatio,returnProgress>.95?2:1.5);
+    const readingPixelRatio=Math.min(devicePixelRatio,(memoryPreview||closing)?2.5:returnProgress>.95?2:1.5);
     if(renderer.getPixelRatio()!==readingPixelRatio)renderer.setPixelRatio(readingPixelRatio);
     if(returnProgress>0&&scene.fog){const blend=THREE.MathUtils.smoothstep(returnProgress,0,.12);scene.fog.density=THREE.MathUtils.lerp(scene.fog.density,.0015,blend);}
     names.update(progress>HERO_END&&progress<RETURN_START?camera:-1);
@@ -282,13 +280,12 @@ if (renderer) {
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
     if(memoryPreview&&!introLocked){
       memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
-      historyStatus.hidden=!!memoryTextView||!memoryText||!!history?.ready;
-      renderMemoryPreview({scene,renderer,camera,memory,history,textView:memoryTextView,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
+      historyStatus.hidden=!memoryText||!!history?.ready;
+      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&memory.assetCount===14){
-      historyStatus.hidden=!!memoryTextView||!!history?.ready;
-      renderMemoryPreview({scene,renderer,camera,memory,history,textView:memoryTextView,progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true});
-    }else {memoryTextView?.hide();renderer.render(scene, camera);}
+      renderMemoryPreview({scene,renderer,camera,memory,history,progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true});
+    }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
   document.addEventListener('visibilitychange', () => {previous=performance.now();renderer.setAnimationLoop(document.hidden ? null : frame);});

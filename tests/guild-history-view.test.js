@@ -13,6 +13,8 @@ test('history view measures wrapped text and publishes one warm-white station wi
  try{view=api.createHistoryView(events,route);await view.prepare();const count=view.group.children.length;
  for(const [width,height] of [[414,896],[896,414],[280,600]]){view.resize({width,height});await view.prepare();const cam=new T.PerspectiveCamera(48,width/height,.2,2400),s=sampleHistory(route,1,cam.aspect);cam.position.fromArray(s.position);cam.up.fromArray(s.up);cam.lookAt(...s.target);cam.updateMatrixWorld();view.update(s,cam,{width,height});
  const visible=[];view.group.traverse(o=>{if(o instanceof Text&&o.parent.visible&&o.visible)visible.push(o);});assert.equal(visible.length,3);assert.ok(visible.every(o=>!o.strokeWidth&&o.color===0xf4f0df));
+ assert.ok(visible.every(o=>o.material.depthTest===true&&o.material.depthWrite===false),"foreground petals must occlude text using scene depth");
+ assert.equal(view.group.children[0].material.depthTest,true,"shade must not wash over foreground petals");
  for(const text of visible){const b=text.textRenderInfo.glyphBounds;for(let i=0;i<b.length;i+=4)for(const x of [b[i],b[i+2]])for(const y of [b[i+1],b[i+3]]){const p=new T.Vector3(x,y,0).applyMatrix4(text.matrixWorld).project(cam);assert.ok(Math.abs(p.x)<=1-60/width+1e-6&&Math.abs(p.y)<=.4+1e-6);}}
  const leftEdges=visible.map(text=>{const b=text.textRenderInfo.glyphBounds;const x=Math.min(...Array.from(b).filter((_,i)=>i%4===0));return new T.Vector3(x,0,0).applyMatrix4(text.matrixWorld).project(cam).x;});
  assert.ok(Math.max(...leftEdges)-Math.min(...leftEdges)<1e-6,'date, title and body share a left edge');

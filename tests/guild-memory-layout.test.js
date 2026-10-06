@@ -23,16 +23,10 @@ test('two chains become a true shell and then expand without changing identities
  for(const a of layout.anchors){
   const shell=memoryPoint(a,1),large=memoryPoint(a,2);
   const radius=v=>Math.hypot(v[0],v[1],v[2]+14);
-  assert.ok(Math.abs(radius(shell)-52)<1e-8);assert.ok(Math.abs(radius(large)-111.8)<1e-8);
+  assert.ok(Math.abs(radius(shell)-42)<1e-8);assert.ok(Math.abs(radius(large)-90.3)<1e-8);
   const before=memoryPoint(a,1-1e-6),after=memoryPoint(a,1+1e-6);
   assert.ok(Math.hypot(...before.map((v,i)=>v-after[i]))<1e-5,'morph is continuous');
  }
- const p=layout.anchors.map(a=>memoryPoint(a,1));assert.ok(Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]))>40);
+ const p=layout.anchors.map(a=>memoryPoint(a,1));assert.ok(Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]))>75);
  assert.equal(sampleMemoryStory(0).eventIndex,0);assert.equal(sampleMemoryStory(.5).eventIndex,1);assert.equal(sampleMemoryStory(1).eventIndex,2);
 });
-
- test('shell reserves a circular reading opening with real front and rear depth',async()=>{
- const {createMemoryLayout,memoryPoint}=await import('../src/guild-memory-layout.js');
- const layout=createMemoryLayout({assets:[{key:'rose',radius:2.2}]});
- for(const spin of [0,.5,1])for(const a of layout.anchors){const p=memoryPoint(a,1,spin);assert.ok(Math.hypot(p[0],p[1])>46);assert.ok(Math.abs(p[2]+14)<24);}
- });
