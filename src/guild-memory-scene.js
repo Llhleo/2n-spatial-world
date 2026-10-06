@@ -4,7 +4,7 @@ import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
- const entrySources=new Map();let entryView=null;
+ const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
@@ -41,52 +41,33 @@ export function createMemoryScene({mobile=true}={}){
   for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
-   const material=asset.source.material.clone();material.fog=false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
+   const material=(entrySources.get(anchors[0].id)?.material||asset.source.material).clone();material.fog=entrySources.size?entrySources.get(anchors[0].id)?.material.fog!==false:false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
   }
  }
  function captureEntry(sourceGroup,entryCamera){
   prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();entryView=entryCamera.clone();
   const entry={position:entryCamera.position.toArray(),target:entryCamera.position.clone().add(new T.Vector3(0,0,-1).applyQuaternion(entryCamera.quaternion)).toArray()};
-  const frame=memoryEntryFrame(entry).invert(),captured=new Map();
-  sourceGroup.traverse(mesh=>{if(!mesh.isInstancedMesh||!mesh.visible||!mesh.count)return;
-   const assetKey=mesh.userData.assetKey||mesh.name.replace(/^(companion|courtyard)-/,'');
-   for(const [key,asset] of sources){if(assetKey!==key&&mesh.geometry!==asset.source.geometry)continue;
-    mesh.geometry.computeBoundingSphere();const sphere=mesh.geometry.boundingSphere;
-    if(!captured.has(key))captured.set(key,[]);
-    for(let i=0;i<mesh.count;i++){const local=new T.Matrix4();mesh.getMatrixAt(i,local);const world=new T.Matrix4().multiplyMatrices(mesh.matrixWorld,local);if(new T.Vector3().setFromMatrixScale(world).length()<1e-6)continue;
-     const position=sphere.center.clone().applyMatrix4(world),screen=position.clone().project(entryCamera);
-     if(Math.abs(screen.x)>1.4||Math.abs(screen.y)>1.4||screen.z>1)continue;
-     const matrix=new T.Matrix4().multiplyMatrices(frame,world),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);
-     scale.multiplyScalar(sphere.radius/asset.source.geometry.boundingSphere.radius);
-     captured.get(key).push({position:position.applyMatrix4(frame),quaternion,scale,viewPosition:sphere.center.clone().applyMatrix4(world).applyMatrix4(entryCamera.matrixWorldInverse),branch:screen.y>0?0:1,x:screen.x});
-    }
+  const frame=memoryEntryFrame(entry).invert(),records=[];
+  if(sourceGroup.userData.departureAnchors)records.push(...sourceGroup.userData.departureAnchors);
+  else sourceGroup.traverse(mesh=>{
+   if(!mesh.isInstancedMesh||!mesh.visible)return;
+   const key=mesh.userData.assetKey||mesh.name.replace(/^(companion|courtyard)-/,'');if(!sources.has(key))return;
+   mesh.geometry.computeBoundingSphere();
+   for(let slot=0;slot<mesh.count;slot++){
+    const matrix=new T.Matrix4();mesh.getMatrixAt(slot,matrix);matrix.premultiply(mesh.matrixWorld);
+    if(new T.Vector3().setFromMatrixScale(matrix).length()<1e-6)continue;
+    const screen=mesh.geometry.boundingSphere.center.clone().applyMatrix4(matrix).project(entryCamera);
+    records.push({id:mesh.userData.anchorIds?.[slot]||`${key}-${slot}`,key,branch:screen.y>0?0:1,order:slot,worldMatrix:matrix,geometry:mesh.geometry,material:mesh.material});
    }
   });
-  for(const branch of [0,1]){
-   const starts=[...captured].flatMap(([key,poses])=>poses.filter(p=>p.branch===branch).map(p=>({...p,key}))).sort((a,b)=>a.x-b.x);
-   const targets=layout.anchors.filter(a=>a.branch===branch).sort((a,b)=>a.u-b.u);
-   // Keep actual members at their screen spacing; fill intervening slots
-   // instead of parking every captured petal at the far end of a new chain.
-   const known=new Map(),head=starts.at(-1);let previousSlot=targets.length;
-   for(const pose of starts.slice().reverse()){
-    const slot=Math.min(previousSlot-1,targets.length-1-Math.round((head.x-pose.x)/.17));
-    if(slot<0)continue;previousSlot=slot;targets[slot].key=pose.key;known.set(slot,pose);
-   }
-   const slots=[...known.keys()].sort((a,b)=>a-b);
-   const angular=p=>new T.Vector3(p.x/-p.z,p.y/-p.z,-p.z);
-   for(const [slot,anchor] of targets.entries()){
-    if(known.has(slot)){entrySources.set(anchor.id,known.get(slot));continue;}
-    const lo=slots.filter(i=>i<slot).at(-1),hi=slots.find(i=>i>slot);
-    const first=known.get(lo??hi),second=known.get(hi??lo);let view;
-    if(first){
-     view=angular(first.viewPosition);
-     if(lo!==undefined&&hi!==undefined)view.lerp(angular(second.viewPosition),(slot-lo)/(hi-lo));
-     else view.x+=(slot-(lo??hi))*.17*Math.tan(T.MathUtils.degToRad(entryCamera.fov/2))*entryCamera.aspect;
-     view.set(view.x*view.z,view.y*view.z,-view.z);
-    }else view=new T.Vector3((anchor.u*4.6-2.8)*90*Math.tan(T.MathUtils.degToRad(entryCamera.fov/2))*entryCamera.aspect,(branch===0?1:-1)*90*.32,-90);
-    const asset=sources.get(anchor.key),radius=first?sources.get(first.key).source.geometry.boundingSphere.radius*first.scale.x:2.2;
-    entrySources.set(anchor.id,{viewPosition:view,position:view.clone().applyMatrix4(entryCamera.matrixWorld).applyMatrix4(frame),quaternion:new T.Quaternion().setFromRotationMatrix(frame).multiply(entryCamera.quaternion).multiply(asset.face),scale:new T.Vector3().setScalar(radius/asset.source.geometry.boundingSphere.radius)});
-   }
+  const existing=records.filter(a=>sources.has(a.key));
+  layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:2.2})),chains:existing});
+  for(const record of existing){
+   record.geometry.computeBoundingSphere();const sphere=record.geometry.boundingSphere,asset=sources.get(record.key);
+   const matrix=new T.Matrix4().multiplyMatrices(frame,record.worldMatrix),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);
+   scale.multiplyScalar(sphere.radius/asset.source.geometry.boundingSphere.radius);
+   const position=sphere.center.clone().applyMatrix4(record.worldMatrix);
+   entrySources.set(record.id,{position:position.clone().applyMatrix4(frame),quaternion,scale,material:record.material,viewPosition:position.applyMatrix4(entryCamera.matrixWorldInverse)});
   }
   rebuildPools();
  }
@@ -105,6 +86,9 @@ export function createMemoryScene({mobile=true}={}){
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
   dustMaterial.uniforms.color.value.copy(color);
   for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
+  lightBlend=state?.entryPose?eased(((state.entryBlend??0)-.9)/.1):1;
+  ambient.intensity=1.15*lightBlend*(terrainVisible?0:1);key.intensity=2.8*lightBlend*(terrainVisible?0:1);fill.intensity=1.2*lightBlend*(terrainVisible?0:1);
+  // Keep captured material fog stable: toggling it creates a color discontinuity.
   const locations=new Map(),expand=eased(phase-1);
   // Different periods and phases, centered so the shell itself never bobs.
   const bob=a=>(1.8+1.4*a.u)*Math.sin(time*(.72+a.u*.36+a.branch*.07)+a.u*17+a.branch*2.3);
@@ -147,7 +131,6 @@ export function createMemoryScene({mobile=true}={}){
      const travel=eased(u);
      const destination=point.clone().applyMatrix4(camera.matrixWorldInverse);
      const origin=start?.viewPosition?.clone()||destination.clone();
-     if(!start)origin.x=-Math.abs(origin.z)*Math.tan(T.MathUtils.degToRad(camera.fov/2))*camera.aspect*(1.6+2*(1-a.u));
      // Interpolate angular positions, keeping the head in the visible height
      // band while depth and the camera's physical position change continuously.
      const depth=T.MathUtils.lerp(-origin.z,-destination.z,travel);
@@ -164,5 +147,5 @@ export function createMemoryScene({mobile=true}={}){
   }
   applyMemoryEntry(camera,group,state?.entryPose,state?.entryBlend??1);
  }
- return {group,install,prepare,captureEntry,setPreview,update,get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,captureEntry,setPreview,update,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...shot.target).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
 }

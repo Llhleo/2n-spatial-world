@@ -102,7 +102,7 @@ function entry({constructionError=false,preparationError=false,reduced=false,lat
  let complete;
  let frame,resize,oldReady=false,now=0,scrollY=0,currentReduced=reduced;
  const resource=()=>({group:new THREE.Group(),ready:true,prepare:async()=>{},update(){},resize(){},capture(){},install(){},prepared:7,displayPrepared:14});
- const companion=resource();let openingAttempts=0;companion.prepare=async()=>{openingAttempts++;if(openingFailure&&openingAttempts===1)throw new Error('network interrupted');};companion.update=(...args)=>calls.companion.push(args);
+ const companion=resource();companion.captureChain=()=>[];let openingAttempts=0;companion.prepare=async()=>{openingAttempts++;if(openingFailure&&openingAttempts===1)throw new Error('network interrupted');};companion.update=(...args)=>calls.companion.push(args);
  const gallery=galleryFactory?galleryFactory():resource();
  if(!galleryFactory){gallery.ready=false;gallery.error=null;
  gallery.glyphMetrics={members:[]};

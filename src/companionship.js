@@ -151,7 +151,32 @@ export function createCompanionship(scene){
   const opacity=T.MathUtils.smoothstep(t,.952,.962)*chapterHandoff(route,peopleT).footprints;
   for(const label of labels){label.visible=opacity>0;label.material.opacity=opacity;}
  }
- return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{},onDisplay=()=>{}){
+ // Capture animation data, not the compacted GPU draw list. Offscreen anchors
+ // retain identity and full geometry; already drawn instances retain exact poses.
+ function captureChain(camera){
+  camera.updateMatrixWorld();group.updateMatrixWorld(true);
+  const candidates=[];
+  for(const [key,batch] of batches){
+   const {mesh,extras,index,face,center}=batch,geometry=mesh.geometry;
+   const maximum=Math.max(...geometry.boundingBox.getSize(new T.Vector3()).toArray());
+   const rendered=new Map();for(const [slot,id] of (extras?.userData.anchorIds||[]).entries()){const m=new T.Matrix4();extras.getMatrixAt(slot,m);rendered.set(id,m.premultiply(extras.matrixWorld));}
+   for(const p of anchorGroups.get(index)||[]){
+    const position=new T.Vector3(...p.position),local=position.clone().applyMatrix4(camera.matrixWorldInverse),depth=-local.z;
+    const screen=position.clone().project(camera);
+    if(depth<35||depth>200||Math.abs(screen.y)<.35||Math.abs(screen.y)>1.4||screen.x>1.5)continue;
+    const breath=petalBreath(p.id,ornamentTime,anchorRoute?.viewport?.height??896,p.depth);
+    position.add(new T.Vector3(0,breath.offset,0).applyQuaternion(new T.Quaternion(...p.quaternion)));
+    const quaternion=new T.Quaternion(...p.quaternion).multiply(new T.Quaternion().setFromAxisAngle(sideAxis,breath.angle)).multiply(face);
+    const worldMatrix=rendered.get(p.id)||new T.Matrix4().compose(position,quaternion,new T.Vector3().setScalar(p.scale[0]/maximum)).multiply(new T.Matrix4().makeTranslation(-center.x,-center.y,-center.z)).premultiply(group.matrixWorld);
+    candidates.push({id:p.id,key,branch:screen.y>0?0:1,order:screen.x,worldMatrix,geometry,material:mesh.material});
+   }
+  }
+  // Existing neighboring tails only: no interpolation, duplication or padding.
+  const limit=(anchorRoute?.viewport?.width??414)<700?28:42;
+  group.userData.departureAnchors=[0,1].flatMap(branch=>candidates.filter(p=>p.branch===branch).sort((a,b)=>b.order-a.order).slice(0,limit).reverse());
+  return group.userData.departureAnchors;
+ }
+ return {get displayPrepared(){return displayAssets.size;},group,install,installDisplay,update,captureChain,resize(aspect){layoutScale=setReadingAspect(aspect);for(const label of labels)label.scale.setScalar(layoutScale);previous=NaN;},capture(){for(const asset of assets.values())install(asset.source,asset.kind,asset.name);if(batches.size!==14)throw new Error('起飞花瓣尚未准备完整');},get ready(){return prepared&&batches.size===14;},async prepare(onPrepared=()=>{},onDisplay=()=>{}){
   if(prepared)return;
   await Promise.all([...labels.map(text=>prepareWorldText(text)),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`${import.meta.env?.BASE_URL||'/'}assets/companion-display/${name}.glb`,100);onPrepared(source);installDisplay(source,kind,name);onDisplay(source,kind,name);})]);prepared=true;
  },dispose(){for(const {mesh,extras,displayOwned} of batches.values()){mesh.material.dispose();if(displayOwned)mesh.geometry.dispose();mesh.dispose();extras?.dispose();}for(const label of labels)label.dispose();}};

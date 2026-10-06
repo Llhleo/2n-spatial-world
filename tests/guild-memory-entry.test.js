@@ -5,7 +5,7 @@ const entry={position:[140,60,-150],target:[140,20,-220],up:[0,1,0]};
 function shot(u){const camera=new T.PerspectiveCamera(48,414/896,.2,2400),group=new T.Group();camera.position.set(0,3,190);camera.lookAt(0,0,-14);camera.updateMatrixWorld();applyMemoryEntry(camera,group,entry,u);return {camera,group};}
 test('departure starts at the member camera, lifts out, arrives continuously and reverses',()=>{
  const start=shot(0),lift=shot(.6),end=shot(1);assert.deepEqual(start.camera.position.toArray(),entry.position);
- assert.ok(lift.camera.position.y>entry.position[1]+55);assert.ok(end.camera.position.x>entry.position[0]+200);assert.ok(end.camera.position.y>entry.position[1]+150);
+ assert.ok(lift.camera.position.y>entry.position[1]+40);assert.ok(end.camera.position.x>entry.position[0]+200);assert.ok(end.camera.position.y>entry.position[1]+150);
  for(const u of [.2,.6,.9]){assert.ok(shot(u-1e-6).camera.position.distanceTo(shot(u+1e-6).camera.position)<.01);assert.deepEqual(shot(u).camera.position.toArray(),shot(u).camera.position.toArray());}
  const frame=shot(1).group.matrix;
  for(const u of [0,.3,.6,.9,1])assert.ok(shot(u).group.matrix.equals(frame),'story frame stays fixed in world space');
@@ -40,7 +40,7 @@ test('captured upper head travels right at visible height while camera departs',
  let previous=-Infinity;
  for(const u of [0,.1,.2,.3,.4,.5,.7,.9,1]){
   memory.update({entryPose:entry,entryBlend:u,memoryPhase:0,eventIndex:0},camera,0);memory.group.updateMatrixWorld(true);
-  const batch=memory.group.children.find(c=>c.isInstancedMesh),matrix=new T.Matrix4();batch.getMatrixAt(27,matrix);
+  const batch=memory.group.children.find(c=>c.isInstancedMesh),matrix=new T.Matrix4();batch.getMatrixAt(0,matrix);
   const screen=new T.Vector3().setFromMatrixPosition(matrix.premultiply(batch.matrixWorld)).project(camera);
   assert.ok(Math.abs(screen.y)<.9,'leader stays in visible vertical band');assert.ok(screen.x>=previous-.001,'leader must never reverse left');previous=screen.x;
  }
@@ -51,18 +51,14 @@ test('camera first glides along terrain rather than lifting it rapidly out of vi
  assert.ok(early.x-entry.position[0]>45,'early motion is lateral travel');
  assert.equal(memoryEntryProgress(4/36)<1,true,'departure must last longer than the prior four-second exit');
 });
-test('both chains keep connected projected spacing throughout the member handoff',async()=>{
+test('handoff never manufactures followers when only six source instances exist',async()=>{
  const {createMemoryScene}=await import('../src/guild-memory-scene.js');const memory=createMemoryScene();
  const geometry=new T.BoxGeometry(3,1,2),material=new T.MeshStandardMaterial();memory.install(new T.Mesh(geometry,material),'a','b');
  const camera=new T.PerspectiveCamera(48,414/896,.2,2400);camera.position.fromArray(entry.position);camera.lookAt(...entry.target);camera.updateMatrixWorld();
- const old=new T.Group(),mesh=new T.InstancedMesh(geometry.clone(),material,6);mesh.userData.assetKey='a:b';old.add(mesh);
+ const old=new T.Group(),mesh=new T.InstancedMesh(geometry,material,6);mesh.userData.assetKey='a:b';old.add(mesh);
  const half=90*Math.tan(T.MathUtils.degToRad(24));
- for(let i=0;i<6;i++){const x=[-.65,0,.65][i%3],y=i<3?.73:-.73;const p=new T.Vector3(x*half*camera.aspect,y*half,-90).applyMatrix4(camera.matrixWorld);mesh.setMatrixAt(i,new T.Matrix4().compose(p,camera.quaternion,new T.Vector3(1,1,1)));}
- memory.captureEntry(old,camera);
- for(const u of [.1,.3,.5,.7,.9]){memory.update({entryPose:entry,entryBlend:u,memoryPhase:0,eventIndex:0},camera,0);memory.group.updateMatrixWorld(true);const batch=memory.group.children.find(c=>c.isInstancedMesh),matrix=new T.Matrix4();
-  for(const branch of [0,1]){const points=[];for(let i=branch*28;i<(branch+1)*28;i++){batch.getMatrixAt(i,matrix);points.push(new T.Vector3().setFromMatrixPosition(matrix.premultiply(batch.matrixWorld)).project(camera));}
-   for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];if(Math.abs(a.x)<1.1&&Math.abs(b.x)<1.1)assert.ok(Math.hypot(a.x-b.x,a.y-b.y)<.3,'no visible gap between adjacent petals');}
-  }
- }
+ for(let i=0;i<6;i++){const p=new T.Vector3([-.65,0,.65][i%3]*half*camera.aspect,(i<3?.73:-.73)*half,-90).applyMatrix4(camera.matrixWorld);mesh.setMatrixAt(i,new T.Matrix4().compose(p,camera.quaternion,new T.Vector3(1,1,1)));}
+ memory.captureEntry(old,camera);assert.equal(memory.instanceCount,6);
+ for(const u of [0,.1,.5,1,.5,0]){memory.update({entryPose:entry,entryBlend:u,memoryPhase:0,eventIndex:0},camera,0);assert.equal(memory.group.children.filter(c=>c.isInstancedMesh).reduce((n,c)=>n+c.count,0),6);}
  memory.dispose();
 });

@@ -7,7 +7,23 @@ import {loadPetalCatalog} from './petal-loader.js';
 import {motionPath} from './motion-path.js';
 const hash=n=>{const a=Math.sin(n*89.17+41.3)*43758.5453;return a-Math.floor(a);};
 export const HELL_POPULATION={darkmark:[120,168],corruption:[96,132]};
-export const createHellGround=()=>createRegionGround(1280,1740,'florr-hell-ground');
+export function createHellGround(){
+ const ground=createRegionGround(1280,1740,'florr-hell-ground');
+ // Add a closed static body below the original top. Do not touch top vertices,
+ // normals, colors or the shared Garden/Ocean/Jungle ground factory.
+ const top=ground.geometry.attributes.position,nz=69,nx=81,perimeter=[];
+ for(let i=0;i<nx;i++)perimeter.push(i*nz);
+ for(let j=1;j<nz;j++)perimeter.push((nx-1)*nz+j);
+ for(let i=nx-2;i>=0;i--)perimeter.push(i*nz+nz-1);
+ for(let j=nz-2;j>0;j--)perimeter.push(j);
+ const pos=[],colors=[],indices=[],originalColors=ground.geometry.attributes.color;
+ const bottom=Math.min(...Array.from({length:top.count},(_,i)=>top.getY(i)))-32;
+ for(const i of perimeter){pos.push(top.getX(i),top.getY(i),top.getZ(i),top.getX(i),bottom,top.getZ(i));const c=new T.Color().fromBufferAttribute(originalColors,i);colors.push(c.r*.65,c.g*.65,c.b*.65,c.r*.25,c.g*.25,c.b*.25);}
+ const n=perimeter.length,center=n*2;pos.push((1280+1740)/2,bottom,(-365+330)/2);colors.push(.035,.008,.01);
+ for(let i=0;i<n;i++){const a=i*2,b=((i+1)%n)*2;indices.push(a,b,a+1,b,b+1,a+1,a+1,b+1,center);}
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+ const body=new T.Mesh(geometry,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}));body.name='hell-static-land-body';ground.add(body);return ground;
+}
 export function hellSurface(x,z){
  if(x<1280)return jungleSurface(x,z);
  const dx=460/80,dz=695/68,ix=Math.max(0,Math.min(79,Math.floor((x-1280)/dx))),iz=Math.max(0,Math.min(67,Math.floor((z+365)/dz)));
