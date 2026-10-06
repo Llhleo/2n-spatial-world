@@ -7,8 +7,10 @@
 | [项目状态](../PROJECT_STATUS.md) | 最新版本、已完成项与未完成项 |
 | [Codex 交接](../CODEX_HANDOFF.md) | 从现有成果接续开发 |
 | [Pages 发布记录](2026-10-05-pages-release.md) | 当前正式发布与源码基线 |
+| [工会历史发布](2026-10-05-guild-history-release.md) | 当前 Sites 运行时、审核与下一步 |
+| [v49 独立结尾](2026-10-05-guild-closure-v49.md) | 历史原型，金属收尾已停用 |
 | [v48 长链恢复](2026-10-05-v45-chain-restore.md) | 最近运行时修改；v47 固定两排已否决 |
-| [公会故事提案](2026-10-05-guild-story-proposal.md) | 下一章节具体设计，待确认、未实现 |
+| [公会故事提案](2026-10-05-guild-story-proposal.md) | 早期提案；当前已批准规格与实现见工会历史发布记录 |
 | [仓库维护规则](REPOSITORY_GUIDE.md) | 目录职责、分支和清理边界 |
 | [人物文案规则](../content/README.md) | 只在 people.json 编辑已核实内容 |
 

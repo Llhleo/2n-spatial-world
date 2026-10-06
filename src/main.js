@@ -1,12 +1,18 @@
+import {limitManualHistoryEntry,manualHistoryEntryEnd} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
 import {preparePeopleDistance} from './people-distance.js';
 import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
+import {createHistoryView} from './guild-history-view.js';
+import {createMemoryScene} from './guild-memory-scene.js';
+import {renderMemoryPreview} from './guild-memory-preview.js';
+import {normalizeHistory} from './guild-history-data.js';
+import historyData from '../content/history.json';
 import {createCompanionship} from './companionship.js';
 import {createLoadingIntro,attachIntroInput,allBiomesReady} from './loading-intro.js';
 import {warmBiomeResources} from './biome-warmup.js';
@@ -31,7 +37,25 @@ if (renderer) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const scene = new THREE.Scene();
-  scene.add(createMonument());
+  const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
+  const historyRecords=normalizeHistory(historyData);
+  const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
+  const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
+  if(memory)scene.add(memory.group);
+  let memoryIndex=0,memoryText=true;
+  const memoryControls=memoryPreview?document.createElement('nav'):null;
+  if(memoryControls){
+    memoryControls.className='memory-preview-controls';memoryControls.setAttribute('aria-label','工会故事构图预览');memoryControls.hidden=true;
+    const label=document.createElement('span');label.textContent='滑动阅读';memoryControls.append(label);
+    ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===3?memoryText:index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;scrollTo({top:[.14,.52,.86][index]*viewport().range,behavior:'smooth'});[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
+    document.body.append(memoryControls);
+  }
+  let history=null,historyPreparing=false,historyError=null;
+  if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
+  async function prepareHistory(){
+    if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
+    try{await history.prepare();}catch(error){historyError=error;}finally{historyPreparing=false;}
+  }
   createLighting(scene, renderer);
   createRevealLight(scene);
   const atmosphereRig=atmosphere(scene, matchMedia('(max-width: 700px)').matches);
@@ -63,7 +87,7 @@ if (renderer) {
     try{
     const initMaps=mesh=>{for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])for(const value of Object.values(material))if(value?.isTexture)renderer.initTexture(value);};
     // Settle every branch before enabling a retry: never overlap preparation runs.
-    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
+    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps,(source,kind,name)=>memory?.install(source,kind,name)),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
     const rejected=results.find(result=>result.status==='rejected');if(rejected)throw rejected.reason;
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     const groundDeadline=performance.now()+15000;
@@ -75,6 +99,7 @@ if (renderer) {
       warming=false;preparingAll=false;
       // Do not compete with the old opening's model decode and GPU preparation.
       if(gpuReady&&!peopleStarted)void preparePeople();
+      if(gpuReady)void prepareHistory();
     }
   }
   void prepareEverything();
@@ -86,8 +111,11 @@ if (renderer) {
   const arrival = document.querySelector('#arrival');
   const loading=document.querySelector('#loading-status'),retry=document.querySelector('#retry-models');
   const peopleStatus=document.querySelector('#people-status'),peopleRetry=document.querySelector('#retry-people');
+  const historyStatus=document.querySelector('#history-status'),historyRetry=document.querySelector('#retry-history');
+  historyRetry.addEventListener('click',event=>{event.stopPropagation();void prepareHistory();});
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
+  const replayButton=document.querySelector('#replay');
   let player=createAutoplay(autoplayDuration(peopleRoute));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
@@ -119,20 +147,24 @@ if (renderer) {
     renderer.setSize(next.width,next.height);
     camera.aspect=next.width/next.height;camera.updateProjectionMatrix();
     companionship.resize(camera.aspect);
+    history?.resize(next);
+    if(gpuReady)void prepareHistory();
     let nextScroll=retained;
     if(people){
-      const token=old&&chapterAt(progress).peopleT>0?capturePeoplePosition(peopleRoute,chapterAt(progress).peopleT):null;
+      const currentChapter=chapterAt(progress);
+      const token=old&&currentChapter.chapter==='people'?capturePeoplePosition(peopleRoute,currentChapter.peopleT):null;
       const nextRoute=people.resize(camera.aspect,next.height);
       if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress,nextRoute);}
       adoptPeopleRoute(nextRoute);
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
     if(old&&controlled)scrollTo({top:nextScroll*next.range,behavior:'instant'});
-  },TOTAL_UNITS);
+  },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
-    if(event?.target?.closest?.('#autoplay'))return;
-    if(event?.type!=='wheel'&&event?.target?.closest?.('#retry-people'))return;
+    if(memoryPreview){controlled=true;player.pause();return;}
+    if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
+    if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
     player.pause();
     if (!controlled) {
@@ -151,12 +183,19 @@ if (renderer) {
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
+  replayButton.addEventListener('click',event=>{
+    event.stopPropagation();if(introLocked)return;
+    player.pause();progress=0;auto=0;controlled=true;
+    scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
+  });
   attachIntroInput(window,()=>introLocked,()=>{});
   function frame(now) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
     const view=viewport();
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
-    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked;
+    const memoryReady=memoryPreview&&memory.assetCount===14;
+    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked&&!memoryReady;
+    if(memoryReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
@@ -168,7 +207,7 @@ if (renderer) {
     // Initial reduced-motion landing is not a permanent scroll lock. Preference
     // changes hold the current shot; manual reduced-motion reads sample directly.
     const initialEnding=startAtEnding&&!introLocked&&!controlled;
-    const requested=initialEnding?1:controlled?scroll:reduced.matches?progress:auto;
+    const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?scroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
     if(!wasPlaying){
       if(reduced.matches)progress=target;
@@ -176,7 +215,13 @@ if (renderer) {
         // Damp the physical distance coordinate, then sample its inverse. Time
         // damping would reintroduce the hold/transfer sensitivity cliff.
         const current=storyToScroll(progress,peopleRoute);
-        progress=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+        const candidate=scrollToStory(current+(requested-current)*(1-Math.exp(-dt*5)),peopleRoute);
+        const before=progress;
+        progress=initialEnding?candidate:limitManualHistoryEntry(progress,candidate,dt);
+        if(!initialEnding&&before<manualHistoryEntryEnd&&progress>=manualHistoryEntryEnd&&target>manualHistoryEntryEnd){
+          // Discard the fling overshoot at the first readable story event.
+          scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
+        }
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
@@ -184,14 +229,30 @@ if (renderer) {
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
+    const closing=chapter.chapter==='history';
+    if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
+    if(gpuReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute);
+    const departureCamera=closing?camera.clone():null;
+    if(departureCamera){departureCamera.position.fromArray(state.entryPose.position);departureCamera.up.fromArray(state.entryPose.up);departureCamera.lookAt(...state.entryPose.target);departureCamera.updateMatrixWorld();}
+    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera:departureCamera}:null);
+    const entryKey=closing?JSON.stringify([state.entryPose.position,state.entryPose.target,camera.aspect]):null;
+    if(!closing)memory.group.userData.entryCaptured=null;
+    if(closing&&memory.group.userData.entryCaptured!==entryKey){companionship.captureChain(departureCamera);memory.captureEntry?.(companionship.group,departureCamera);memory.group.userData.entryCaptured=entryKey;}
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
+    if(closing&&people){
+      people.group.traverse(object=>{
+        const materials=Array.isArray(object.material)?object.material:[object.material];
+        for(const material of materials){if(!material)continue;if(material.uniforms?.opacity)material.uniforms.opacity.value*=state.peopleOpacity;else material.opacity*=state.peopleOpacity;}
+      });
+      people.group.visible=people.group.visible&&state.peopleOpacity>0;
+    }
+    replayButton.hidden=introLocked||!closing||!state.replayVisible;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
-    const readingPixelRatio=Math.min(devicePixelRatio,returnProgress>.95?2:1.5);
+    const readingPixelRatio=Math.min(devicePixelRatio,(memoryPreview||closing)?2.5:returnProgress>.95?2:1.5);
     if(renderer.getPixelRatio()!==readingPixelRatio)renderer.setPixelRatio(readingPixelRatio);
     if(returnProgress>0&&scene.fog){const blend=THREE.MathUtils.smoothstep(returnProgress,0,.12);scene.fog.density=THREE.MathUtils.lerp(scene.fog.density,.0015,blend);}
     names.update(progress>HERO_END&&progress<RETURN_START?camera:-1);
@@ -200,9 +261,10 @@ if (renderer) {
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
     canvas.dataset.camera=JSON.stringify(state.position);
-    canvas.dataset.biome=chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
+    canvas.dataset.biome=closing?'history':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
     canvas.dataset.returnProgress=returnProgress.toFixed(3);
     canvas.dataset.peopleProgress=peopleProgress.toFixed(3);
+    canvas.dataset.historyProgress=chapter.historyT.toFixed(3);
     canvas.dataset.hellPetals=world.hellPetalStatus;
     canvas.dataset.loadingIntro=String(introLocked);canvas.dataset.junglePetals=world.junglePetalStatus;
     canvas.dataset.gardenAssets=world.gardenStatus;
@@ -221,11 +283,21 @@ if (renderer) {
     const galleryReady=!!people?.ready;
     // Read the gallery getter every frame: late sync can clear a prior timeout.
     const galleryFailed=!galleryReady&&!!(people?.error||peopleError);
-    peopleStatus.hidden=introLocked||progress<(STORY_UNITS-2)/28||galleryReady;
+    peopleStatus.hidden=introLocked||closing||progress<(STORY_UNITS-2)/28||galleryReady;
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
-    renderer.render(scene, camera);
+    historyStatus.hidden=introLocked||!closing||!!history?.ready;
+    historyStatus.querySelector('span').textContent=historyError?'历史文字暂未准备好，可重试':'正在准备公会历史，可继续滑动';
+    historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
+    if(memoryPreview&&!introLocked){
+      memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
+      historyStatus.hidden=!memoryText||!!history?.ready;
+      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
+      canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
+    }else if(closing&&memory.assetCount===14){
+      renderMemoryPreview({scene,renderer,camera,memory,history,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
+    }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
   document.addEventListener('visibilitychange', () => {previous=performance.now();renderer.setAnimationLoop(document.hidden ? null : frame);});

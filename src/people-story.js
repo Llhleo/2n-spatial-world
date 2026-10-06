@@ -6,29 +6,38 @@ import {gardenPose} from './garden-path.js';
 import {oceanPose} from './ocean-production.js';
 import {junglePose} from './jungle-production.js';
 import {hellPose} from './hell-production.js';
+import {sampleCourtyard} from './people-courtyard.js';
+import {HISTORY_UNITS,HISTORY_SECONDS,sampleHistoryForData,historyTimeToDistance,historyDistanceToTime} from './guild-history-route.js';
+import historyData from '../content/history.json' with {type:'json'};
 
-export const TOTAL_UNITS=STORY_UNITS+PEOPLE_UNITS;
+export const LEGACY_TOTAL_UNITS=STORY_UNITS+PEOPLE_UNITS;
+export const TOTAL_UNITS=LEGACY_TOTAL_UNITS+HISTORY_UNITS;
 export {PEOPLE_UNITS};
-export const autoplayDuration=route=>150+(route?.seconds||0);
+export const autoplayDuration=route=>150+(route?.seconds||0)+HISTORY_SECONDS;
 const clamp=t=>Math.max(0,Math.min(1,t));
 // Keep the historical absolute coordinate: one progress unit is 28 scroll units.
 export function scrollToStory(t,route){
  const units=clamp(t)*TOTAL_UNITS;
+ if(units>=LEGACY_TOTAL_UNITS)return (LEGACY_TOTAL_UNITS+HISTORY_UNITS*historyDistanceToTime((units-LEGACY_TOTAL_UNITS)/HISTORY_UNITS))/28;
  return (units<=STORY_UNITS?units:STORY_UNITS+PEOPLE_UNITS*peopleDistanceToTime((units-STORY_UNITS)/PEOPLE_UNITS,route))/28;
 }
 export function storyToScroll(p,route){
  const units=clamp(p*28/TOTAL_UNITS)*TOTAL_UNITS;
+ if(units>=LEGACY_TOTAL_UNITS)return (LEGACY_TOTAL_UNITS+HISTORY_UNITS*historyTimeToDistance((units-LEGACY_TOTAL_UNITS)/HISTORY_UNITS))/TOTAL_UNITS;
  return (units<=STORY_UNITS?units:STORY_UNITS+PEOPLE_UNITS*peopleTimeToDistance((units-STORY_UNITS)/PEOPLE_UNITS,route))/TOTAL_UNITS;
 }
 
 // The player stores time only; scroll remains the historical physical coordinate.
 export function autoplayToScroll(fraction,route){
  const seconds=clamp(fraction)*autoplayDuration(route);
+ const before=150+(route?.seconds||0);
+ if(seconds>=before)return storyToScroll((LEGACY_TOTAL_UNITS+HISTORY_UNITS*clamp((seconds-before)/HISTORY_SECONDS))/28,route);
  return seconds<=150 ? seconds/150*STORY_UNITS/TOTAL_UNITS
   : storyToScroll((STORY_UNITS+PEOPLE_UNITS*clamp((seconds-150)/(route?.seconds||1)))/28,route);
 }
 export function scrollToAutoplay(scroll,route){
  const units=scrollToStory(scroll,route)*28;
+ if(units>=LEGACY_TOTAL_UNITS)return (150+(route?.seconds||0)+(units-LEGACY_TOTAL_UNITS)/HISTORY_UNITS*HISTORY_SECONDS)/autoplayDuration(route);
  return (units<=STORY_UNITS ? units/STORY_UNITS*150 : 150+(units-STORY_UNITS)/PEOPLE_UNITS*(route?.seconds||0))/autoplayDuration(route);
 }
 export function capturePeoplePosition(route,t){
@@ -46,15 +55,21 @@ export function chapterAt(progress){
  // A normalized scroll round-trip can put the old endpoint a few ulps ahead.
  const inPeople=p*28>STORY_UNITS+1e-9;
  const peopleT=inPeople?clamp((p*28-STORY_UNITS)/PEOPLE_UNITS):0;
+ const historyT=clamp((p*28-LEGACY_TOTAL_UNITS)/HISTORY_UNITS);
  const returnT=clamp((p-RETURN_START)/(RETURN_UNITS/28));
  const heroT=clamp(p/(6/28)),worldT=clamp((p-6/28)/(8/28));
- const chapter=inPeople?'people':p>=RETURN_START?'lookback':p<=6/28?'hero':p<=14/28?'garden':p<=20/28?'ocean':p<=24/28?'jungle':'hell';
- return {chapter,peopleT,returnT,heroT,worldT};
+ const chapter=p*28>LEGACY_TOTAL_UNITS+1e-9?'history':inPeople?'people':p>=RETURN_START?'lookback':p<=6/28?'hero':p<=14/28?'garden':p<=20/28?'ocean':p<=24/28?'jungle':'hell';
+ return {chapter,peopleT,historyT,returnT,heroT,worldT};
 }
 
 /** Absolute sampling on the existing camera; no readiness or viewport history. */
 export function sampleStoryPose(progress,camera,portrait,route){
- const {chapter,peopleT,returnT,heroT,worldT}=chapterAt(progress);
+ const {chapter,peopleT,historyT,returnT,heroT,worldT}=chapterAt(progress);
+ if(chapter==='history'){
+  const entry=route?sampleCourtyard(route,1,camera.aspect):lookbackPose(1,camera);
+  const state={...sampleHistoryForData(historyData,{...entry,up:entry.up||[0,1,0]},historyT,camera.aspect),entryPose:{...entry,up:entry.up||[0,1,0]}};
+  camera.position.fromArray(state.position);camera.up.fromArray(state.up);camera.lookAt(...state.target);return state;
+ }
  if(chapter==='people')return peoplePose(peopleT,camera,camera.aspect,route);
  // The old samplers were authored against world-up and share this camera.
  camera.up.set(0,1,0);
@@ -65,3 +80,4 @@ export function sampleStoryPose(progress,camera,portrait,route){
  if(chapter==='jungle')return junglePose((progress-20/28)/(4/28),camera);
  return hellPose((progress-24/28)/(4/28),camera);
 }
+
