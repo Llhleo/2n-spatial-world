@@ -42,3 +42,13 @@
 代码：f97bf75f727e19965a0d3a2cf7e80cc56adb26a3；Sites 来源：6b4e96e15785220129dfa2338b2aa83250a38f63；部署 appgdep_6ac49a47ca2481919294b009fa2ece91 已成功。
 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1。
 已移除使球体变方的屏幕矩形位置推移，增加可感知的长链呼吸，平衡第三幕前景尺寸。减少动态效果保留低幅呼吸并关闭自转。37 项相关测试和构建通过；真实手机视觉验收待用户反馈。详细记录 docs/2026-10-06-memory-motion-fix.md。main / Pages 不变。
+
+
+## 2026-10-06: story reading aperture, crisp text and original petal colors
+
+- Runtime GitHub commit: c19fe9bf1aaf31c655da0a7db55d3aa238fb1d5c, experiment/lookback-v2 only.
+- Sites pushed source: 7b6fdcdf50449ed3a24bdc2d1b676f7f82270714.
+- Successful deployment: appgdep_6ac4ab6e75e48191968a8c930159e380.
+- Preview: https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+- Native DOM story text replaces active SDF draw (which remains fallback); no dark reading shade over HD petals. Open spherical belt targets reserve the central reading space while maintaining real front/rear depth and continuous chains/shell/expansion. Neutral white light and fog-free cloned story materials preserve source colors; dust/beam accents remain colored.
+- 40 targeted checks pass; Vite build passes. Real-phone visual acceptance pending. Do not alter main/Pages. Detail: docs/2026-10-06-memory-reading-fix.md.
