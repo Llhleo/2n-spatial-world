@@ -25,3 +25,13 @@
 - 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；直达故事预览：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
 - 正式故事和预览均支持滑动切换文字与立体包围，同一批高清花瓣连续迁移；main / Pages 未改。
 - 后续：先做真实手机视觉验收，再安排花朵点缀和人物到故事入口的衔接润色；不可重新制作已完成的开头、五境或人物模块。
+
+
+## 2026-10-06 · 三阶段故事已发布
+
+- 代码提交：880339973a01f8d8f07cae79eaa2de2438c86da5
+- Sites 来源：1b88e1a41bd394ebdd96adad8ef3e2f5aaa4c204
+- 部署：appgdep_6ac487ec397081919a901fc91f036d4f，succeeded
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；故事直达：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+- 双链交错 → 球壳包围慢转 → 扩展停转、呼吸浮动。日期/标题/正文共同靠左；尘埃连续保留。35 项相关测试及构建通过。
+- 待办：真实手机视觉反馈、花朵点缀、人物至故事入口润色。不要重做已完成部分，不修改 main / Pages 或旧 2n 仓库。

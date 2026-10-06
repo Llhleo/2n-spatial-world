@@ -9,3 +9,13 @@
 验证：故事、文字、场景与人物衔接相关 35 项测试通过，包括实际绘制实例间距、身份保留、连续变形、反向采样、资源生命周期和三层文字左边缘一致。生产构建通过。真实 iPhone Safari 视觉验收尚未进行。
 
 仅更新 experiment/lookback-v2 和原 Sites；不修改 main、GitHub Pages、旧仓库 Llhleo/2n。保留开头、五境及人物展示。下一步先进行手机视觉反馈，再安排花朵点缀和人物至故事入口的进一步润色。
+
+
+## 2026-10-06 · 三阶段故事已发布
+
+- 代码提交：880339973a01f8d8f07cae79eaa2de2438c86da5
+- Sites 来源：1b88e1a41bd394ebdd96adad8ef3e2f5aaa4c204
+- 部署：appgdep_6ac487ec397081919a901fc91f036d4f，succeeded
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site；故事直达：https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
+- 双链交错 → 球壳包围慢转 → 扩展停转、呼吸浮动。日期/标题/正文共同靠左；尘埃连续保留。35 项相关测试及构建通过。
+- 待办：真实手机视觉反馈、花朵点缀、人物至故事入口润色。不要重做已完成部分，不修改 main / Pages 或旧 2n 仓库。
