@@ -40,9 +40,9 @@ export function loadModelScene(url,priority=0){
   try{return (await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Model decoding timed out')),90000);})])).scene;}finally{clearTimeout(timer);}
  },priority);
  // Every runtime GLB now uses the lossless transport manifest when available.
- // fetchAssetBytes verifies hash/length, falls back to the original GLB, and
- // persists the compressed object in Cache Storage without blocking Safari.
- const fetchBytes=async()=>{for(let attempt=0;attempt<(near?1:2);attempt++){try{return await fetchAssetBytes(url,{timeout:near?30000:20000});}catch(error){if(near||attempt===1)throw error;await later();}}};
+ // fetchAssetBytes chooses a size-aware timeout, verifies hash/length, falls
+ // back to the original GLB, and persists the compressed object in Cache Storage.
+ const fetchBytes=async()=>{for(let attempt=0;attempt<(near?1:2);attempt++){try{return await fetchAssetBytes(url);}catch(error){if(near||attempt===1)throw error;await later();}}};
  const promise=near?displayPipeline(fetchBytes,parse,priority):pipeline(fetchBytes,parse,priority);
  sceneCache.set(url,promise);promise.catch(()=>sceneCache.delete(url));return promise;
 }
