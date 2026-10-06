@@ -1,14 +1,16 @@
 import * as T from 'three';
+import {applyMemoryEntry} from './guild-memory-entry.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
+ const entrySources=new Map();
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
  const ambient=new T.AmbientLight(0xffffff,1.15);group.add(ambient);
  const key=new T.DirectionalLight(0xffffff,2.8);key.position.set(-28,35,55);group.add(key);
- const fill=new T.DirectionalLight(0xffffff,1.2);fill.position.set(30,-12,-30);group.add(fill);
+ const fill=new T.DirectionalLight(0xffffff,1.2);fill.position.set(30,-12,-30);group.add(fill);group.add(key.target,fill.target);
  const dustCount=mobile?240:480,positions=new Float32Array(dustCount*3),brightness=new Float32Array(dustCount);let seed=260206;
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<dustCount;i++){positions.set([(random()-.5)*130,(random()-.5)*100,-random()*180],i*3);brightness[i]=.25+random()*.5;}
@@ -37,6 +39,19 @@ export function createMemoryScene({mobile=true}={}){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
    const material=asset.source.material.clone();material.fog=false;const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
   }
+ }
+ function captureEntry(sourceGroup,entryCamera){
+  entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();
+  const ref=new T.PerspectiveCamera();ref.position.set(0,3,190);ref.lookAt(0,0,-14);ref.updateMatrixWorld();
+  const frame=new T.Matrix4().multiplyMatrices(ref.matrixWorld,entryCamera.matrixWorldInverse);
+  sourceGroup.traverse(mesh=>{if(!mesh.isInstancedMesh||!mesh.visible||!mesh.count)return;
+   for(const [key,asset] of sources){if(mesh.geometry!==asset.source.geometry)continue;
+    if(!entrySources.has(key))entrySources.set(key,[]);
+    for(let i=0;i<mesh.count;i++){const local=new T.Matrix4();mesh.getMatrixAt(i,local);const world=new T.Matrix4().multiplyMatrices(mesh.matrixWorld,local);if(new T.Vector3().setFromMatrixScale(world).length()<1e-6)continue;
+     const matrix=new T.Matrix4().multiplyMatrices(frame,world),position=asset.center.clone().applyMatrix4(matrix),quaternion=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(new T.Vector3(),quaternion,scale);entrySources.get(key).push({position,quaternion,scale});
+    }
+   }
+  });
  }
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
  function update(state,camera,dt=0){
@@ -78,15 +93,22 @@ export function createMemoryScene({mobile=true}={}){
   }
   for(const pool of pools.values()){
    let count=0;
-   for(const a of pool.anchors){point.copy(locations.get(a.id));
+   for(const [slot,a] of pool.anchors.entries()){point.copy(locations.get(a.id));
     rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist+(state?.reducedMotion?0:.035*(1-eased(phase))*Math.sin(time*.6+a.u*5))))).multiply(pool.face);
     const depth=Math.max(1,-point.clone().applyMatrix4(camera.matrixWorldInverse).z);
     const reference=camera.position.distanceTo(new T.Vector3(0,0,-14));
     const balance=1+(Math.max(.65,Math.min(1.2,Math.pow(depth/reference,.4)))-1)*eased(phase-1);
-    scale.setScalar(pool.factor*balance);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
+    scale.setScalar(pool.factor*balance);
+    if(state?.entryPose&&state.entryBlend<1){
+     const start=entrySources.get(a.key)?.[slot],u=state.entryBlend;
+     if(start){point.lerp(start.position,1-u);rotation.slerp(start.quaternion,1-u);scale.lerp(start.scale,1-u);}
+     else scale.multiplyScalar(eased((u-.1)/.8));
+    }
+    matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;
   }
+  applyMemoryEntry(camera,group,state?.entryPose,state?.entryBlend??1);
  }
- return {group,install,prepare,setPreview,update,get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){return layout?.shots[preview];},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,captureEntry,setPreview,update,get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){return layout?.shots[preview];},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
 }

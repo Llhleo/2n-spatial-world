@@ -228,7 +228,10 @@ if (renderer) {
     atmosphereRig.update(camera,heroProgress);
     if(heroProgress>.72)world.prepare();
     world.update(camera,worldProgress);
-    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera,exclusionBox:history?.readingBounds}:null);
+    const departureCamera=closing?camera.clone():null;
+    if(departureCamera){departureCamera.position.fromArray(state.entryPose.position);departureCamera.up.fromArray(state.entryPose.up);departureCamera.lookAt(...state.entryPose.target);departureCamera.updateMatrixWorld();}
+    companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera:departureCamera}:null);
+    if(closing&&chapter.historyT<4/36)memory.captureEntry?.(companionship.group,departureCamera);
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
     if(closing&&people){
       people.group.traverse(object=>{
@@ -284,7 +287,7 @@ if (renderer) {
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&memory.assetCount===14){
-      renderMemoryPreview({scene,renderer,camera,memory,history,progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true});
+      renderMemoryPreview({scene,renderer,camera,memory,history,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);

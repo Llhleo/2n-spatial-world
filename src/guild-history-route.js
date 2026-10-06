@@ -18,7 +18,7 @@ export function sampleHistory(route,t,aspect){
  // Keep the verified terrain shot. A slow 3% dolly supplies continuous motion
  // without a speculative lateral path leaving the finite terrain footprint.
  const dolly=1+.03*smooth(seconds/HISTORY_SECONDS);
- return {position:entry.position.map((v,i)=>entry.target[i]+(v-entry.target[i])*dolly),target:[...entry.target],up:[...entry.up],eventIndex,eventId:route.events[eventIndex].id,eventOpacity:opacity,peopleOpacity:1-smooth(seconds/4),reading:opacity===1,historyT:clamp(t),replayVisible:seconds>=28};
+ return {position:entry.position.map((v,i)=>entry.target[i]+(v-entry.target[i])*dolly),target:[...entry.target],up:[...entry.up],eventIndex,eventId:route.events[eventIndex].id,eventOpacity:opacity,peopleOpacity:1-smooth(seconds/1),reading:opacity===1,historyT:clamp(t),replayVisible:seconds>=28};
 }
 
 export function sampleHistoryForData(raw,entry,t,aspect){
