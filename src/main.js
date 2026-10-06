@@ -191,7 +191,9 @@ if (renderer) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
     const view=viewport();
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
-    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked;
+    const memoryReady=memoryPreview&&memory.assetCount===14;
+    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked&&!memoryReady;
+    if(memoryReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){

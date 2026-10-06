@@ -50,7 +50,7 @@ export function createMemoryScene({mobile=true}={}){
    for(const a of pool.anchors){point.fromArray(a.positions[index]);point.y+=Math.sin(time*.55+a.u*6+a.branch)*.12;
     const projection=point.clone().project(camera),depth=point.clone().applyMatrix4(camera.matrixWorldInverse).z;
     const pad=a.radius/Math.max(1,-depth)*2.5;
-    if(Math.abs(projection.x)<.76+pad&&Math.abs(projection.y)<.4+pad)continue;
+    if(state?.showText&&Math.abs(projection.x)<.76+pad&&Math.abs(projection.y)<.4+pad)continue;
     rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.10*Math.sin(a.u*9),a.twist,a.twist))).multiply(pool.face);
     scale.setScalar(pool.factor);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
