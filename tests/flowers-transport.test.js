@@ -10,15 +10,23 @@ test('lossless transport decompresses exact GLB bytes and subsequent visits avoi
  assert.equal(typeof transport.fetchAssetBytes,'function','compressed transport is missing');
  const bytes=Buffer.from('glTFexact-model-data'),packed=gzipSync(bytes),hash=createHash('sha256').update(bytes).digest('hex');
  const saved=new Map(),store={match:async key=>saved.get(key)?.clone(),put:async(key,value)=>saved.set(key,value.clone()),delete:async key=>saved.delete(key)};
- let downloads=0;const options={entry:{url:'/packed.gz',sha256:hash,bytes:bytes.length},store,fetcher:async()=>{downloads++;return new Response(packed);}};
+ let downloads=0;const options={entry:{url:'/packed.gz',sha256:hash,bytes:bytes.length,compressedBytes:packed.length},store,fetcher:async()=>{downloads++;return new Response(packed);}};
  assert.deepEqual(Buffer.from(await transport.fetchAssetBytes('/original.glb',options)),bytes);
  assert.deepEqual(Buffer.from(await transport.fetchAssetBytes('/original.glb',options)),bytes);assert.equal(downloads,1);
 });
 test('broken compressed or cached data recovers through the unchanged original model',async()=>{
  assert.equal(typeof transport.fetchAssetBytes,'function');
  const bytes=Buffer.from('glTForiginal'),hash=createHash('sha256').update(bytes).digest('hex'),urls=[];
- const result=await transport.fetchAssetBytes('/original.glb',{entry:{url:'/broken.gz',sha256:hash,bytes:bytes.length},store:{match:async()=>new Response('wrong'),delete:async()=>true,put:async()=>{}},fetcher:async url=>{urls.push(url);return new Response(url.includes('broken')?'corrupt':bytes);}});
+ const result=await transport.fetchAssetBytes('/original.glb',{entry:{url:'/broken.gz',sha256:hash,bytes:bytes.length,compressedBytes:7},store:{match:async()=>new Response('wrong'),delete:async()=>true,put:async()=>{}},fetcher:async url=>{urls.push(url);return new Response(url.includes('broken')?'corrupt':bytes);}});
  assert.deepEqual(Buffer.from(result),bytes);assert.deepEqual(urls,['/broken.gz','/original.glb']);
+});
+test('slow-network timeout scales with asset size and protects the largest flower',()=>{
+ assert.equal(typeof transport.transferTimeout,'function');
+ assert.equal(transport.transferTimeout(512*1024),30000);
+ assert.ok(transport.transferTimeout(8*1024*1024)>=70000);
+ assert.equal(transport.transferTimeout(20*1024*1024),90000);
+ assert.equal(flowers.mapFlowerPriority('07'),40);
+ assert.ok(flowers.mapFlowerPriority('01')>flowers.mapFlowerPriority('07'));
 });
 test('flower installation retains all face parts, exact requested counts and larger size',()=>{
  assert.equal(typeof flowers.createMapFlowers,'function','map flower placement is missing');
@@ -38,8 +46,8 @@ test('default autoplay completes the journey in 150 seconds and starts disabled'
 });
 
 test('stalled optional cache reads and writes cannot block a valid HD model',async()=>{
- const bytes=Buffer.from('glTFexact-hd-model'),hash=createHash('sha256').update(bytes).digest('hex');
- const never=()=>new Promise(()=>{}),entry={url:'/packed.gz',sha256:hash,bytes:bytes.length};
- const result=await transport.fetchAssetBytes('/original.glb',{entry,cacheTimeout:10,store:{match:never,put:never},fetcher:async()=>new Response(gzipSync(bytes))});
+ const bytes=Buffer.from('glTFexact-hd-model'),packed=gzipSync(bytes),hash=createHash('sha256').update(bytes).digest('hex');
+ const never=()=>new Promise(()=>{}),entry={url:'/packed.gz',sha256:hash,bytes:bytes.length,compressedBytes:packed.length};
+ const result=await transport.fetchAssetBytes('/original.glb',{entry,cacheTimeout:10,store:{match:never,put:never},fetcher:async()=>new Response(packed)});
  assert.deepEqual(Buffer.from(result),bytes);
 });

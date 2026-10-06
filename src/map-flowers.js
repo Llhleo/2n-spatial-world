@@ -23,6 +23,7 @@ function contactPoints(model){
   for(const i of indices)points.push(new T.Vector3().fromBufferAttribute(p,i).applyMatrix4(mesh.matrixWorld));
  });return points;
 }
+export const mapFlowerPriority=id=>id==='07'?40:150;
 export function createMapFlowers(){
  const group=new T.Group();group.name='map-flowers';const installed=new Set(),contacts=new Map(),target=new T.Object3D(),point=new T.Vector3();let prepared=0;
  function ground(root){let y=-Infinity;for(const p of contacts.get(root)){point.copy(p).applyQuaternion(root.quaternion);y=Math.max(y,surfaces[root.userData.region](root.position.x+point.x,root.position.z+point.z)-point.y);}root.position.y=Number.isFinite(y)?y:surfaces[root.userData.region](root.position.x,root.position.z);}
@@ -46,7 +47,7 @@ export function createMapFlowers(){
   }root.userData.facingReady=true;
  }}
  async function prepare(onPrepared=()=>{}){await Promise.all(['01','02','03','04','05','06','07'].map(async id=>{
-  if(installed.has(id))return;const model=await loadModelScene(`assets/map-flowers/${id}.glb`,150);
+  if(installed.has(id))return;const model=await loadModelScene(`assets/map-flowers/${id}.glb`,mapFlowerPriority(id));
   model.traverse(mesh=>{if(mesh.isMesh)onPrepared(mesh);});install(id,model);
  }));}
  return {group,install,update,prepare,get ready(){return installed.size===7;},get prepared(){return prepared;}};
