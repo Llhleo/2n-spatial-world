@@ -70,3 +70,12 @@ Runtime GitHub: 5ef7e818c1b0d01a5299fd6edde02cff4a6e4104. Sites source: ef3c6b20
 Deliver full-site root https://twon-dark-spatial-world.llhleo.chatgpt.site (story follows members); preview query remains optional. Stage-two rotation is .28 rad/s (2.8x prior) with continuous weighting. White directional/key/fill lights plus fog-free cloned models restore source colors without flattening geometry; dust/beams retain stage accents and shade is .22. Final petals bob individually in Y with differing periods/phases/amplitudes and mean-offset subtraction, holding the shell center fixed. Keep full spherical shell and foreground text depth occlusion.
 
 41 distinct relevant checks passed across targeted runs, including normal root three-stage integration, independent signed Y movement and stationary center, stopped final rotation, neutral light and unchanged original material colors; production build and archive integrity passed. Real phone visual acceptance pending. Main/Pages and earlier chapters unchanged. See docs/2026-10-06-memory-motion-integration.md.
+
+
+## 2026-10-06: continuous member-map departure into story
+
+Runtime GitHub 8233ed12202f1a98758de4c608b437400928a8f3. Sites source 0001a35def6a2e98d4c11772c9b877d1b079c0ee. Successful deployment appgdep_6ac4d72bbadc8191a2204d9dd4880e03. Root https://twon-dark-spatial-world.llhleo.chatgpt.site
+
+First four existing story seconds now lift/retreat from the actual last member camera, follow with captured HD chain instance poses, retire terrain through fog before traveling between coordinate spaces, and arrange the first story chains. First story text starts only after arrival. Member names fade in the first second. Absolute camera/frame sampling supports reverse and direct seek. Story lighting targets/dust/beams follow the same frame. Subsequent sphere/individual bobs unchanged. Standalone historyPreview intentionally has no map departure.
+
+44 distinct relevant checks pass across targeted runs, including actual original HD-instance initial world pose/scale and follow projection, start/end continuity, lift, world retirement/restoration, delayed text and normal root integration. Final build and archive integrity pass. Phone visual acceptance pending. Main/Pages unchanged. See docs/2026-10-06-members-to-story-transition.md.
