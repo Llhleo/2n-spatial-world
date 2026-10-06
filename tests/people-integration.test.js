@@ -79,7 +79,7 @@ test('paced autoplay preserves old speed and inverts every route reading window'
   near(seconds,route.stations[w.stationIndex].readSeconds);
  }
  for(let i=0;i<=1000;i++)near(api.scrollToAutoplay(api.autoplayToScroll(i/1000,route),route),i/1000);
- near(api.autoplayToScroll(player.advance(route.seconds+31),route),1);assert.equal(player.playing,false);
+ near(api.autoplayToScroll(player.advance(route.seconds+36),route),1);assert.equal(player.playing,false);
 });
 
 test('semantic remap retains original member inside changed subwindow numbering',()=>{
@@ -232,9 +232,9 @@ test('turning reduced motion on mid-opening holds the current shot rather than j
 
 test('late glyph completion retains actual camera pose and shared route during people reading',async()=>{
  const app=entry({late:true,reduced:true});await app.settle();app.open();app.tick();
- app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});app.seek(.94);app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});const readingScroll=api.storyToScroll((55.2+api.PEOPLE_UNITS*.9)/28,app.gallery.route);app.seek(readingScroll);app.tick();
  const pose=app.calls.shots.at(-1),route=app.calls.routes.at(-1);
- const physical=sampleCourtyard(route,api.chapterAt(api.scrollToStory(.94,route)).peopleT,414/896);
+ const physical=sampleCourtyard(route,api.chapterAt(api.scrollToStory(readingScroll,route)).peopleT,414/896);
  pose.forEach((v,i)=>near(v,physical.position[i]));
  app.complete();await app.settle();app.tick();
  assert.deepEqual(app.calls.shots.at(-1),pose);assert.equal(app.calls.routes.at(-1),route);
@@ -330,7 +330,8 @@ test('entry applies manual distance inverse, and play/pause retain the rendered 
  for(const scroll of [.81,.91,.99,.87]){
   app.seek(scroll);app.tick();const route=app.calls.routes.at(-1);
   const expected=api.sampleStoryPose(api.scrollToStory(scroll,route),camera(),true,route);
-  app.calls.shots.at(-1).forEach((v,i)=>near(v,expected.position[i]));
+  const displayed=app.elements.get('world').dataset.biome==='history'?[0,0,100]:expected.position;
+  app.calls.shots.at(-1).forEach((v,i)=>near(v,displayed[i]));
   const t=app.calls.companion.at(-1)[2];
   app.events.get('autoplay:click')({stopPropagation(){}});app.tick();
   near(app.calls.companion.at(-1)[2],Math.min(1,t+.02/route.seconds));

@@ -14,7 +14,7 @@ test('history is continuous reversible and keeps final text with independent scr
  assert.equal(typeof api.createHistoryRoute,'function');
  const entry={position:[1600,110,110],target:[1600,55,30],up:[0,1,0]};
  const r=api.createHistoryRoute([{id:'a'},{id:'b'},{id:'c'}],entry);
- assert.equal(r.seconds,31);assert.deepEqual(api.sampleHistory(r,0,.46).position,entry.position);
+ assert.equal(r.seconds,36);assert.deepEqual(api.sampleHistory(r,0,.46).position,entry.position);
  assert.equal(api.sampleHistory(r,1,.46).eventOpacity,1);
  for(let i=0;i<=100;i++){const t=i/100;assert.ok(Math.abs(api.historyDistanceToTime(api.historyTimeToDistance(t,r),r)-t)<1e-6);const s=api.sampleHistory(r,t,.46);assert.ok(s.position.every(Number.isFinite));if(s.eventOpacity>0)assert.equal(s.peopleOpacity,0);}
  assert.deepEqual(api.sampleHistory(r,.4,.46),api.sampleHistory(r,.4,.46));

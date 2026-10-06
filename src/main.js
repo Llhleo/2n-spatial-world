@@ -39,14 +39,14 @@ if (renderer) {
   const openingMonument=createMonument();scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
-  const memory=memoryPreview?createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches}):null;
+  const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
-  let memoryIndex=0,memoryText=false;
+  let memoryIndex=0,memoryText=true;
   const memoryControls=memoryPreview?document.createElement('nav'):null;
   if(memoryControls){
     memoryControls.className='memory-preview-controls';memoryControls.setAttribute('aria-label','工会故事构图预览');memoryControls.hidden=true;
-    const label=document.createElement('span');label.textContent='构图预览';memoryControls.append(label);
-    ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
+    const label=document.createElement('span');label.textContent='滑动阅读';memoryControls.append(label);
+    ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===3?memoryText:index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;scrollTo({top:[.14,.52,.86][index]*viewport().range,behavior:'smooth'});[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
     document.body.append(memoryControls);
   }
   let history=null,historyPreparing=false,historyError=null;
@@ -158,9 +158,10 @@ if (renderer) {
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
     if(old&&controlled)scrollTo({top:nextScroll*next.range,behavior:'instant'});
-  },TOTAL_UNITS);
+  },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
+    if(memoryPreview){controlled=true;player.pause();return;}
     if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
     if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
@@ -280,8 +281,10 @@ if (renderer) {
     if(memoryPreview&&!introLocked){
       memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
       historyStatus.hidden=!memoryText||!!history?.ready;
-      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,viewport:view,dt:reduced.matches?0:dt,showText:memoryText});
+      renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt:reduced.matches?0:dt,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
+    }else if(closing&&memory.assetCount===14){
+      renderMemoryPreview({scene,renderer,camera,memory,history,progress:chapter.historyT,viewport:view,dt:reduced.matches?0:dt,showText:true});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);

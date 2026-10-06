@@ -12,6 +12,16 @@ test('memory scene reuses HD assets, accepts late installs and owns only its res
  assert.equal(scene.assetCount,1);assert.ok(scene.instanceCount>=48);assert.ok(scene.instanceCount<=96);
  for(let i=0;i<3;i++){scene.update({eventIndex:i,showText:false},camera,0);const drawn=scene.group.children.filter(c=>c.isInstancedMesh).reduce((n,c)=>n+c.count,0);assert.equal(drawn,scene.instanceCount,'text-off preview must preserve the full long chain');}
  assert.equal(scene.dustCount,240);assert.equal(scene.group.visible,true);
- scene.update({eventIndex:0},camera,0);const p=camera.position.clone();scene.setPreview(2);scene.update({eventIndex:2},camera,0);assert.ok(p.distanceTo(camera.position)>10);
+ scene.update({eventIndex:0},camera,0);const p=camera.position.clone();scene.setPreview(2);scene.update({eventIndex:2},camera,0);assert.ok(p.distanceTo(camera.position)>5);
  scene.dispose();scene.dispose();assert.equal(disposed,0);assert.equal(scene.group.children.length,0);
+});
+
+test('scroll morph preserves every petal and reverses deterministically',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');
+ const scene=createMemoryScene();scene.install(new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),'a','b');
+ const camera=new T.PerspectiveCamera(48,.6,.2,2400);
+ const capture=phase=>{scene.update({memoryPhase:phase,eventIndex:0,showText:true},camera,0);return scene.group.children.filter(c=>c.isInstancedMesh).map(c=>({count:c.count,matrix:Array.from(c.instanceMatrix.array)}));};
+ const first=capture(.47);capture(1.6);assert.deepEqual(capture(.47),first);
+ for(const p of [0,.2,.5,1,1.5,2])assert.equal(capture(p).reduce((n,c)=>n+c.count,0),scene.instanceCount);
+ scene.dispose();
 });

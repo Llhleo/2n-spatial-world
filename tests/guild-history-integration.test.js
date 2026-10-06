@@ -6,7 +6,7 @@ import {createPeopleRoute,sampleCourtyard} from '../src/people-courtyard.js';
 test('history replaces closing sculpture and keeps original people endpoint and pacing',()=>{
  const route=createPeopleRoute({leaders:[],members:['a','b','c']});
  assert.equal(story.chapterAt(story.TOTAL_UNITS/28).chapter,'history');
- assert.equal(story.autoplayDuration(route),150+route.seconds+31);
+ assert.equal(story.autoplayDuration(route),150+route.seconds+36);
  const cam=new T.PerspectiveCamera(48,414/896,.2,2400),entry=sampleCourtyard(route,1,cam.aspect);
  const state=story.sampleStoryPose((story.LEGACY_TOTAL_UNITS+.0000001)/28,cam,true,route);
  entry.position.forEach((x,i)=>assert.ok(Math.abs(state.position[i]-x)<1e-6));

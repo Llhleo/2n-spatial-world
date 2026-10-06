@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {createMemoryLayout} from './guild-memory-layout.js';
+import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
@@ -26,13 +26,13 @@ export function createMemoryScene({mobile=true}={}){
   const sphere=source.geometry.boundingSphere,dimensions=source.geometry.boundingBox.getSize(new T.Vector3());
   if(!sphere||!Number.isFinite(sphere.radius)||sphere.radius<=0)return;
   const normal=dimensions.y<Math.min(dimensions.x,dimensions.z)?new T.Vector3(0,1,0):dimensions.x<dimensions.z?new T.Vector3(1,0,0):new T.Vector3(0,0,1);
-  sources.set(id,{source,center:sphere.center.clone(),factor:1.4/sphere.radius,face:new T.Quaternion().setFromUnitVectors(normal,new T.Vector3(0,0,1))});
+  sources.set(id,{source,center:sphere.center.clone(),factor:2.2/sphere.radius,face:new T.Quaternion().setFromUnitVectors(normal,new T.Vector3(0,0,1))});
   layout=null;
  }
  function prepare(){
   if(disposed||layout)return;
   for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.material.dispose();}pools.clear();
-  layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:1.4}))});
+  layout=createMemoryLayout({mobile,assets:[...sources.keys()].map(key=>({key,radius:2.2}))});
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
    const material=asset.source.material.clone();const mesh=new T.InstancedMesh(asset.source.geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;group.add(mesh);pools.set(id,{...asset,mesh,material,anchors});
@@ -42,16 +42,18 @@ export function createMemoryScene({mobile=true}={}){
  function update(state,camera,dt=0){
   if(disposed)return;prepare();group.visible=!!layout?.anchors.length;time+=Math.min(.05,Math.max(0,dt));
   const index=Number.isInteger(state?.eventIndex)?Math.max(0,Math.min(2,state.eventIndex)):preview,shot=layout.shots[index];
-  camera.position.fromArray(shot.position);camera.up.set(0,1,0);camera.lookAt(...shot.target);camera.updateMatrixWorld();
-  key.color.setHex(palette[index]);dustMaterial.uniforms.color.value.setHex(palette[index]);
-  for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.setHex(palette[index]);
+  const phase=Number.isFinite(state?.memoryPhase)?Math.max(0,Math.min(2,state.memoryPhase)):index;
+  const from=Math.min(1,Math.floor(phase)),blend=phase-from;
+  camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);camera.lookAt(...shot.target);camera.updateMatrixWorld();
+  const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
+  key.color.copy(color);dustMaterial.uniforms.color.value.copy(color);
+  for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
   for(const pool of pools.values()){
    let count=0;
-   for(const a of pool.anchors){point.fromArray(a.positions[index]);point.y+=Math.sin(time*.55+a.u*6+a.branch)*.12;
-    const projection=point.clone().project(camera),depth=point.clone().applyMatrix4(camera.matrixWorldInverse).z;
-    const pad=a.radius/Math.max(1,-depth)*2.5;
-    if(state?.showText&&Math.abs(projection.x)<.76+pad&&Math.abs(projection.y)<.4+pad)continue;
-    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.10*Math.sin(a.u*9),a.twist,a.twist))).multiply(pool.face);
+   for(const a of pool.anchors){point.fromArray(memoryPoint(a,phase));
+    point.x*=Math.max(.75,Math.min(2.8,camera.aspect/.6));
+    point.y+=Math.sin(time*.55+a.u*6+a.branch)*.28;
+    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist))).multiply(pool.face);
     scale.setScalar(pool.factor);matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;
