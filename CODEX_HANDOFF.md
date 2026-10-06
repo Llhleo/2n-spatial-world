@@ -61,3 +61,12 @@ User rejected the peripheral open-belt composition. Current deployed runtime is 
 Sites source 042f481cbd3f0d4e91bb08e30eb7e1aa075c0676; successful deployment appgdep_6ac4c20ce3d0819196f4424f70573fc2. https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1
 
 38 targeted checks and production build pass. Phone visual acceptance pending. Initial archives were truncated; regenerated complete archive with identical dist/manifest and verified gzip integrity before successful upload. No main/Pages changes. Detail: docs/2026-10-06-memory-depth-restore.md.
+
+
+## 2026-10-06: faster sphere / original colors / independent breathing, full-site delivery
+
+Runtime GitHub: 5ef7e818c1b0d01a5299fd6edde02cff4a6e4104. Sites source: ef3c6b20667e987734bdc2bd92c30bd5a38da86d. Deployment appgdep_6ac4d3c400748191a214f38927752671 succeeded.
+
+Deliver full-site root https://twon-dark-spatial-world.llhleo.chatgpt.site (story follows members); preview query remains optional. Stage-two rotation is .28 rad/s (2.8x prior) with continuous weighting. White directional/key/fill lights plus fog-free cloned models restore source colors without flattening geometry; dust/beams retain stage accents and shade is .22. Final petals bob individually in Y with differing periods/phases/amplitudes and mean-offset subtraction, holding the shell center fixed. Keep full spherical shell and foreground text depth occlusion.
+
+41 distinct relevant checks passed across targeted runs, including normal root three-stage integration, independent signed Y movement and stationary center, stopped final rotation, neutral light and unchanged original material colors; production build and archive integrity passed. Real phone visual acceptance pending. Main/Pages and earlier chapters unchanged. See docs/2026-10-06-memory-motion-integration.md.
