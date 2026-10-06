@@ -1,3 +1,4 @@
+import './loading-log.js';
 import {limitManualHistoryEntry,manualHistoryEntryEnd} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
 import {preparePeopleDistance} from './people-distance.js';

@@ -27,3 +27,11 @@ Cloudflare Pages 尚未连接，所需配置：Git 仓库 Llhleo/2n-spatial-worl
 ## 本轮验证
 
 259 项 Node 检查通过；生产构建通过；无超过 25 MiB 的构建文件。新增测试覆盖备用源胜出并取消停滞请求、拒绝错误版本、全源失败有限退出。Cloudflare Pages 和域名绑定待可用接口或经批准的浏览器操作，未配置即不属于已完成的自动更新链路。
+
+## 2026-10-07：公开部署与隐藏日志
+
+开屏“加载详情”使用原生 details，默认折叠。展开后显示主加载阶段、最近线路、下载/缓存/失败计数及最近 60 条请求、胜出、缓存、解析和失败事件；支持关闭按钮及 Escape，开屏结束随加载状态隐藏。仅展开时限频更新，不增加动画帧负担，不持久化，不显示 URL query 或请求头。模型下载按绝对 URL 去重，本站不会与本站别名重复竞争。
+
+Agent Toolkit 新增 Pages/DNS 接口已实际重试并成功读取账号和 llhleo.top。现有 2n.llhleo.top 是 Worker 管理的只读 AAAA 记录，不覆盖。尚无本项目 Pages Git 集成；新增 cf_pages_create_project 仅能创建 Direct Upload 项目，cf_pages_deploy_branch 仅适用于已有 Git 集成，当前仍无连接 Git、更新 source/build 配置或上传 dist 的工具。因此尚不能通过该插件完成 CF 镜像与后续自动更新，未创建无法部署的空项目。
+
+用户已明确授权公开 Vercel 部署。本轮验证日志与下载逻辑，Vercel Git 集成继续自动构建分支预览；生产 main 自动发布不变。此次功能分支正式部署只更新 Vercel，不合并 main，不更改 GitHub Pages。浏览器实机检查及国内线路速度仍需单独验收。

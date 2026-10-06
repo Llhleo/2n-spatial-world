@@ -17,3 +17,7 @@ test('fast wrong-version model cannot beat slower valid mirror',async()=>{
 test('all sources failing rejects finitely without downloading duplicate original files from every mirror',async()=>{
  let calls=0;await assert.rejects(fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher:async()=>{calls++;return new Response('missing',{status:404})},mirrors:['https://mirror.example/'],hedgeDelay:5,timeout:100}));assert.equal(calls,3);
 });
+test('a mirror pointing at the current host never duplicates the same model request',async()=>{
+ const previous=globalThis.location;globalThis.location={href:'https://mirror.example/',origin:'https://mirror.example'};
+ try{let calls=0;await fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher:async()=>{calls++;await new Promise(r=>setTimeout(r,15));return new Response(bytes)},mirrors:['https://mirror.example/'],hedgeDelay:2,timeout:100});assert.equal(calls,1);}finally{globalThis.location=previous;}
+});
