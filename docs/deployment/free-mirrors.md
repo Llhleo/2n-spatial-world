@@ -14,7 +14,7 @@
 
 Vercel 项目 `2n-spatial-world` 已通过 Git 集成关联本仓库，已观察到 main 生产部署和 feature/next-journey 推送产生的自动预览部署。main 是正式发布来源；功能分支自动产生预览，不能把未合并分支当成 main。两家必须跟踪同一正式分支、运行相同构建。无需额外 Vercel Token 或付费服务。
 
-Cloudflare Pages 尚未连接，所需配置：Git 仓库 Llhleo/2n-spatial-world；生产分支 main；构建命令 npm run build；输出 dist；Node 22 或 24；绑定 2n.llhleo.top。项目中已有 public/_headers 设置 CORS 与内容哈希文件长期缓存，vercel.json 提供等价响应头。不要将 `.glb.gz` 强制标记成 Content-Encoding: gzip；程序兼容返回压缩字节或平台已解压的 GLB。
+Cloudflare Pages 已连接 Git 仓库 Llhleo/2n-spatial-world；当前试发布生产分支 perf/free-mirrors-2026-10-07；构建命令 npm run build；输出 dist。CF 随此分支更新，Vercel main 自动发布不变；两家尚未统一正式发布分支，不能声称任意分支的新版本自动同步。现有 2n.llhleo.top 被 Worker 占用，不覆盖；新自定义域名待确认。项目中已有 public/_headers 设置 CORS 与内容哈希文件长期缓存，vercel.json 提供等价响应头。不要将 `.glb.gz` 强制标记成 Content-Encoding: gzip；程序兼容返回压缩字节或平台已解压的 GLB。
 
 每次构建生成 `/release.json`，携带平台提供的 Git commit SHA，no-cache，可对比两个站是否完成同一版本部署。异步部署期间某镜像缺少新哈希文件时回退可用源；旧代码不会接受内容不匹配的新模型。不宣称多平台发布具有原子性。
 
@@ -32,6 +32,12 @@ Cloudflare Pages 尚未连接，所需配置：Git 仓库 Llhleo/2n-spatial-worl
 
 开屏“加载详情”使用原生 details，默认折叠。展开后显示主加载阶段、最近线路、下载/缓存/失败计数及最近 60 条请求、胜出、缓存、解析和失败事件；支持关闭按钮及 Escape，开屏结束随加载状态隐藏。仅展开时限频更新，不增加动画帧负担，不持久化，不显示 URL query 或请求头。模型下载按绝对 URL 去重，本站不会与本站别名重复竞争。
 
-Agent Toolkit 新增 Pages/DNS 接口已实际重试并成功读取账号和 llhleo.top。现有 2n.llhleo.top 是 Worker 管理的只读 AAAA 记录，不覆盖。尚无本项目 Pages Git 集成；新增 cf_pages_create_project 仅能创建 Direct Upload 项目，cf_pages_deploy_branch 仅适用于已有 Git 集成，当前仍无连接 Git、更新 source/build 配置或上传 dist 的工具。因此尚不能通过该插件完成 CF 镜像与后续自动更新，未创建无法部署的空项目。
+早一轮 Pages/DNS 接口尚缺 Git 连接能力；后续新增 cf_pages_create_github_project 已实际成功创建 Git 集成项目，不再存在该接口阻塞。现有 2n.llhleo.top 是 Worker 管理的只读 AAAA 记录，不覆盖。
 
 用户已明确授权公开 Vercel 部署。本轮验证日志与下载逻辑，Vercel Git 集成继续自动构建分支预览；生产 main 自动发布不变。此次功能分支正式部署只更新 Vercel，不合并 main，不更改 GitHub Pages。浏览器实机检查及国内线路速度仍需单独验收。
+
+## 2026-10-07：CF 独立线路上线
+
+项目 2n-spatial-world；公开入口 https://2n-spatial-world.pages.dev/ 。部署 c93ed079-ff57-4915-8f30-61938cdf09df，源码 0839f1ac95b43339770f2118045580d0d676d484；平台 build/deploy 均 success。新浏览器可无登录打开站点，默认折叠“加载详情”。测试浏览器无 WebGL 2，未完成 3D 动画视觉验收；资源 HTTP 校验被当前执行环境访问限制阻挡，未宣称完成 CORS/模型下载验收。CF 不经 Vercel 代理，页面、字体、脚本和原始模型均由独立静态产物提供；已有模型竞速在 CF 入口使用同源和 Vercel 备用。Vercel/其他入口尚未新增 CF 为默认模型镜像，待资源响应核验。
+
+当前 CF 开启 perf/free-mirrors-2026-10-07 分支的 production_deployments_enabled，后续该分支提交会自动构建。域名 spatial.llhleo.top 尚未写 DNS，查询未发现现有记录；若获准，可 CNAME 到 2n-spatial-world.pages.dev 并绑定 Pages。免费全球 CF 非付费 China Network，国内访问与速度待用户实测；入口本身不可达时资源竞速无法解决，必须提供独立入口。
