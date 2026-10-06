@@ -39,7 +39,7 @@ export function loadModelScene(url,priority=0){
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');await later();let timer;
   try{return (await Promise.race([new GLTFLoader().parseAsync(bytes,''),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Model decoding timed out')),90000);})])).scene;}finally{clearTimeout(timer);}
  },priority);
- const fetchBytes=async()=>{for(let attempt=0;attempt<(near?1:2);attempt++){try{return near?await fetchAssetBytes(url):await fetchPetalBytes(url);}catch(error){if(near||attempt===1)throw error;await later();}}};
+ const fetchBytes=async()=>{for(let attempt=0;attempt<(near?1:2);attempt++){try{return await fetchAssetBytes(url);}catch(error){if(near||attempt===1)throw error;await later();}}};
  const promise=near?displayPipeline(fetchBytes,parse,priority):pipeline(fetchBytes,parse,priority);
  sceneCache.set(url,promise);promise.catch(()=>sceneCache.delete(url));return promise;
 }

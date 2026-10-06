@@ -8,3 +8,4 @@ __pycache__/
 # Checkout-local symlinks and execution state
 /node_modules
 /.superpowers/
+/public/release.json
