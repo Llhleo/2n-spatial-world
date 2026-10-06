@@ -1,5 +1,8 @@
 # Codex 接续入口
 
+优先读取 [花瓣记忆廊预览记录](docs/2026-10-06-memory-corridor-preview.md)。新构图已部署专用 `?historyPreview=1` 入口；先等待构图反馈，再继续三幕连续动画。不要将本阶段称为完整36秒故事已完成。方案与计划在 `docs/superpowers/`，旧主入口暂时保留。
+
+
 当前原 Sites 已发布工会历史三站，先读 [发布记录](docs/2026-10-05-guild-history-release.md) 和 [项目状态](PROJECT_STATUS.md)。从 GitHub 开发分支 `experiment/lookback-v2` 接续，不使用旧本地 v49 源码覆盖已完成内容。
 
 1. 已完成三段批准历史，独立编辑 `content/history.json`；人物仍编辑 `content/people.json`。不补造历史事实。规格与计划在 `docs/superpowers/`。

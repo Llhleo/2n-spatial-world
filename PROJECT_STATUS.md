@@ -1,5 +1,9 @@
 # 当前进展
 
+## 最新：花瓣记忆廊构图预览已发布
+
+2026-10-06，[独立预览入口](https://twon-dark-spatial-world.llhleo.chatgpt.site/?historyPreview=1) 可切换相遇/延续/繁盛，保留高清长链、尘埃和光束，无地图或金属2n。代码 checkpoint `50ac2a79051086d1c4c6fe0f56768a637be004f0`，219项检查通过。普通入口保留已有历史运行时。连续动画、花朵点缀和实机审美验收尚未完成，详见 [预览记录](docs/2026-10-06-memory-corridor-preview.md)。Pages 未改。
+
 更新时间：2026-10-05（北京时间）。当前开发分支 `experiment/lookback-v2`。
 
 ## 最新运行时：工会历史三站已发布
