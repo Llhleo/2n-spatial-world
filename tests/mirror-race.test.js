@@ -4,6 +4,16 @@ import {createHash} from 'node:crypto';
 import {fetchAssetBytes,modelCandidates} from '../src/asset-transport.js';
 const bytes=Buffer.from('glTFsame-release-model');
 const entry={url:'/assets/model-transport/test-hash.glb.gz',sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};
+test('three independent requests start immediately but a fourth stays queued',async()=>{
+ let active=0,peak=0,calls=0;const pending=[];
+ const fetcher=(url,{signal})=>new Promise((resolve,reject)=>{
+  calls++;active++;peak=Math.max(peak,active);
+  signal.addEventListener('abort',()=>{active--;reject(new Error('aborted'));},{once:true});
+  pending.push(resolve);if(calls===3){active--;resolve(new Response(bytes));}
+ });
+ const result=await fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher,mirrors:['https://one.example/','https://two.example/','https://three.example/'],timeout:60});
+ assert.deepEqual(Buffer.from(result),bytes);assert.equal(peak,3);assert.equal(calls,3);
+});
 test('default mirrors can recover through GitHub Pages with the repository subpath',async()=>{
  const fetcher=async url=>url==='https://llhleo.github.io/2n-spatial-world/assets/model-transport/test-hash.glb.gz'?new Response(bytes):new Response('missing',{status:404});
  assert.deepEqual(Buffer.from(await fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher,timeout:100})),bytes);

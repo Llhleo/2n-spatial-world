@@ -24,7 +24,7 @@ async function download(url,fetcher,timeout,signal){
   return response.arrayBuffer();})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Model download timed out'));},timeout);})]);}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
 // Mirrors are independent static copies. Only content-addressed, verified files race.
-const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/,https://llhleo.github.io/2n-spatial-world/').split(',').filter(Boolean);
+const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n.edgeone.llhleo.top/,https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/,https://llhleo.github.io/2n-spatial-world/').split(',').filter(Boolean);
 let preferredSource='';
 export function modelCandidates(entry,mirrors){
  const urls=[entry.url];
@@ -43,13 +43,13 @@ async function racePacked(entry,fetcher,timeout,mirrors,hedgeDelay){
   for(const url of unique)loadingDiagnostics.record({kind:'candidate',url});
   const finish=()=>{if(!done&&next===unique.length&&!active){done=true;clearTimeout(hedge);reject(errors.at(-1)||new Error('No usable model source'));}};
   const launch=()=>{
-   if(done||next===unique.length||active>=2)return;
+   if(done||next===unique.length||active>=3)return;
    const url=unique[next++],controller=new AbortController(),started=performance.now();controllers.set(controller,url);active++;loadingDiagnostics.record({kind:'download',url});
    (async()=>{const packed=await download(url,fetcher,timeout,controller.signal),bytes=await unpack(packed);await verified(bytes,entry);return {packed,bytes};})().then(result=>{
     if(done)return;done=true;loadingDiagnostics.record({kind:'winner',url,duration:performance.now()-started});preferredSource=rank(url);clearTimeout(hedge);for(const [other,otherUrl] of controllers)if(other!==controller){loadingDiagnostics.record({kind:'cancel',url:otherUrl});other.abort();}resolve(result);
    },error=>{if(!done){loadingDiagnostics.record({kind:'error',url,reason:failureReason(error)});errors.push(error);launch();}}).finally(()=>{active--;controllers.delete(controller);if(!done){launch();finish();}});
   };
-  launch();if(hedgeDelay>0)hedge=setTimeout(launch,hedgeDelay);else launch();
+  launch();const rivals=()=>{launch();launch();};if(hedgeDelay>0)hedge=setTimeout(rivals,hedgeDelay);else rivals();
  });
 }
 export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000,cacheTimeout=800,mirrors=configuredMirrors,hedgeDelay=0}={}){

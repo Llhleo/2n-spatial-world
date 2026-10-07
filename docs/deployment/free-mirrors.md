@@ -95,3 +95,9 @@ CF 自定义域名 2n.llhleo.top 已验证入口、release.json c580a811、rock 
 pages.yml 已跟踪此发布分支的推送，Actions 自动测试/构建/部署；jsDelivr 随构建固定 commit，内容哈希防止混用不同模型。未合并 main，未修改旧 Llhleo/2n。270 项检查通过，Pages 子路径构建通过；构建有现存大 chunk 提示，不影响退出成功。Vercel 当前仍是 main 原生生产自动发布，本功能分支通过手动 API 发布 production，不能声称任意分支在所有平台自动同步。
 
 EdgeOne 正确域名 2n.edgeone.llhleo.top 的 HTTPS 重试仍返回证书 hostname mismatch，尚未加入跨站默认镜像；HTTP 静态文件可访问不等于安全网页可加载模型。需要有效 HTTPS 证书后再核验资源/CORS并接入。不关闭 SHA256，不绕过 TLS，不增加 HTTP 镜像。默认折叠日志继续显示已配置候选与实际获胜线路；本次未完成 iPhone Safari 国内冷缓存或真实 WebGL 视觉验收。
+
+## 2026-10-07：EdgeOne HTTPS 与三路并发
+
+用户已配置 EdgeOne 证书，HTTPS release.json 已返回 fecb925；rock 压缩模型 HTTPS GET 200、CORS *、解压长度与 SHA256 通过。新增 https://2n.edgeone.llhleo.top/ 为默认独立资源镜像，并排在默认备用压缩源第一位；CF 入口首次请求通常是 CF、commit 固定 jsDelivr、EdgeOne。共五家候选：CF、jsDelivr、EdgeOne、Vercel、GitHub Pages。保持供应商去重、历史赢家优先、GLB/长度/SHA256 验证、缓存与原文件回退。
+
+根据用户要求每个模型活动请求上限由 2 提高到 3，默认立即启动最多三家，获胜取消其他活动请求，失败释放位置补后续候选。上限按模型计算，不是全站三条；未发起的剩余候选不能被断言更慢。自定义正 hedgeDelay 时启动第一家后，延迟启动其余两家。新增测试证明前三条在完成响应前启动且第四条保持等待；271 项全量测试通过，生产构建通过，现有大 chunk 提示仍在。自动 Git 发布分支、Pages 子路径和模型质量不变。
