@@ -61,3 +61,13 @@ jsDelivr 新候选已实际 GET 全部41个原始GLB（固定提交0839f1ac95b43
 EdgeOne无可用专用接口，已通过浏览器尝试腾讯云邮箱登录；目前停在拖拽安全验证码，尚未创建或连接EdgeOne项目，需要验证码操作确认。未宣称EdgeOne自动更新已完成。
 
 本轮 node --test 全量检查和生产build已运行；生成41个固定commit的CDN地址，新增原GLB来源胜出及错误版本拒绝的回归测试。
+
+## 2026-10-07：EdgeOne 国际站 Git 自动部署落地
+
+经用户确认，仅安装授权 Llhleo/2n-spatial-world 的 EdgeOne GitHub App。国际站项目 makers-d48cid6xzqvr / 2n-spatial-world；生产分支 perf/free-mirrors-2026-10-07；自动部署开启，预览关闭；全球可用区（不含中国大陆），Vite / npm install / npm run build / dist。未启用收费服务。
+
+首次部署 dpencn5fozxk 成功，源码 9e328fd8d4fd93f3fb4e1f1a0f9d070a071fbaa0。随后推送 edgeone.json 配置提交 c6a44f290e0aba2579b2a3efe0ccb319f29d16f5，自动产生生产部署 dp425cfe4zgv，47 秒构建成功，Git 推送触发链路已实际验证。控制台标头面板确认 /assets/* 跨域 *、内容哈希压缩资源 immutable 一年、release.json no-cache 配置已生效。
+
+公开入口 https://2n-spatial-world.edgeone.dev/ 和首次独立部署地址均返回 Site Unavailable；执行环境对 release.json 的实际 HTTP GET 虽为 200，但内容是同样的 HTML 错误页，不能认定资源可用或完成 CORS 验收。域名面板显示已生效，项目显示运行中，失败原因未确定。未把尚不可访问的 EdgeOne 域名加入默认镜像。当前已验证并接入的独立供应商仍为 CF Pages、Vercel、jsDelivr；同源和原 GLB/浏览器缓存回退不重复计算。待 EdgeOne 入口与模型 GET 可用、长度/SHA256/CORS 验证通过后才接入。
+
+2n.llhleo.top 先前 Pages 登记待 CNAME，DNS 写入接口认证失败仍未解决。EdgeOne 官方域名说明指出大陆环境访问默认域名需时效预览链接，建议自定义域名建立稳定入口；本次 Site Unavailable 不能据此直接判定为大陆限制。来源 https://pages.edgeone.ai/document/domain-overview 。
