@@ -8,6 +8,10 @@ test('CF custom domain and pages.dev are one provider; raw CDN is an independent
  const previous=globalThis.location;globalThis.location={href:'https://2n.llhleo.top/',origin:'https://2n.llhleo.top'};
  try{const rawMirror='https://cdn.jsdelivr.net/gh/test/model.glb';const urls=modelCandidates({...entry,rawMirror},['https://2n-spatial-world.pages.dev/','https://2n-spatial-world.vercel.app/']);assert.deepEqual(urls,[entry.url,rawMirror,'https://2n-spatial-world.vercel.app/assets/model-transport/test-hash.glb.gz']);}finally{globalThis.location=previous;}
 });
+test('missing secure digest fails before any source is downloaded',async()=>{
+ const saved=Object.getOwnPropertyDescriptor(globalThis,'crypto');Object.defineProperty(globalThis,'crypto',{value:{},configurable:true});
+ try{let calls=0;await assert.rejects(fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher:async()=>{calls++;return new Response(bytes)}}),/HTTPS/);assert.equal(calls,0);}finally{Object.defineProperty(globalThis,'crypto',saved);}
+});
 test('two independent candidates start before either response completes',async()=>{
  const calls=[];let release;
  const fetcher=url=>{calls.push(url);if(calls.length===2)release(new Response(bytes));return new Promise(resolve=>{if(calls.length===1)release=resolve;});};

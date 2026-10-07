@@ -81,3 +81,9 @@ CF 自定义域名 2n.llhleo.top 已验证入口、release.json c580a811、rock 
 隐藏日志新增全部候选供应商及最近状态（未启动/下载中/获胜/失败/已取消），累计请求/胜出/失败/取消；“最近获胜线路”仅由通过校验的赢家更新，正在下载的请求不再覆盖它。保持默认折叠、展开时限频更新、有界记录、不记录 query/token。浏览器本地缓存命中时可不发起网络竞速。
 
 新增回归测试验证 CF 别名合并、两条独立请求在响应前启动、候选与取消可见且不覆盖赢家。node --test 268 项通过，npm run build 成功。未改变五境/资产质量/GitHub Pages。
+
+## 2026-10-07：EdgeOne HTTP 校验故障与 Pages 发布
+
+用户实际域名为 2n.edgeone.llhleo.top（不是此前的连字符域名）。HTTP release.json 返回 5078a04，HTTPS 返回证书 hostname mismatch；HTTP 页面不具备 crypto.subtle，导致每条下载在 SHA256 校验时失败。保留安全校验，不降级到无校验或 HTTP 镜像。加载器在发起请求前检查安全摘要能力，不具备时提示使用有效证书的 HTTPS 地址，避免误报多源网络故障。EdgeOne 分类识别已加入正确自定义域名，TLS 和 HTTPS 模型核验之前不启用为默认镜像。
+
+用户明确授权当前版本发布 GitHub Pages。pages.yml 改为跟踪 perf/free-mirrors-2026-10-07，保留 Actions 构建/上传/部署与子目录 base=/2n-spatial-world/；不合并 main，不修改旧 Llhleo/2n。Pages 发布与模型 CORS/SHA 校验完成后才增加该资源根。269 项检查及 Pages 子路径生产构建通过。

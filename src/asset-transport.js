@@ -53,6 +53,7 @@ async function racePacked(entry,fetcher,timeout,mirrors,hedgeDelay){
  });
 }
 export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000,cacheTimeout=800,mirrors=configuredMirrors,hedgeDelay=0}={}){
+ if(entry&&typeof globalThis.crypto?.subtle?.digest!=='function')throw new Error('模型校验需要安全连接，请使用有效证书的 HTTPS 地址');
  if(!entry)return verified(await download(url,fetcher,timeout));
  if(store===undefined)store=await localStore(cacheTimeout);
  const key=`${globalThis.location?.origin||'https://cache.invalid'}/__2n_model_cache__/${entry.sha256}`;
