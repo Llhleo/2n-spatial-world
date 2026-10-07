@@ -87,3 +87,11 @@ CF 自定义域名 2n.llhleo.top 已验证入口、release.json c580a811、rock 
 用户实际域名为 2n.edgeone.llhleo.top（不是此前的连字符域名）。HTTP release.json 返回 5078a04，HTTPS 返回证书 hostname mismatch；HTTP 页面不具备 crypto.subtle，导致每条下载在 SHA256 校验时失败。保留安全校验，不降级到无校验或 HTTP 镜像。加载器在发起请求前检查安全摘要能力，不具备时提示使用有效证书的 HTTPS 地址，避免误报多源网络故障。EdgeOne 分类识别已加入正确自定义域名，TLS 和 HTTPS 模型核验之前不启用为默认镜像。
 
 用户明确授权当前版本发布 GitHub Pages。pages.yml 改为跟踪 perf/free-mirrors-2026-10-07，保留 Actions 构建/上传/部署与子目录 base=/2n-spatial-world/；不合并 main，不修改旧 Llhleo/2n。Pages 发布与模型 CORS/SHA 校验完成后才增加该资源根。269 项检查及 Pages 子路径生产构建通过。
+
+## 2026-10-07：GitHub Pages 接入竞速
+
+经用户明确确认，在 github-pages 环境允许名单中只新增精确分支 perf/free-mirrors-2026-10-07，保留 main 与 release/pages-flowers-2026-10-03 及其他保护配置。重试运行 37579480186 后 release.json 已公开返回 3346da9；rock 内容哈希压缩文件 GET 200、CORS *、解压后长度 319572 和 SHA256 均匹配。默认模型镜像新增 https://llhleo.github.io/2n-spatial-world/，保留仓库子路径。CF 入口现在有 CF、jsDelivr、Vercel、GitHub Pages 四家独立候选；每个模型最多两条活动下载，不是四条同时全量下载。第一个完成校验的活动请求胜出，失败后补充其他候选，历史赢家优先，缓存命中可不下载。
+
+pages.yml 已跟踪此发布分支的推送，Actions 自动测试/构建/部署；jsDelivr 随构建固定 commit，内容哈希防止混用不同模型。未合并 main，未修改旧 Llhleo/2n。270 项检查通过，Pages 子路径构建通过；构建有现存大 chunk 提示，不影响退出成功。Vercel 当前仍是 main 原生生产自动发布，本功能分支通过手动 API 发布 production，不能声称任意分支在所有平台自动同步。
+
+EdgeOne 正确域名 2n.edgeone.llhleo.top 的 HTTPS 重试仍返回证书 hostname mismatch，尚未加入跨站默认镜像；HTTP 静态文件可访问不等于安全网页可加载模型。需要有效 HTTPS 证书后再核验资源/CORS并接入。不关闭 SHA256，不绕过 TLS，不增加 HTTP 镜像。默认折叠日志继续显示已配置候选与实际获胜线路；本次未完成 iPhone Safari 国内冷缓存或真实 WebGL 视觉验收。

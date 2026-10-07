@@ -4,6 +4,10 @@ import {createHash} from 'node:crypto';
 import {fetchAssetBytes,modelCandidates} from '../src/asset-transport.js';
 const bytes=Buffer.from('glTFsame-release-model');
 const entry={url:'/assets/model-transport/test-hash.glb.gz',sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};
+test('default mirrors can recover through GitHub Pages with the repository subpath',async()=>{
+ const fetcher=async url=>url==='https://llhleo.github.io/2n-spatial-world/assets/model-transport/test-hash.glb.gz'?new Response(bytes):new Response('missing',{status:404});
+ assert.deepEqual(Buffer.from(await fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher,timeout:100})),bytes);
+});
 test('CF custom domain and pages.dev are one provider; raw CDN is an independent first rival',()=>{
  const previous=globalThis.location;globalThis.location={href:'https://2n.llhleo.top/',origin:'https://2n.llhleo.top'};
  try{const rawMirror='https://cdn.jsdelivr.net/gh/test/model.glb';const urls=modelCandidates({...entry,rawMirror},['https://2n-spatial-world.pages.dev/','https://2n-spatial-world.vercel.app/']);assert.deepEqual(urls,[entry.url,rawMirror,'https://2n-spatial-world.vercel.app/assets/model-transport/test-hash.glb.gz']);}finally{globalThis.location=previous;}

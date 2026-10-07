@@ -24,7 +24,7 @@ async function download(url,fetcher,timeout,signal){
   return response.arrayBuffer();})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Model download timed out'));},timeout);})]);}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
 // Mirrors are independent static copies. Only content-addressed, verified files race.
-const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/').split(',').filter(Boolean);
+const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/,https://llhleo.github.io/2n-spatial-world/').split(',').filter(Boolean);
 let preferredSource='';
 export function modelCandidates(entry,mirrors){
  const urls=[entry.url];
