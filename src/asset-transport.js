@@ -23,12 +23,13 @@ async function download(url,fetcher,timeout,signal){
   return response.arrayBuffer();})(),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Model download timed out'));},timeout);})]);}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
 // Mirrors are independent static copies. Only content-addressed, verified files race.
-const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.vercel.app/').split(',').filter(Boolean);
+const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/').split(',').filter(Boolean);
 let preferredSource='';
 async function racePacked(entry,fetcher,timeout,mirrors,hedgeDelay){
  const urls=[entry.url];
  const marker=entry.url.indexOf('assets/model-transport/');
  if(marker>=0)for(const base of mirrors){try{const root=new URL(base);if(root.protocol==='https:')urls.push(new URL(entry.url.slice(marker),root.href.endsWith('/')?root.href:root.href+'/').href);}catch{}}
+ if(entry.rawMirror)urls.push(entry.rawMirror);
  const seen=new Set(),unique=urls.filter(url=>{let key=url;try{key=new URL(url,globalThis.location?.href||'https://local.invalid/').href;}catch{}if(seen.has(key))return false;seen.add(key);return true;});
  // Reuse the previous validated winner without permanently pinning a failed source.
  const rank=url=>{try{return new URL(url,globalThis.location?.href||'https://local.invalid/').origin;}catch{return '';}};

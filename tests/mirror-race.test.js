@@ -4,6 +4,17 @@ import {createHash} from 'node:crypto';
 import {fetchAssetBytes} from '../src/asset-transport.js';
 const bytes=Buffer.from('glTFsame-release-model');
 const entry={url:'/assets/model-transport/test-hash.glb.gz',sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};
+test('commit-pinned raw CDN wins when packed sources fail',async()=>{
+ const rawMirror='https://cdn.jsdelivr.net/gh/example/repo@123/public/assets/test.glb';
+ const calls=[];const fetcher=async url=>{calls.push(url);return url===rawMirror?new Response(bytes):new Response('missing',{status:404});};
+ assert.deepEqual(Buffer.from(await fetchAssetBytes('/assets/test.glb',{entry:{...entry,rawMirror},store:null,fetcher,mirrors:[],timeout:100})),bytes);
+ assert.ok(calls.includes(rawMirror));assert.ok(!calls.includes('/assets/test.glb'));
+});
+test('wrong-version raw CDN is rejected before the original fallback',async()=>{
+ const rawMirror='https://cdn.jsdelivr.net/gh/example/repo@123/public/assets/test.glb';let requested=false;
+ const fetcher=async url=>{if(url===rawMirror){requested=true;return new Response(Buffer.from('glTFwrong-release'));}return url==='/assets/test.glb'?new Response(bytes):new Response('missing',{status:404});};
+ assert.deepEqual(Buffer.from(await fetchAssetBytes('/assets/test.glb',{entry:{...entry,rawMirror},store:null,fetcher,mirrors:[],timeout:100})),bytes);assert.equal(requested,true);
+});
 test('fast valid mirror wins and cancels the stalled origin',async()=>{
  let aborted=false;
  const fetcher=async(url,{signal})=>url.startsWith('https://mirror.example/')?new Response(bytes):new Promise((_,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(new Error('aborted'));},{once:true}));

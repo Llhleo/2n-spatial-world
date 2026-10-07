@@ -10,9 +10,11 @@ for(const folder of ['companion-display','map-flowers','garden-petals','desert-p
  const filename=`${folder}-${name.slice(0,-4)}-${sha256.slice(0,16)}.glb.gz`;
  writeFileSync(new URL(filename,out),packed);entries[`assets/${folder}/${name}`]={url:`assets/model-transport/${filename}`,sha256,bytes:raw.length};original+=raw.length;compressed+=packed.length;
 }
-writeFileSync(new URL('src/transport-manifest.js',repo),`// Generated immutable lossless transport descriptors.\nexport default ${JSON.stringify(entries)};\n`);
 console.log(JSON.stringify({models:Object.keys(entries).length,original,compressed,savedPercent:Math.round((1-compressed/original)*1000)/10}));
 
 let commit=process.env.CF_PAGES_COMMIT_SHA||process.env.VERCEL_GIT_COMMIT_SHA||process.env.GITHUB_SHA;
 if(!commit){try{commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',cwd:repo}).trim();}catch{commit='unknown';}}
+// Immutable Git URLs change with every deployment; never rely on branch-cache expiry.
+if(/^[a-f0-9]{40}$/i.test(commit))for(const [path,entry] of Object.entries(entries))entry.rawMirror=`https://cdn.jsdelivr.net/gh/Llhleo/2n-spatial-world@${commit}/public/${path}`;
+writeFileSync(new URL('src/transport-manifest.js',repo),`// Generated immutable lossless transport descriptors.\nexport default ${JSON.stringify(entries)};\n`);
 writeFileSync(new URL('public/release.json',repo),JSON.stringify({commit,models:Object.keys(entries).length}));

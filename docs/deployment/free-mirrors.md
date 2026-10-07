@@ -53,3 +53,11 @@ jsDelivr 新候选已实际 GET 全部41个原始GLB（固定提交0839f1ac95b43
 完整第三托管候选：EdgeOne Makers/Pages官方Free支持Git与自动CI/CD，可部署同一dist，另配置CORS和内容哈希缓存；大陆可用区自定义域名要求备案，海外区域需国内实测。尚未部署。Netlify Free目前300credits/月，生产部署15credits、流量20credits/GB，3D流量下额度偏紧，不优先。
 
 来源：https://github.com/jsdelivr/jsdelivr 、https://pages.edgeone.ai/pricing 、https://pages.edgeone.ai/document/domain-overview 、https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/ 。
+
+## 2026-10-07：jsDelivr 自动跟随构建
+
+已接入原GLB jsDelivr候选，每次build依据CF_PAGES_COMMIT_SHA、VERCEL_GIT_COMMIT_SHA、GITHUB_SHA或Git HEAD生成不可变URL。非40位commit不生成CDN候选；不使用分支缓存。默认镜像加入CF Pages与Vercel，本站地址去重，jsDelivr作为额外候选，沿用GLB/长度/SHA-256校验、最多2个同时请求和失败回退。CF入口现在有CF、Vercel、jsDelivr三家资源候选。CDN的原GLB比无损压缩传输大，优先级在压缩资源之后。自动更新仅在相应发布分支成功build后生效，不代表GitHub任意分支变更都会发布。
+
+EdgeOne无可用专用接口，已通过浏览器尝试腾讯云邮箱登录；目前停在拖拽安全验证码，尚未创建或连接EdgeOne项目，需要验证码操作确认。未宣称EdgeOne自动更新已完成。
+
+本轮 node --test 全量检查和生产build已运行；生成41个固定commit的CDN地址，新增原GLB来源胜出及错误版本拒绝的回归测试。
