@@ -41,3 +41,15 @@ Cloudflare Pages 已连接 Git 仓库 Llhleo/2n-spatial-world；当前试发布�
 项目 2n-spatial-world；公开入口 https://2n-spatial-world.pages.dev/ 。部署 c93ed079-ff57-4915-8f30-61938cdf09df，源码 0839f1ac95b43339770f2118045580d0d676d484；平台 build/deploy 均 success。新浏览器可无登录打开站点，默认折叠“加载详情”。测试浏览器无 WebGL 2，未完成 3D 动画视觉验收；资源 HTTP 校验被当前执行环境访问限制阻挡，未宣称完成 CORS/模型下载验收。CF 不经 Vercel 代理，页面、字体、脚本和原始模型均由独立静态产物提供；已有模型竞速在 CF 入口使用同源和 Vercel 备用。Vercel/其他入口尚未新增 CF 为默认模型镜像，待资源响应核验。
 
 当前 CF 开启 perf/free-mirrors-2026-10-07 分支的 production_deployments_enabled，后续该分支提交会自动构建。域名 spatial.llhleo.top 尚未写 DNS，查询未发现现有记录；若获准，可 CNAME 到 2n-spatial-world.pages.dev 并绑定 Pages。免费全球 CF 非付费 China Network，国内访问与速度待用户实测；入口本身不可达时资源竞速无法解决，必须提供独立入口。
+
+## 2026-10-07 11:57：域名绑定与第三资源源核对
+
+用户授权绑定 2n.llhleo.top，已删除旧 Worker。DNS 查询无记录；Pages 已登记域名。新增 proxied CNAME（2n.llhleo.top -> 2n-spatial-world.pages.dev）返回 Cloudflare API 403 Authentication error。随后 DNS 仍为空，Pages 为 pending / CNAME record not set。域名尚未完成；需修复 DNS 写入凭据权限后继续，不反复重试同一认证失败。
+
+远程加载器默认仅配置本站和 Vercel，CF 无镜像环境变量覆盖：实际两条资源候选，不是三条。自有域名与 pages.dev 是同一 CF 源；缓存和原GLB回退不算独立线路。GitHub Pages 的 release.json 和当前内容哈希压缩模型样本均404，未接入当前竞速。
+
+jsDelivr 新候选已实际 GET 全部41个原始GLB（固定提交0839f1ac95b43339770f2118045580d0d676d484），全部200、跨域*、长度与SHA-256匹配，合计53,803,588字节，无失败。例：https://cdn.jsdelivr.net/gh/Llhleo/2n-spatial-world@0839f1ac95b43339770f2118045580d0d676d484/public/assets/garden-petals/rock.glb 。原始GLB在GitHub中，构建生成的model-transport压缩文件未在仓库中；接入必须适配路径、保持内容校验，随构建固定commit。官方分支缓存12小时，不适合作即时更新。只完成寻找和验证，尚未修改加载器，非国内测速。
+
+完整第三托管候选：EdgeOne Makers/Pages官方Free支持Git与自动CI/CD，可部署同一dist，另配置CORS和内容哈希缓存；大陆可用区自定义域名要求备案，海外区域需国内实测。尚未部署。Netlify Free目前300credits/月，生产部署15credits、流量20credits/GB，3D流量下额度偏紧，不优先。
+
+来源：https://github.com/jsdelivr/jsdelivr 、https://pages.edgeone.ai/pricing 、https://pages.edgeone.ai/document/domain-overview 、https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/ 。
