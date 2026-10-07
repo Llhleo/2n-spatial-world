@@ -19,3 +19,14 @@
 Ruling: 以最新 perf 分支为基础而非旧 feature/next-journey — 避免覆盖已上线的加载与部署工作 — 若分支选择错误，测试站可能携带不属于本轮的配置，因此不自动发布四个公开站。
 
 独立审阅在额度中断前已回报无 Critical/Important 阻塞，并检查了不同捕获数量、视口及101个过渡采样；最终书面报告未完成，不能宣称完整审阅完成。本地完整场景投影检查也覆盖 .46/.6/1.8 视口，同实例56个、落位弧范围稳定。生产合并仍未执行。
+
+
+## 2026-10-07 接续发布核对
+
+- 已确认 Sites v68 的发布状态为 succeeded，部署 `appgdep_6ac60f0788848191a4ed7b12bff83a92`，地址 https://twon-dark-spatial-world.llhleo.chatgpt.site。
+- Sites 源码提交 `6cce48645a04f4b13b4ea1d0b26b0b617c117128`；弧线运行时代码为 GitHub `c5810f3ac35ed32d8b5905a95bed396c7da69a74`。逐文件对比两边所有 Git 跟踪源文件，唯一差异为构建生成的 src/transport-manifest.js：Sites 清单正确固定 jsDelivr 到上述 GitHub 提交，而非 Sites 提交。
+- 本轮重新运行完整 node --test：273/273 通过，包含开放弧投影、连续可逆迁移、独立呼吸、唯一重新观看按钮、结尾隐藏自动播放与重播复位检查。
+- 使用 GITHUB_SHA=c5810f3ac35ed32d8b5905a95bed396c7da69a74 重新生产构建成功，release.json 为同一提交，41 个模型。唯一构建提示为既有大 chunk 提示，未出现构建错误。
+- 当前平台 API 已确认发布成功；直接 HTTP 内容核对遇到 Sites 401 访问边界，带当前 get_site 返回的 bypass header 也为401。没有更改分享设置，没有把401宣称为网站代码故障。未完成线上 JS 内容哈希/资源下载复核。
+- 当前技能目录无要求的 control-browser，未做浏览器 WebGL 视觉核验；真实 iPhone Safari 视觉与性能验收仍待用户反馈。数值回归不代替实机验收。
+- 复用已成功发布的 v68，没有重复构建发布新版本；仅把核对记录保存到 feature/ending-open-arc。未修改 main、生产 perf 分支、四个公开站的部署或旧 Llhleo/2n。
