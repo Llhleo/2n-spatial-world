@@ -1,5 +1,6 @@
 import {loadingDiagnostics,failureReason} from './loading-diagnostics.js';
 import manifest from './transport-manifest.js';
+import {assetProvider} from './asset-provider.js';
 const glb=bytes=>bytes.byteLength>=4&&new DataView(bytes).getUint32(0,true)===0x46546c67;
 async function unpack(bytes){return glb(bytes)?bytes:new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();}
 async function verified(bytes,entry){
@@ -25,29 +26,33 @@ async function download(url,fetcher,timeout,signal){
 // Mirrors are independent static copies. Only content-addressed, verified files race.
 const configuredMirrors=(import.meta.env?.VITE_ASSET_MIRRORS||'https://2n-spatial-world.pages.dev/,https://2n-spatial-world.vercel.app/').split(',').filter(Boolean);
 let preferredSource='';
-async function racePacked(entry,fetcher,timeout,mirrors,hedgeDelay){
+export function modelCandidates(entry,mirrors){
  const urls=[entry.url];
+ if(entry.rawMirror)urls.push(entry.rawMirror);
  const marker=entry.url.indexOf('assets/model-transport/');
  if(marker>=0)for(const base of mirrors){try{const root=new URL(base);if(root.protocol==='https:')urls.push(new URL(entry.url.slice(marker),root.href.endsWith('/')?root.href:root.href+'/').href);}catch{}}
- if(entry.rawMirror)urls.push(entry.rawMirror);
- const seen=new Set(),unique=urls.filter(url=>{let key=url;try{key=new URL(url,globalThis.location?.href||'https://local.invalid/').href;}catch{}if(seen.has(key))return false;seen.add(key);return true;});
+ const seen=new Set();return urls.filter(url=>{const key=assetProvider(url);if(seen.has(key))return false;seen.add(key);return true;});
+}
+async function racePacked(entry,fetcher,timeout,mirrors,hedgeDelay){
+ const unique=modelCandidates(entry,mirrors);
  // Reuse the previous validated winner without permanently pinning a failed source.
- const rank=url=>{try{return new URL(url,globalThis.location?.href||'https://local.invalid/').origin;}catch{return '';}};
+ const rank=assetProvider;
  if(preferredSource)unique.sort((a,b)=>Number(rank(b)===preferredSource)-Number(rank(a)===preferredSource));
  return new Promise((resolve,reject)=>{
-  let next=0,active=0,done=false,hedge;const controllers=new Set(),errors=[];
+  let next=0,active=0,done=false,hedge;const controllers=new Map(),errors=[];
+  for(const url of unique)loadingDiagnostics.record({kind:'candidate',url});
   const finish=()=>{if(!done&&next===unique.length&&!active){done=true;clearTimeout(hedge);reject(errors.at(-1)||new Error('No usable model source'));}};
   const launch=()=>{
    if(done||next===unique.length||active>=2)return;
-   const url=unique[next++],controller=new AbortController(),started=performance.now();controllers.add(controller);active++;loadingDiagnostics.record({kind:'download',url});
+   const url=unique[next++],controller=new AbortController(),started=performance.now();controllers.set(controller,url);active++;loadingDiagnostics.record({kind:'download',url});
    (async()=>{const packed=await download(url,fetcher,timeout,controller.signal),bytes=await unpack(packed);await verified(bytes,entry);return {packed,bytes};})().then(result=>{
-    if(done)return;done=true;loadingDiagnostics.record({kind:'winner',url,duration:performance.now()-started});preferredSource=rank(url);clearTimeout(hedge);for(const other of controllers)if(other!==controller)other.abort();resolve(result);
+    if(done)return;done=true;loadingDiagnostics.record({kind:'winner',url,duration:performance.now()-started});preferredSource=rank(url);clearTimeout(hedge);for(const [other,otherUrl] of controllers)if(other!==controller){loadingDiagnostics.record({kind:'cancel',url:otherUrl});other.abort();}resolve(result);
    },error=>{if(!done){loadingDiagnostics.record({kind:'error',url,reason:failureReason(error)});errors.push(error);launch();}}).finally(()=>{active--;controllers.delete(controller);if(!done){launch();finish();}});
   };
-  launch();hedge=setTimeout(launch,hedgeDelay);
+  launch();if(hedgeDelay>0)hedge=setTimeout(launch,hedgeDelay);else launch();
  });
 }
-export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000,cacheTimeout=800,mirrors=configuredMirrors,hedgeDelay=2000}={}){
+export async function fetchAssetBytes(url,{entry=lookup(url),store,fetcher=fetch,timeout=30000,cacheTimeout=800,mirrors=configuredMirrors,hedgeDelay=0}={}){
  if(!entry)return verified(await download(url,fetcher,timeout));
  if(store===undefined)store=await localStore(cacheTimeout);
  const key=`${globalThis.location?.origin||'https://cache.invalid'}/__2n_model_cache__/${entry.sha256}`;

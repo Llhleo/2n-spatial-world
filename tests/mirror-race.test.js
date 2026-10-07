@@ -1,9 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {fetchAssetBytes} from '../src/asset-transport.js';
+import {fetchAssetBytes,modelCandidates} from '../src/asset-transport.js';
 const bytes=Buffer.from('glTFsame-release-model');
 const entry={url:'/assets/model-transport/test-hash.glb.gz',sha256:createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};
+test('CF custom domain and pages.dev are one provider; raw CDN is an independent first rival',()=>{
+ const previous=globalThis.location;globalThis.location={href:'https://2n.llhleo.top/',origin:'https://2n.llhleo.top'};
+ try{const rawMirror='https://cdn.jsdelivr.net/gh/test/model.glb';const urls=modelCandidates({...entry,rawMirror},['https://2n-spatial-world.pages.dev/','https://2n-spatial-world.vercel.app/']);assert.deepEqual(urls,[entry.url,rawMirror,'https://2n-spatial-world.vercel.app/assets/model-transport/test-hash.glb.gz']);}finally{globalThis.location=previous;}
+});
+test('two independent candidates start before either response completes',async()=>{
+ const calls=[];let release;
+ const fetcher=url=>{calls.push(url);if(calls.length===2)release(new Response(bytes));return new Promise(resolve=>{if(calls.length===1)release=resolve;});};
+ const result=await fetchAssetBytes('/assets/test.glb',{entry,store:null,fetcher,mirrors:['https://immediate.example/'],timeout:100});
+ assert.deepEqual(Buffer.from(result),bytes);assert.equal(calls.length,2);
+});
 test('commit-pinned raw CDN wins when packed sources fail',async()=>{
  const rawMirror='https://cdn.jsdelivr.net/gh/example/repo@123/public/assets/test.glb';
  const calls=[];const fetcher=async url=>{calls.push(url);return url===rawMirror?new Response(bytes):new Response('missing',{status:404});};

@@ -5,7 +5,14 @@ test('loading history remains bounded and strips URL paths/query secrets',()=>{
  assert.equal(typeof api.createLoadingDiagnostics,'function');
  const log=api.createLoadingDiagnostics({limit:3});
  for(let i=0;i<5;i++)log.record({kind:'download',url:`https://mirror.example/private/model-${i}.glb?token=SECRET`});
- const state=log.snapshot();assert.equal(state.events.length,3);assert.equal(state.events[0].file,'model-2.glb');assert.equal(state.source,'mirror.example');assert.equal(JSON.stringify(state).includes('SECRET'),false);assert.equal(JSON.stringify(state).includes('/private/'),false);
+ const state=log.snapshot();assert.equal(state.events.length,3);assert.equal(state.events[0].file,'model-2.glb');assert.equal(state.source,'');assert.equal(JSON.stringify(state).includes('SECRET'),false);assert.equal(JSON.stringify(state).includes('/private/'),false);
+});
+test('candidate visibility and cancellations cannot replace the validated winning route',()=>{
+ const log=api.createLoadingDiagnostics();const a='https://a.example/model.glb',b='https://b.example/model.glb';
+ log.record({kind:'candidate',url:a});log.record({kind:'candidate',url:b});
+ assert.equal(log.snapshot().routes.length,2);assert.equal(log.snapshot().routes[1].status,'未启动');
+ log.record({kind:'download',url:a});log.record({kind:'download',url:b});log.record({kind:'winner',url:a});log.record({kind:'cancel',url:b});
+ const s=log.snapshot();assert.equal(s.source,'a.example');assert.equal(s.routes[0].status,'获胜');assert.equal(s.routes[1].status,'已取消');
 });
 test('cache and winning mirror events produce useful counters without claiming downloads decoded',()=>{
  assert.equal(typeof api.createLoadingDiagnostics,'function');

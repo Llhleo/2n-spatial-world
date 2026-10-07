@@ -9,14 +9,15 @@ if(loading){
  const title=document.createElement('strong');title.textContent='加载详情';
  const close=document.createElement('button');close.type='button';close.textContent='关闭';close.setAttribute('aria-label','关闭加载详情');
  header.append(title,close);
- const phase=document.createElement('p'),stats=document.createElement('p'),list=document.createElement('ol');
- list.setAttribute('aria-label','最近加载记录');panel.append(header,phase,stats,list);details.append(panel);loading.append(details);
- const labels={download:'请求',winner:'完成',cache:'缓存命中',error:'换源 / 失败',decode:'模型解析完成'};
+ const phase=document.createElement('p'),stats=document.createElement('p'),routes=document.createElement('ul'),list=document.createElement('ol');
+ routes.setAttribute('aria-label','候选线路状态');list.setAttribute('aria-label','最近加载记录');panel.append(header,phase,stats,routes,list);details.append(panel);loading.append(details);
+ const labels={candidate:'候选 / 未启动',download:'请求',winner:'完成',cancel:'取消落后请求',cache:'缓存命中',error:'换源 / 失败',decode:'模型解析完成'};
  let timer=null;
  function render(){
   timer=null;if(!details.open||loading.hidden)return;
   const state=loadingDiagnostics.snapshot();phase.textContent=loading.querySelector('span')?.textContent||'准备画面';
-  stats.textContent=`当前线路：${state.source||'正在连接'} · 下载 ${state.downloaded} · 缓存 ${state.cacheHits} · 失败 ${state.failures}`;
+  stats.textContent=`最近获胜线路：${state.source||'等待校验'} · 下载 ${state.downloaded} · 缓存 ${state.cacheHits} · 失败 ${state.failures}`;
+  routes.replaceChildren(...state.routes.map(route=>{const item=document.createElement('li');item.textContent=`${route.provider} · 最近状态 ${route.status} · 请求 ${route.requested} / 获胜 ${route.won} / 失败 ${route.failed} / 取消 ${route.cancelled}`;return item;}));
   const atBottom=list.scrollHeight-list.scrollTop-list.clientHeight<24;
   list.replaceChildren(...state.events.map(event=>{const item=document.createElement('li');item.textContent=`${event.seconds.toFixed(1)}s ${labels[event.kind]||event.kind} · ${event.source} · ${event.file}${event.reason?' · '+event.reason:''}${event.duration?` · ${(event.duration/1000).toFixed(1)}s`:''}`;return item;}));
   if(atBottom)list.scrollTop=list.scrollHeight;

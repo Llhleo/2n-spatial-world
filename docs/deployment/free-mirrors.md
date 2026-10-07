@@ -71,3 +71,13 @@ EdgeOne无可用专用接口，已通过浏览器尝试腾讯云邮箱登录；�
 公开入口 https://2n-spatial-world.edgeone.dev/ 和首次独立部署地址均返回 Site Unavailable；执行环境对 release.json 的实际 HTTP GET 虽为 200，但内容是同样的 HTML 错误页，不能认定资源可用或完成 CORS 验收。域名面板显示已生效，项目显示运行中，失败原因未确定。未把尚不可访问的 EdgeOne 域名加入默认镜像。当前已验证并接入的独立供应商仍为 CF Pages、Vercel、jsDelivr；同源和原 GLB/浏览器缓存回退不重复计算。待 EdgeOne 入口与模型 GET 可用、长度/SHA256/CORS 验证通过后才接入。
 
 2n.llhleo.top 先前 Pages 登记待 CNAME，DNS 写入接口认证失败仍未解决。EdgeOne 官方域名说明指出大陆环境访问默认域名需时效预览链接，建议自定义域名建立稳定入口；本次 Site Unavailable 不能据此直接判定为大陆限制。来源 https://pages.edgeone.ai/document/domain-overview 。
+
+## 2026-10-07：供应商去重与首轮独立竞速
+
+CF 自定义域名 2n.llhleo.top 已验证入口、release.json c580a811、rock 压缩模型实际 GET；解压后长度/SHA256 正确，CORS *。用户新增 EdgeOne 自定义域名 2n-edgeone.llhleo.top，目前部署中，测试请求返回 502，未加入默认镜像，待实际模型可用再接入。
+
+新增明确供应商映射，只针对本项目域名合并 CF 自定义域名与 pages.dev；EdgeOne 自定义域名与默认域名亦同类。每个模型候选去重后，默认立即发起最多两条独立供应商请求；原源与 commit 固定的 jsDelivr 为首次竞争，Vercel 为剩余候选；复用上次验证赢家。失败/超时释放位置继续后续候选，获胜取消其他活动请求，保留 GLB/长度/SHA256 和原文件回退。并发上限是每个模型两条请求，不宣称所有供应商同时下载，也不保证未发起线路一定更慢。
+
+隐藏日志新增全部候选供应商及最近状态（未启动/下载中/获胜/失败/已取消），累计请求/胜出/失败/取消；“最近获胜线路”仅由通过校验的赢家更新，正在下载的请求不再覆盖它。保持默认折叠、展开时限频更新、有界记录、不记录 query/token。浏览器本地缓存命中时可不发起网络竞速。
+
+新增回归测试验证 CF 别名合并、两条独立请求在响应前启动、候选与取消可见且不覆盖赢家。node --test 268 项通过，npm run build 成功。未改变五境/资产质量/GitHub Pages。
