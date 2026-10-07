@@ -1,5 +1,10 @@
 # Codex 接续入口
 
+## 2026-10-07 加载与部署优先交接
+
+先读 [托管入口与 main 自动更新指示](docs/deployment/hosting-and-updates.md)。两主站是 GitHub Pages 和 https://2n.llhleo.top/；五家模型候选为 CF、EdgeOne、Vercel、Pages、jsDelivr，三路并发，默认隐藏日志。当前加载优化发布分支 perf/free-mirrors-2026-10-07，最新运行时1f508c5。**main 自动同步尚未统一，合并前必须处理 Pages 触发分支与 CF/EdgeOne 生产分支；不能宣称已经配置完成。** 后续添加模型也须沿用无损构建、commit固定CDN及完整校验，具体步骤见链接。以下视觉历史交接继续有效，但旧“不更新 Pages”记录不覆盖后续用户明确发布授权。
+
+
 最新优先：docs/2026-10-06-history-landing-occlusion.md。手动进入历史在第8秒第一段完整显现处重置滚动目标，不再追赶猛滑到后段。第三幕前景重叠花瓣按投影动态调整到约70%不透明。
 
 最新优先：docs/2026-10-06-manual-entry-speed.md。手动离场局部限速，自动播放不变；更新三个标题及对应缺字。

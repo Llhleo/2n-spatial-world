@@ -2,9 +2,14 @@
 
 2n 公会的五区域 3D 展示网站。现有模型、高清花瓣、花朵和人物文案均保留。
 
-- GitHub Pages（正式发布）：https://llhleo.github.io/2n-spatial-world/
+- 主网站 GitHub Pages：https://llhleo.github.io/2n-spatial-world/
+- 主网站 Cloudflare：https://2n.llhleo.top/
+- 备用网站 EdgeOne：https://2n.edgeone.llhleo.top/
+- 备用网站 Vercel：https://2n-spatial-world.vercel.app/
+- 第五家候选 jsDelivr：仅模型资源 CDN，无完整网站（构建自动固定 commit）
+- **托管/竞速与 main 自动更新：[当前配置和后续模型指示](docs/deployment/hosting-and-updates.md)**
 - Sites（迭代预览）：https://twon-dark-spatial-world.llhleo.chatgpt.site
-- 当前开发分支：`experiment/lookback-v2`
+- 当前加载优化发布分支：`perf/free-mirrors-2026-10-07`；历史视觉开发记录另见交接文件
 - 当前进展：[PROJECT_STATUS.md](PROJECT_STATUS.md)
 - 接续工作：[CODEX_HANDOFF.md](CODEX_HANDOFF.md)
 - 编辑人物姓名、职务和介绍：[content/people.json](content/people.json)，规则见 [content/README.md](content/README.md)
@@ -33,8 +38,10 @@ Node.js 环境安装依赖后运行 `npm run dev`；生产构建使用 `npm run 
 
 ## 发布与开发边界
 
-2026-10-05 用户明确要求将当前版本发布到 GitHub Pages：`main` 已快进至 `e65616c7ac91d7a381eed03d959baf4c65e77c94`，构建与部署成功。此发布包含 Sites v48 同版运行时代码，不再是早期花朵冻结版。
+当前运行时版本 `1f508c5` 已公开部署到 Pages、CF、EdgeOne、Vercel。模型使用上述五家候选，每个模型最多3条活动下载，赢家须通过完整校验；加载日志默认隐藏。
 
-新视觉开发继续使用 `experiment/lookback-v2` 和原 Sites 项目；后续是否更新 Pages 需按当轮授权判断，不自动沿用本次发布授权。向 `main` 提交文档也会触发现有 Pages 工作流，运行时代码不变。
+**目前不能保证合 main 后全部托管站自动更新。** CF与EdgeOne跟踪加载优化发布分支；该分支Pages工作流只监听自身，直接合并会覆盖main触发规则；Vercel功能版本本轮由手动生产发布完成。合main前必须按[托管与更新指示](docs/deployment/hosting-and-updates.md)统一生产分支并核验，jsDelivr随网站构建生成新commit固定地址。创建tag或Release不自动等同于部署。
+
+本轮仅更新说明，不合并main、不修改平台生产分支。后续模型先阅读上述指示和CODEX_HANDOFF，再根据当轮用户授权发布。2026-10-05 Pages历史记录仍保留供追溯；Sites需单独部署。
 
 旧仓库 `Llhleo/2n` 保持不动。禁止为整理仓库删除模型、研究、历史分支或改写 Git 历史。
