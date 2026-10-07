@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
-import {nextPoint,nextCamera} from './guild-next-motion.js';
+import {nextPoint,nextCamera,nextArcFrame} from './guild-next-motion.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 
 export function createMemoryScene({mobile=true}={}){
@@ -87,7 +87,9 @@ export function createMemoryScene({mobile=true}={}){
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);
-  const nextPose=Number.isFinite(state?.nextT)?nextCamera({position:camera.position.toArray(),target:shot.target},state.nextT):null;
+  const expandedPose={position:camera.position.toArray(),target:shot.target};
+  const nextPose=Number.isFinite(state?.nextT)?nextCamera(expandedPose,state.nextT):null;
+  const arcFrame=nextPose?nextArcFrame(expandedPose,camera):null;
   activeTarget=nextPose?.target||shot.target;if(nextPose)camera.position.fromArray(nextPose.position);camera.lookAt(...activeTarget);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
   dustMaterial.uniforms.color.value.copy(color);
@@ -110,7 +112,7 @@ export function createMemoryScene({mobile=true}={}){
     const radial=point.clone().sub(new T.Vector3(0,0,-14));
     if(radial.lengthSq()>0)point.addScaledVector(radial.normalize(),motion*eased(phase)*(1-expand)*.35*Math.sin(time*(.78+a.u*.3)+a.u*6+a.branch*1.7));
     point.y+=motion*expand*(bob(a)-meanBob);
-    if(Number.isFinite(state?.nextT))point.fromArray(nextPoint(a,point.toArray(),state.nextT));
+    if(Number.isFinite(state?.nextT))point.fromArray(nextPoint(a,point.toArray(),state.nextT,arcFrame));
     locations.set(a.id,point.clone());
   }
   // Bounded, deterministic separation prevents petals crossing during the morph.
