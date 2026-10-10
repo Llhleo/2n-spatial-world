@@ -36,3 +36,13 @@ test('particle mark preserves the opening sculpture bounds and superscript n rat
  for(let i=0;i<points.count;i++){const p=new T.Vector3().fromBufferAttribute(points,i);if(p.x>nBox.min.x-.01){assert.ok(p.y>=nBox.min.y-.01,'n stays in its original superscript height band');nCount++;}}
  assert.ok(nCount>15000&&nCount<points.count/2);assert.equal(swarm.points.geometry.getAttribute('aNormal').count,points.count);swarm.dispose();monument.traverse(o=>o.geometry?.dispose());monument.children[0].material.dispose();
 });
+
+test('standalone scene entry actually attaches and activates the particle system at all ending stages',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');
+ const scene=createMemoryScene(),source=new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial());scene.install(source,'garden','rose');
+ const cam=new T.PerspectiveCamera(48,.46,.2,2400);
+ for(const nextT of [.15,.45,.7,1]){scene.update({memoryPhase:2,eventIndex:2,nextT},cam,0);
+  const swarm=scene.group.getObjectByName('ending-shape-swarm');assert.ok(swarm?.isPoints&&swarm.visible);assert.equal(swarm.geometry.getAttribute('position').count,262144);assert.equal(swarm.material.uniforms.uT.value,nextT);
+ }
+ scene.dispose();source.geometry.dispose();source.material.dispose();
+});
