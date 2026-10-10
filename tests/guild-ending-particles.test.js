@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import {createEndingParticles,ENDING_PARTICLE_COUNT,endingFrame,endingCamera,endingPetalFrame,endingPetalPoint} from '../src/guild-ending-particles.js';
+import {createMonument} from '../src/monument.js';
 import {createMemoryLayout,memoryPoint} from '../src/guild-memory-layout.js';
 const pose={position:[-4,7,198],target:[0,0,-14]};
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
  const swarm=createEndingParticles(),cam=new T.PerspectiveCamera(48,.46);assert.equal(ENDING_PARTICLE_COUNT,262144);assert.equal(swarm.points.geometry.getAttribute('position').count,262144);
+ assert.equal(swarm.points.material.blending,T.NormalBlending);
  assert.ok(Array.from(swarm.points.geometry.getAttribute('position').array).every(Number.isFinite));
  swarm.update(undefined,0,cam);assert.equal(swarm.points.visible,false);swarm.update(.7,2,cam);assert.equal(swarm.points.visible,true);
  assert.equal(swarm.points.material.uniforms.uAspect.value,.46);let released=0;swarm.points.geometry.addEventListener('dispose',()=>released++);swarm.points.material.addEventListener('dispose',()=>released++);swarm.dispose();assert.equal(released,2);
@@ -24,4 +26,13 @@ test('petal handoff retains original centers and ends in a readable volume in po
    assert.deepEqual(endingPetalPoint(a,start,1,0,true,slots),endingPetalPoint(a,start,1,40,true,slots));
   }assert.ok(Math.max(...depths)-Math.min(...depths)>150);
  }
+});
+
+test('particle mark preserves the opening sculpture bounds and superscript n rather than a new font',()=>{
+ const monument=createMonument(),original=new T.Box3().setFromObject(monument),center=original.getCenter(new T.Vector3());original.translate(center.clone().negate());
+ const swarm=createEndingParticles();swarm.points.geometry.computeBoundingBox();const sampled=swarm.points.geometry.boundingBox;
+ for(const axis of ['x','y','z']){assert.ok(Math.abs(sampled.min[axis]-original.min[axis])<.1);assert.ok(Math.abs(sampled.max[axis]-original.max[axis])<.1);}
+ const points=swarm.points.geometry.getAttribute('position'),nBox=monument.children[1].geometry.boundingBox.clone().translate(center.clone().negate());let nCount=0;
+ for(let i=0;i<points.count;i++){const p=new T.Vector3().fromBufferAttribute(points,i);if(p.x>nBox.min.x-.01){assert.ok(p.y>=nBox.min.y-.01,'n stays in its original superscript height band');nCount++;}}
+ assert.ok(nCount>15000&&nCount<points.count/2);assert.equal(swarm.points.geometry.getAttribute('aNormal').count,points.count);swarm.dispose();monument.traverse(o=>o.geometry?.dispose());monument.children[0].material.dispose();
 });
