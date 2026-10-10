@@ -29,7 +29,7 @@ export function createNextView(){
   readingBounds.makeEmpty();group.visible=prepared&&!disposed&&(state?.nextOpacity||0)>0;if(!group.visible)return;
   camera.updateMatrixWorld();const origin=new T.Vector3(...state.target),depth=camera.position.distanceTo(origin),half=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2)),unit=half*2/next.height;
   const total=texts.reduce((sum,text)=>sum+(text.userData.ink.maxY-text.userData.ink.minY)*text.userData.pixels,0)+32;
-  const fit=Math.min(1,next.height*.4/total);let cursor=total*fit/2;
+  const fit=Math.min(1,next.height*.4/total);let cursor=total*fit/2-next.height*.25;
   for(const text of texts){const b=text.userData.ink,scale=text.userData.pixels*fit*unit,height=(b.maxY-b.minY)*text.userData.pixels*fit;
    text.quaternion.copy(camera.quaternion);text.scale.setScalar(scale);text.position.copy(origin).add(new T.Vector3(-half*camera.aspect+(32+(viewport.safeLeft||0))*unit-b.minX*scale,(cursor-height/2)*unit-(b.minY+b.maxY)/2*scale,0).applyQuaternion(camera.quaternion));cursor-=height+16*fit;
    text.material.opacity=state.nextOpacity;text.updateMatrixWorld(true);

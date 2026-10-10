@@ -1,16 +1,17 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
 import {sampleNext} from './guild-next-route.js';
-import {nextPoint,nextCamera,nextArcFrame} from './guild-next-motion.js';
+import {endingCamera,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 import {petalFrontQuaternion} from './petal-fronts.js';
 import {petalDisplayTexture} from './petal-display-texture.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
+ const ending=createEndingParticles();
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  let activeTarget=null;
- const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,arcCache=null;
+ const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
  const ambient=new T.AmbientLight(0xffffff,1.15);group.add(ambient);
@@ -21,7 +22,7 @@ export function createMemoryScene({mobile=true}={}){
  for(let i=0;i<dustCount;i++){const depth=45+random()*145,half=depth*Math.tan(Math.PI*24/180);positions.set([(random()-.5)*2.2*half,(random()-.5)*2.2*half,-depth],i*3);brightness[i]=.4+random()*.5;}
  const dustGeometry=new T.BufferGeometry();dustGeometry.setAttribute('position',new T.BufferAttribute(positions,3));dustGeometry.setAttribute('aLight',new T.BufferAttribute(brightness,1));
  const dustMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{color:{value:new T.Color(palette[0])},time:{value:0}},vertexShader:'uniform float time;attribute float aLight;varying float lit;void main(){vec3 drift=position+vec3(sin(time*.13+position.z*.07)*.5,sin(time*.18+position.x*.1)*.8,0.);vec4 p=modelViewMatrix*vec4(drift,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(220./max(1.,-p.z),1.,4.);lit=aLight;}',fragmentShader:'uniform vec3 color;varying float lit;void main(){float a=1.-smoothstep(.08,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(color,a*lit*.75);}'});
- const dust=new T.Points(dustGeometry,dustMaterial);dust.name="memory-dust";dust.matrixAutoUpdate=false;dust.frustumCulled=false;group.add(dust);owned.push(dustGeometry,dustMaterial);
+ const dust=new T.Points(dustGeometry,dustMaterial);dust.name="memory-dust";dust.matrixAutoUpdate=false;dust.frustumCulled=false;group.add(dust);owned.push(dustGeometry,dustMaterial);group.add(ending.points);
  for(let i=0;i<3;i++){
   const geometry=new T.PlaneGeometry(16,190),material=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,uniforms:{color:{value:new T.Color(palette[0])}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform vec3 color;void main(){float edge=pow(max(0.,1.-abs(v.x-.5)*2.),3.);float end=smoothstep(0.,.2,v.y)*(1.-smoothstep(.7,1.,v.y));gl_FragColor=vec4(color,edge*end*.028);}'});
   const beam=new T.Mesh(geometry,material);beam.position.set(-35+i*35,5,-60-i*15);beam.rotation.z=-.45;group.add(beam);owned.push(geometry,material);
@@ -91,16 +92,15 @@ export function createMemoryScene({mobile=true}={}){
   dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);
   const expandedPose={position:camera.position.toArray(),target:shot.target};
-  const nextPose=Number.isFinite(state?.nextT)?nextCamera(expandedPose,state.nextT):null;
-  const arcKey=nextPose?JSON.stringify([expandedPose,camera.aspect,camera.fov]):null;
-  if(nextPose&&(!arcCache||arcCache.layout!==layout||arcCache.key!==arcKey))arcCache={layout,key:arcKey,frame:nextArcFrame(expandedPose,{aspect:camera.aspect,fov:camera.fov,anchors:layout.anchors})};
-  const arcFrame=nextPose?arcCache.frame:null;
+  const nextPose=Number.isFinite(state?.nextT)?endingCamera(expandedPose,state.nextT):null;
+  if(nextPose&&(!endingCache||endingCache.layout!==layout||endingCache.aspect!==camera.aspect))endingCache={layout,aspect:camera.aspect,frame:endingPetalFrame(expandedPose,camera.aspect,layout.anchors)};
+  ending.update(state?.nextT,time,camera,state?.reducedMotion);
   const nextOpening=nextPose?sampleNext(state.nextT).opening:0;
   activeTarget=nextPose?.target||shot.target;if(nextPose)camera.position.fromArray(nextPose.position);camera.lookAt(...activeTarget);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
   dustMaterial.uniforms.color.value.copy(color);
   for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
-  lightBlend=state?.entryPose?eased(((state.entryBlend??0)-.9)/.1):1;
+  lightBlend=(state?.entryPose?eased(((state.entryBlend??0)-.9)/.1):1)*(nextPose?(.65+.35*endingFrame(state.nextT).light):1);
   ambient.intensity=1.15*lightBlend*(terrainVisible?0:1);key.intensity=2.8*lightBlend*(terrainVisible?0:1);fill.intensity=1.2*lightBlend*(terrainVisible?0:1);
   // Keep captured material fog stable: toggling it creates a color discontinuity.
   const locations=new Map(),expand=eased(phase-1);
@@ -118,7 +118,7 @@ export function createMemoryScene({mobile=true}={}){
     const radial=point.clone().sub(new T.Vector3(0,0,-14));
     if(radial.lengthSq()>0)point.addScaledVector(radial.normalize(),motion*eased(phase)*(1-expand)*.35*Math.sin(time*(.78+a.u*.3)+a.u*6+a.branch*1.7));
     point.y+=motion*expand*(bob(a)-meanBob);
-    if(Number.isFinite(state?.nextT))point.fromArray(nextPoint(a,point.toArray(),state.nextT,arcFrame,{time,reducedMotion:state?.reducedMotion}));
+    if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,time, state?.reducedMotion,endingCache?.frame));
     locations.set(a.id,point.clone());
   }
   // Bounded, deterministic separation prevents petals crossing during the morph.
@@ -202,5 +202,5 @@ export function createMemoryScene({mobile=true}={}){
    }alpha.needsUpdate=true;
   }
  }
- return {group,install,prepare,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();group.clear();sources.clear();pools.clear();}};
 }
