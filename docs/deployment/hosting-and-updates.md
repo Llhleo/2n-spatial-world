@@ -6,7 +6,7 @@
 | GitHub Pages | https://llhleo.github.io/2n-spatial-world/ | pages.yml监听main，保留原github-pages环境与子路径 |
 | Cloudflare Pages | https://2n.llhleo.top/ | API已切换main，保留Git连接与生产自动发布 |
 | EdgeOne | https://2n.edgeone.llhleo.top/ | 仍监听perf/free-mirrors-2026-10-07；sync-edgeone.yml在main更新后快进该分支 |
-| Vercel | https://2n-spatial-world.vercel.app/ | 既有Git集成；生产更新以部署记录、release.json为准，接口未返回生产分支字段 |
+| Vercel | https://2n-spatial-world.vercel.app/ | 既有main Git自动生产集成，本轮main推送实际生成同SHA生产部署并READY |
 | jsDelivr | https://cdn.jsdelivr.net/gh/Llhleo/2n-spatial-world@COMMIT/public/assets/ | 资源CDN；COMMIT由每次构建真实40位SHA替换，无网页部署 |
 
 EdgeOne控制台本轮遇到登录墙，未宣称已把平台设置改成main。使用保留的Git自动部署链路，通过工作流快进同步main；同步不会强推覆盖独立成果。如果快进失败，应检查发布分支新增工作，不能强制推送。该分支仍有用途，清理时保留。
