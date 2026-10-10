@@ -256,7 +256,7 @@ if (renderer) {
       people.group.visible=people.group.visible&&state.peopleOpacity>0;
     }
     const nextButtons=inNext&&state.buttonsVisible&&nextView.ready;
-    replayButton.hidden=introLocked||!closing||!(nextButtons||state.replayVisible);
+    replayButton.hidden=introLocked||!nextButtons;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
     const readingPixelRatio=Math.min(devicePixelRatio,(memoryPreview||closing)?2.5:returnProgress>.95?2:1.5);

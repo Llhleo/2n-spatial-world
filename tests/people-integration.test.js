@@ -144,11 +144,13 @@ test('history survives orientation change, reversed seeks and five replays witho
  assert.equal(app.elements.get('world').dataset.biome,'history');
  const t=Number(app.elements.get('world').dataset.historyProgress),prepared=app.calls.prepare;
  app.resize();app.tick();assert.equal(Number(app.elements.get('world').dataset.historyProgress),t);
- assert.equal(app.elements.get('replay').hidden,false);
+ assert.equal(app.elements.get('replay').hidden,true);
+ app.seek(1);app.tick();assert.equal(app.elements.get('replay').hidden,false);
  for(let i=0;i<5;i++){
   app.events.get('replay:click')({stopPropagation(){}});app.tick();
   assert.equal(app.elements.get('world').dataset.progress,'0.000');assert.equal(app.elements.get('replay').hidden,true);
-  app.seek(api.storyToScroll((api.NEXT_START_UNITS-.05)/28,app.gallery.route));app.tick();assert.equal(app.elements.get('replay').hidden,false);
+  app.seek(api.storyToScroll((api.NEXT_START_UNITS-.05)/28,app.gallery.route));app.tick();assert.equal(app.elements.get('replay').hidden,true);
+  app.seek(1);app.tick();assert.equal(app.elements.get('replay').hidden,false);
  }
  assert.equal(app.calls.prepare,prepared);
  app.seek(.85);app.tick();assert.equal(app.elements.get('replay').hidden,true);
@@ -411,4 +413,13 @@ test('manual fling lands on first history text and clears the old far scroll tar
  test('next ending replay resets progress and keeps controls out of the takeover gesture',async()=>{
  const app=entry({reduced:true});app.open();await app.settle();app.tick();await app.settle();app.tick();
  app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.calls.scroll.at(-1),0);assert.equal(app.elements.get('replay').hidden,true);
+ });
+
+ test('replay appears only after the final ending, and reverse scrolling hides it again',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();await app.settle();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ for(const nextT of [0,.5,14/16,15.99/16,1,.9,1]){
+  app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*nextT)/28,app.gallery.route));app.tick();
+  assert.equal(app.elements.get('replay').hidden,nextT!==1,`replay visibility at nextT=${nextT}`);
+ }
  });

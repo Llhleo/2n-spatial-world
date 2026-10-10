@@ -10,7 +10,10 @@ test('next chapter has a 16 second reversible fade-open-read sequence',()=>{
  const start=api.sampleNext(0);assert.equal(start.historyOpacity,1);assert.equal(start.opening,0);assert.equal(start.nextOpacity,0);
  assert.equal(api.sampleNext(3/16).opening,0);assert.equal(api.sampleNext(3/16).historyOpacity,0);
  assert.equal(api.sampleNext(10/16).opening,1);assert.equal(api.sampleNext(11/16).nextOpacity,1);
- assert.equal(api.sampleNext(14/16).buttonsVisible,true);
+ assert.equal(api.sampleNext(14/16).buttonsVisible,false);
+ assert.equal(api.sampleNext(15.99/16).buttonsVisible,false);
+ assert.equal(api.sampleNext(1).buttonsVisible,true);
+ assert.equal(api.sampleNext(1-1e-7).buttonsVisible,true);
  for(const t of [NaN,Infinity,-1,2])for(const value of Object.values(api.sampleNext(t)))assert.ok(typeof value==='boolean'||Number.isFinite(value));
  assert.deepEqual(api.sampleNext(.4),api.sampleNext(.4));
 });
