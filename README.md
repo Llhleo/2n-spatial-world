@@ -1,40 +1,26 @@
 # 2n Spatial World
 
-2n 公会的五区域 3D 展示网站。现有模型、高清花瓣、花朵和人物文案均保留。
+面向中文玩家的 Florr 2n 公会全 3D 叙事：五境 → 同行与成员 → 工会历史 → 立体花瓣开放弧结尾。
 
-- GitHub Pages（正式发布）：https://llhleo.github.io/2n-spatial-world/
-- Sites（迭代预览）：https://twon-dark-spatial-world.llhleo.chatgpt.site
-- 当前开发分支：`experiment/lookback-v2`
-- 当前进展：[PROJECT_STATUS.md](PROJECT_STATUS.md)
-- 接续工作：[CODEX_HANDOFF.md](CODEX_HANDOFF.md)
-- 编辑人物姓名、职务和介绍：[content/people.json](content/people.json)，规则见 [content/README.md](content/README.md)
-- 公会故事设计（已确认；真实事件尚未接入）：[故事方案](docs/2026-10-05-guild-story-proposal.md)
-- 当前预览：[Sites v49 独立结尾](docs/2026-10-05-guild-closure-v49.md)
-- 发布记录：[2026-10-05 Pages 发布](docs/2026-10-05-pages-release.md)
-- 仓库维护规则：[仓库指南](docs/REPOSITORY_GUIDE.md)
-- 文档目录：[docs/README.md](docs/README.md)
-
-## 目录
-
-| 目录 | 用途 |
+| 入口 | 地址 |
 | --- | --- |
-| `src/` | 场景、加载、镜头、人物展示 |
-| `content/` | 可直接编辑的人物文字 |
-| `public/assets/` | 线上使用的模型和字体 |
-| `scripts/` | 无损传输与资源构建 |
-| `tests/`、`test/` | 回归检查 |
-| `studies/` | 历史模型与视觉研究，保留供追溯 |
-| `docs/archive/` | 已过期的状态和交接快照 |
+| 主站 GitHub Pages | https://llhleo.github.io/2n-spatial-world/ |
+| 主站 Cloudflare | https://2n.llhleo.top/ |
+| 备用 EdgeOne | https://2n.edgeone.llhleo.top/ |
+| 备用 Vercel | https://2n-spatial-world.vercel.app/ |
+| Sites 迭代预览 | https://twon-dark-spatial-world.llhleo.chatgpt.site |
 
-## 本地运行
+模型保留五家候选：Pages、Cloudflare、EdgeOne、Vercel、固定提交的 jsDelivr。每模型最多三路活动下载；赢家需通过解压、GLB、长度及 SHA-256 校验。jsDelivr 仅资源 CDN，没有完整网页。
 
-Node.js 环境安装依赖后运行 `npm run dev`；生产构建使用 `npm run build`。
-构建会自动生成花瓣实例和无损模型传输产物。`node_modules`、`dist` 和生成的模型传输目录不提交。
+## 开发与发布
 
-## 发布与开发边界
+正式源为 `main`。Pages 工作流监听 main；Cloudflare 已改为 main 自动生产部署。EdgeOne 现有生产分支 `perf/free-mirrors-2026-10-07` 由 `sync-edgeone.yml` 从 main 快进同步，仍承担部署用途，不应删除。Vercel 的实际生产版本须结合平台状态和 release.json 核对。Sites 单独发布。
 
-2026-10-05 用户明确要求将当前版本发布到 GitHub Pages：`main` 已快进至 `e65616c7ac91d7a381eed03d959baf4c65e77c94`，构建与部署成功。此发布包含 Sites v48 同版运行时代码，不再是早期花朵冻结版。
+安装依赖后运行 `npm run dev`；检查 `node --test`；构建 `npm run build`。Pages 构建追加 `-- --base=/2n-spatial-world/`。不提交 dist、node_modules 或生成的传输目录。
 
-新视觉开发继续使用 `experiment/lookback-v2` 和原 Sites 项目；后续是否更新 Pages 需按当轮授权判断，不自动沿用本次发布授权。向 `main` 提交文档也会触发现有 Pages 工作流，运行时代码不变。
+- [当前状态](PROJECT_STATUS.md) · [接续开发](CODEX_HANDOFF.md)
+- [托管与自动更新](docs/deployment/hosting-and-updates.md) · [文档索引](docs/README.md)
+- [人物资料](content/people.json) · [工会历史](content/history.json)
+- [仓库维护规则](docs/REPOSITORY_GUIDE.md)
 
-旧仓库 `Llhleo/2n` 保持不动。禁止为整理仓库删除模型、研究、历史分支或改写 Git 历史。
+旧仓库 Llhleo/2n 不改动。保留原始模型、纹理、研究和历史记录；仅清理已被正式版本包含、且不再承担部署职责的分支。
