@@ -188,7 +188,9 @@ export function createMemoryScene({mobile=true}={}){
   }
   for(const pool of pools.values()){
    const enabled=weight>0,transparent=enabled||pool.nativeTransparent;if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
-   pool.material.depthWrite=enabled?false:pool.nativeDepthWrite;pool.mesh.renderOrder=enabled?3:0;
+   // Per-instance text fading must retain self-occlusion of the solid GLB.
+   // Disabling depth writes exposes hidden atlas faces even on alpha=1 petals.
+   pool.material.depthWrite=pool.nativeDepthWrite;pool.mesh.renderOrder=enabled?3:0;
    const alpha=pool.mesh.geometry.getAttribute('memoryAlpha'),sphere=pool.mesh.geometry.boundingSphere;
    for(let i=0;i<pool.mesh.count;i++){
     pool.mesh.getMatrixAt(i,matrix);matrix.premultiply(pool.mesh.matrixWorld);
