@@ -22,3 +22,9 @@
 
 仅更新原 Sites 测试站，保留当前访问范围；源码保存GitHub feature/ending-open-arc。按 docs/deployment/hosting-and-updates.md，不合main、不推生产perf分支、不更新4个公开站、旧Llhleo/2n不动。
 构建GITHUB_SHA固定到本轮已推送的GitHub提交，不能使用Sites源码SHA作为jsDelivr资源提交。
+
+## 发布结果
+
+Sites v70 发布成功；运行时代码 d8a8ee53991a6a541abe1326695daf7268a49ade；Sites 源码 edfbc6da19004d2f2ef99b99a935b67ef96efebe；部署 appgdep_6aca3233a9608191a4f5731895ec5240，原生发布返回 succeeded。
+地址 https://twon-dark-spatial-world.llhleo.chatgpt.site。
+生产构建、源推送与归档验证成功；release.json固定到上述GitHub提交，41模型。277项检查通过；真实手机视觉/性能仍待用户验收。公开生产站未更新。
