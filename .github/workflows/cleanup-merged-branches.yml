@@ -1,3 +1,4 @@
+# Re-run for the release audit; ancestor-only deletion remains unchanged.
 name: Clean merged development branches
 on:
   push:
