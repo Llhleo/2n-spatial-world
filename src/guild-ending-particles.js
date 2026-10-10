@@ -62,6 +62,8 @@ export function createEndingParticles(){
  monument.traverse(o=>o.geometry?.dispose());monument.children[0].material.dispose();
  geometry.setAttribute('aNormal',new T.BufferAttribute(normals,3));
  geometry.setAttribute('position',new T.BufferAttribute(glyph,3));geometry.setAttribute('aSeed',new T.BufferAttribute(seed,4));
+ // Ordinary alpha blending bounds dense crossings to the palette; visibility
+ // comes from wider bright cores, not unbounded additive accumulation.
  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0}},
  vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal; uniform float uT,uTime,uPixels,uAspect,uReduced; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
@@ -81,7 +83,7 @@ export function createEndingParticles(){
  float arc=sin(morph*3.141593)*(aSeed.z-.5)*16.;p+=vec3(sin(turn),cos(turn),sin(turn*2.))*arc;
  float flow=(1.-morph)*2.2*(1.-uReduced);p+=vec3(sin(p.y*.07+uTime*.23),cos(p.z*.08-uTime*.17),sin(p.x*.06+uTime*.2))*flow;
  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
- float px=clamp(uPixels*.55/max(1.,-mv.z),1.,3.5);
+ float px=clamp(uPixels*1.1/max(1.,-mv.z),1.8,8.);
  gl_PointSize=px;
  float pulse=pow(max(0.,sin(depth*14.-uT*19.+group)),12.);
  float climax=1.+1.8*sin(uT*3.141593)*sin(uT*3.141593);
@@ -89,7 +91,9 @@ export function createEndingParticles(){
  vMetal=.42+.45*max(0.,dot(normalize(aNormal),normalize(vec3(-.5,.7,1.))))+.10*pow(max(0.,dot(normalize(aNormal),normalize(vec3(.5,.2,1.)))),8.);
  vMorph=morph;vColor=mix(biome(group),vec3(.72,.80,.89)*vMetal,morph);
  }`,
- fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=(core*.85+halo*.15);float alpha=coverage*min(.07,vEnergy*.12);gl_FragColor=vec4(vColor,alpha);}`});
+ fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=(core*.85+halo*.15);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);
+ #include <colorspace_fragment>
+ }`});
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  return {points,update(t,time,camera,reduced=false){points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;},dispose(){geometry.dispose();material.dispose();}};
 }

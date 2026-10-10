@@ -29,3 +29,8 @@
 ## 第三版：修复实际发布入口
 
 用户截图显示独立预览仍为旧右侧弧线。核对发现 Sites 源码中的 guild-memory-scene.js 与 guild-next-view.js 沿用了旧版本，粒子模块并未被场景导入。补齐这两个文件，逐文件核对运行源码；新增入口激活测试、构建产物 ending-shape-swarm/aNormal 检查及浏览器入口缺失时的错误提示。不得仅凭文字显示的粒子数量认定已接入。
+
+
+## Visibility correction after mobile screenshots
+
+The previous alpha cap (0.07, with energy multiplied by 0.12) and 3.5-pixel point cap made the swarm barely visible. Increase point diameter to a 1.8–8 physical-pixel range and alpha to energy × 1.6 capped at 0.58; apply the renderer output color-space conversion. Keep ordinary alpha blending, all 262,144 particles, the sculpture sample and existing camera/morph choreography. Dense intersections remain bounded by palette colors. Build and CPU scene tests do not replace visual verification on iPhone Safari.
