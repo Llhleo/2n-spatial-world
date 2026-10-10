@@ -3,6 +3,7 @@ import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
 import {sampleNext} from './guild-next-route.js';
 import {nextPoint,nextCamera,nextArcFrame} from './guild-next-motion.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
+import {petalFrontQuaternion} from './petal-fronts.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
@@ -30,8 +31,7 @@ export function createMemoryScene({mobile=true}={}){
   source.geometry.computeBoundingSphere();source.geometry.computeBoundingBox();
   const sphere=source.geometry.boundingSphere,dimensions=source.geometry.boundingBox.getSize(new T.Vector3());
   if(!sphere||!Number.isFinite(sphere.radius)||sphere.radius<=0)return;
-  const normal=dimensions.y<Math.min(dimensions.x,dimensions.z)?new T.Vector3(0,1,0):dimensions.x<dimensions.z?new T.Vector3(1,0,0):new T.Vector3(0,0,1);
-  sources.set(id,{source,center:sphere.center.clone(),factor:2.2/sphere.radius,face:new T.Quaternion().setFromUnitVectors(normal,new T.Vector3(0,0,1))});
+  sources.set(id,{source,center:sphere.center.clone(),factor:2.2/sphere.radius,face:petalFrontQuaternion(name,dimensions)});
   layout=null;
  }
  function prepare(){
