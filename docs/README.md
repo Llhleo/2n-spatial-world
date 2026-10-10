@@ -1,26 +1,10 @@
 # 文档入口
 
-## 当前有效入口
+- [当前状态](../PROJECT_STATUS.md) · [接续开发](../CODEX_HANDOFF.md)
+- [托管、五家竞速与自动更新](deployment/hosting-and-updates.md)
+- [本轮main发布与整理](2026-10-10-main-release.md)
+- [文字出现后的模型深度修正](2026-10-10-petal-depth-write.md)
+- [立体开放弧](2026-10-10-spatial-crescent-implementation.md)
+- [仓库规则](REPOSITORY_GUIDE.md) · [人物编辑规则](../content/README.md)
 
-| 文件 | 用途 |
-| --- | --- |
-| [项目状态](../PROJECT_STATUS.md) | 最新版本、已完成项与未完成项 |
-| [Codex 交接](../CODEX_HANDOFF.md) | 从现有成果接续开发 |
-| [Pages 发布记录](2026-10-05-pages-release.md) | 当前正式发布与源码基线 |
-| [工会历史发布](2026-10-05-guild-history-release.md) | 当前 Sites 运行时、审核与下一步 |
-| [v49 独立结尾](2026-10-05-guild-closure-v49.md) | 历史原型，金属收尾已停用 |
-| [v48 长链恢复](2026-10-05-v45-chain-restore.md) | 最近运行时修改；v47 固定两排已否决 |
-| [公会故事提案](2026-10-05-guild-story-proposal.md) | 早期提案；当前已批准规格与实现见工会历史发布记录 |
-| [仓库维护规则](REPOSITORY_GUIDE.md) | 目录职责、分支和清理边界 |
-| [人物文案规则](../content/README.md) | 只在 people.json 编辑已核实内容 |
-
-## 历史参考
-
-- `2026-10-03-*`、`2026-10-04-*`：当时的发布、审核、修复记录，不代表当前状态。
-- `resource-sources/`：原始资源获取资料；仅 PETAL，不接入 MOB。
-- `reviews/`：历史审核。
-- `superpowers/`：历史设计与实现计划；旧计划不代表新章节已批准。
-- `archive/`：已过期根目录状态原文。
-- v44/v45/v46/v47：仅用于溯源或指定回退，不能把被否决的 v47 花瓣布局当成新基线。
-
-所有历史记录和资源保留。当前状态以顶部入口为准；历史文件中的“Pages 冻结花朵版”只反映当时限制，2026-10-05 当前版发布已获明确授权。
+2026-10-03至10-10的设计、审核、历史部署记录按日期保留，不能作为当前版本号或发布限制。旧入口全文位于 archive/2026-10-10-before-main/。resource-sources/保留Florr原始获取说明；只接入PETAL，不接入MOB。

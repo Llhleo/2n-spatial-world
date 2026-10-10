@@ -16,7 +16,7 @@ export function createNextView(){
    const {default:font}=await import('./guild-next-font.js');
    if(disposed)return;
    await Promise.all(texts.map((text,i)=>{
-    const pixels=i===0?Math.max(22,Math.min(30,viewport.width*.07)):i===1?17:15;text.userData.pixels=pixels;text.maxWidth=Math.min(480,Math.max(160,viewport.width-64-(viewport.safeLeft||0)-(viewport.safeRight||0)))/pixels;text.font=null;text.font=font;
+    const pixels=i===0?Math.max(22,Math.min(30,viewport.width*.07)):i===1?17:Math.max(36,Math.min(52,viewport.width*.11));text.userData.pixels=pixels;text.maxWidth=Math.min(480,Math.max(160,viewport.width-64-(viewport.safeLeft||0)-(viewport.safeRight||0)))/pixels;text.font=null;text.font=font;
     return new Promise((resolve,reject)=>{let settled=false;const timer=setTimeout(()=>{settled=true;reject(new Error('结尾文字准备超时，可重试'));},timeoutMs);
      try{text.sync(()=>{if(settled)return;settled=true;clearTimeout(timer);try{if(!disposed)text.userData.ink=measure(text);resolve();}catch(error){reject(error);}});}catch(error){settled=true;clearTimeout(timer);reject(error);}
     });
