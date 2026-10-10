@@ -29,3 +29,12 @@
 ## 发布边界
 
 沿用 feature/ending-open-arc 和原 Sites 测试站；不合main，不推生产perf分支，不改4个公开站或旧Llhleo/2n。Sites 构建 GITHUB_SHA 必须使用已提交的GitHub版本。
+
+## 验证与发布结果
+
+- 完整 node --test：274/274通过；生产构建成功。打包 helper 完成源推送、归档及验证。
+- GitHub运行时代码：5530f1e2b7aadbe49d26d3701849e36b6eb74139。
+- Sites v69，来源 f03dc7f25892a5d3c1b52e2697997c0c33394e95；部署 appgdep_6aca240abe0c8191abe3e180a4d4fa03，原生发布返回 succeeded。
+- 地址：https://twon-dark-spatial-world.llhleo.chatgpt.site。
+- dist/release.json 已固定到上述 GitHub 提交，41模型。花瓣运动两个核心文件无修改。
+- 当前无 control-browser 技能，未做浏览器视觉或iPhone Safari实机验收。按钮仅做自动化行为核对；空间运动方案仍为未实施提案。
