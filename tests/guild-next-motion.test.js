@@ -45,3 +45,53 @@ test('ending individual breathing survives the settled arc without translating i
  assert.ok(Math.hypot(...up.map((v,i)=>v-base[i]))>2.9);
  assert.deepEqual(api.nextPoint(a,p,0,frame),p);
 });
+
+test('spatial crescent spreads all identities across depth and projected area instead of a thin rail',()=>{
+ const layout=createMemoryLayout({assets:[{key:'petal',radius:2.2}]});
+ for(const aspect of [.46,.6,1.8]){
+  const frame=api.nextArcFrame(pose,{aspect,fov:48,anchors:layout.anchors});
+  const inverse=frame.matrix.clone().invert();
+  for(const time of [0,6,18,42]){
+   const local=layout.anchors.map(a=>new T.Vector3(...api.nextPoint(a,memoryPoint(a,2,0),1,frame,{time})).applyMatrix4(inverse));
+   const projected=local.map(p=>({x:p.x/(-p.z*frame.halfAngle*aspect),y:p.y/(-p.z*frame.halfAngle),r:3/(-p.z*frame.halfAngle)}));
+   const depth=local.map(p=>-p.z);assert.ok(Math.max(...depth)/Math.min(...depth)>2.3,'near/far perspective must be legible');
+   assert.ok(projected.every(p=>p.x>0&&p.x<1&&Math.abs(p.y)<.94),'portrait and landscape fit');
+   let overlaps=0;for(let i=0;i<projected.length;i++)for(let j=0;j<i;j++){
+    const a=projected[i],b=projected[j];if(Math.hypot((a.x-b.x)*aspect,a.y-b.y)<a.r+b.r)overlaps++;
+   }
+   assert.ok(overlaps<6,`screen stacking must be sparse (${overlaps})`);
+   const middle=projected.filter(p=>Math.abs(p.y)<.45);
+   assert.ok(Math.max(...middle.map(p=>p.x))-Math.min(...middle.map(p=>p.x))>.25,'arc has visible width');
+  }
+ }
+});
+test('settled petals orbit in three dimensions with independent phase and reduced-motion stability',()=>{
+ const layout=createMemoryLayout({assets:[{key:'petal',radius:2.2}]});
+ const frame=api.nextArcFrame(pose,{aspect:.6,anchors:layout.anchors}),inverse=frame.matrix.clone().invert();
+ const positions=t=>layout.anchors.map(a=>new T.Vector3(...api.nextPoint(a,memoryPoint(a,2,0),1,frame,{time:t})).applyMatrix4(inverse));
+ const before=positions(0),after=positions(5),later=positions(11);
+ for(let i=0;i<before.length;i++)for(const axis of ['x','y','z'])assert.ok(Math.max(Math.abs(after[i][axis]-before[i][axis]),Math.abs(later[i][axis]-before[i][axis]))>.1,`${i} ${axis} must move across multiple samples`);
+ assert.ok(after.some((v,i)=>v.z>before[i].z)&&after.some((v,i)=>v.z<before[i].z),'independent forward/back motion');
+ for(const a of layout.anchors){const p=memoryPoint(a,2,0);assert.deepEqual(api.nextPoint(a,p,1,frame,{time:0,reducedMotion:true}),api.nextPoint(a,p,1,frame,{time:30,reducedMotion:true}));assert.deepEqual(api.nextPoint(a,p,0,frame,{time:30}),p);}
+});
+
+test('rendered final shot keeps its original pools and avoids stacked silhouettes while orbiting',()=>{
+ for(const mobile of [true,false]){
+  const scene=createMemoryScene({mobile}),source=new T.Mesh(new T.SphereGeometry(2.2,8,6),new T.MeshStandardMaterial());scene.install(source,'a','b');
+  const cam=new T.PerspectiveCamera(48,mobile?.46:1.8,.2,2400);let pools;
+  for(let step=0;step<480;step++){
+   scene.update({memoryPhase:2,eventIndex:2,nextT:1},cam,.05);
+   if(step===0)pools=scene.group.children.filter(o=>o.isInstancedMesh);
+   if(step%120)continue;
+   const points=[];for(const pool of pools)for(let i=0;i<pool.count;i++){
+    const matrix=new T.Matrix4();pool.getMatrixAt(i,matrix);const world=new T.Vector3().setFromMatrixPosition(matrix),depth=-world.clone().applyMatrix4(cam.matrixWorldInverse).z;
+    const screen=world.project(cam),radius=2.2*Math.max(...new T.Vector3().setFromMatrixScale(matrix).toArray())/(depth*Math.tan(T.MathUtils.degToRad(cam.fov/2)));
+    points.push({x:screen.x,y:screen.y,radius});
+   }
+   assert.equal(points.length,mobile?56:84);assert.ok(points.every(p=>p.x>0&&p.x<1&&Math.abs(p.y)<.96));
+   let overlaps=0;for(let i=0;i<points.length;i++)for(let j=0;j<i;j++){const a=points[i],b=points[j];if(Math.hypot((a.x-b.x)*cam.aspect,a.y-b.y)<a.radius+b.radius)overlaps++;}
+   assert.ok(overlaps<6,`actual ${mobile?'phone':'desktop'} stacking: ${overlaps}`);
+  }
+  assert.deepEqual(scene.group.children.filter(o=>o.isInstancedMesh),pools);scene.dispose();source.geometry.dispose();source.material.dispose();
+ }
+});
