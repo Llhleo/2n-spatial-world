@@ -8,13 +8,13 @@ test('dimension frames enter, unfold and extinguish before the final mark',()=>{
  assert.equal(typeof frames?.endingDimensionFrame,'function','dimension choreography must exist');
  for(const t of [0,1,.70,NaN,Infinity])assert.equal(frames.endingDimensionFrame(t).visibility,0);
  const f=frames.endingDimensionFrame(.35);assert.ok(f.visibility>.9);assert.ok(f.draw>.99);
- assert.equal(f.rotations.length,3);assert.notDeepEqual(f.rotations[0],f.rotations[1]);assert.notDeepEqual(f.rotations[1],f.rotations[2]);
+ assert.equal(f.rotations.length,6);assert.notDeepEqual(f.rotations[0],f.rotations[1]);assert.notDeepEqual(f.rotations[1],f.rotations[2]);
  const saved=frames.endingDimensionFrame(.35);frames.endingDimensionFrame(.9);assert.deepEqual(frames.endingDimensionFrame(.35),saved);
  assert.deepEqual(frames.endingDimensionFrame(.3,true).rotations,frames.endingDimensionFrame(.45,true).rotations);
 });
-test('all 12 luminous gate edges fit the portrait camera throughout the rotating stage',()=>{
+test('all 48 luminous gate segments fit the portrait camera throughout the rotating stage',()=>{
  assert.equal(typeof frames?.createEndingFrames,'function');const art=frames.createEndingFrames();
- const edges=[];art.group.traverse(o=>{if(o.userData.frameEdge)edges.push(o);});assert.equal(edges.length,12);
+ const edges=[];art.group.traverse(o=>{if(o.userData.frameEdge)edges.push(o);});assert.equal(edges.length,48);
  for(const aspect of [.46,.6,1.8])for(const t of [.25,.35,.45]){
   art.update(t,aspect);art.group.updateMatrixWorld(true);
   const shot=endingCamera(pose,t),cam=new T.PerspectiveCamera(48,aspect);cam.position.fromArray(shot.position);cam.lookAt(...shot.target);cam.updateMatrixWorld();

@@ -11,7 +11,7 @@ test('opening keeps the original broad five-colour star stream before the gate s
 });
 test('gates and central unshaped gathering never depend on glyph surface coordinates',()=>{
  for(const t of [.1,.3,.42,.55,.65,.73])assert.deepEqual(endingFlowPoint(cloud,mark,seed,t,.6),endingFlowPoint(cloud,[-60,-20,80],seed,t,.6));
- assert.notDeepEqual(endingFlowPoint(cloud,mark,seed,.8,.6),endingFlowPoint(cloud,[-60,-20,80],seed,.8,.6));
+ assert.notDeepEqual(endingFlowPoint(cloud,mark,seed,.85,.6),endingFlowPoint(cloud,[-60,-20,80],seed,.85,.6));
  assert.deepEqual(endingFlowPoint(cloud,mark,seed,1,.6),mark);
 });
 test('gate dust deforms rather than translating identical compact clouds',()=>{
@@ -31,4 +31,15 @@ test('opening shader retains the legacy reveal, point size and unwhitened biome 
  assert.ok(shader.includes('star*.25*(1.-frontStage)'));
  assert.ok(shader.includes('1.1,frontStage)'));
  swarm.dispose();
+});
+test('central gathering fills a larger volume and visibly shears internally before glyph reveal',()=>{
+ const points=[],later=[];
+ for(let i=0;i<1200;i++){
+  const seed=[i*.61803398875%1,i*.41421356237%1,i*.73205080757%1,i%5];
+  points.push(endingFlowPoint(cloud,mark,seed,.70,.6));later.push(endingFlowPoint(cloud,mark,seed,.78,.6));
+  assert.deepEqual(later.at(-1),endingFlowPoint(cloud,[-90,60,10],seed,.78,.6));
+ }
+ for(let k=0;k<3;k++)assert.ok(Math.max(...points.map(p=>p[k]))-Math.min(...points.map(p=>p[k]))>65,'the central volume must be visibly enlarged');
+ let sheared=0;for(let i=1;i<points.length;i++)if(Math.abs(Math.hypot(...points[i].map((v,k)=>v-points[0][k]))-Math.hypot(...later[i].map((v,k)=>v-later[0][k])))>3)sheared++;
+ assert.ok(sheared>points.length/2,'internal deformation cannot be only rigid rotation');
 });

@@ -3,7 +3,7 @@ import {nextSmooth} from './guild-next-route.js';
 import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
 import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
-import {endingDimensionTransforms,endingDimensionFrame} from './guild-ending-frames.js';
+import {endingDimensionTransforms,endingDimensionFrame,ENDING_GATE_COUNT} from './guild-ending-frames.js';
 
 // Reference study: FrostNovaOrg/world-execute-web engine/swarm.js,
 // engine/rig.js, ch/title/galaxy.js and 02_title.js drawGatherR. Independently authored:
@@ -19,14 +19,14 @@ export function endingNebulaPoint(u,v,w,group){
 }
 export function endingFrame(t=0){
  const u=Math.max(0,Math.min(1,Number.isFinite(t)?t:0));
- const gateOrbit=(-.12+.38*nextSmooth((u-.10)/.34))*(1-nextSmooth((u-.55)/.15));
+ const gateOrbit=(-.12+.30*nextSmooth((u-.10)/.34))*(1-nextSmooth((u-.55)/.15));
  const orbit=T.MathUtils.lerp(Math.sin(Math.PI*nextSmooth(u))*.61,gateOrbit,nextSmooth((u-.18)/.12));
  return {reveal:nextSmooth(u/.16),cloud:nextSmooth(u/(3/18)),dimension:nextSmooth((u-3/18)/.14),glyph:endingGlyphProgress(u),settle:nextSmooth((u-.88)/.12),orbit,light:1+1.7*Math.sin(Math.PI*u)**2};
 }
 export function endingCamera(pose,t,reduced=false){
  const f=endingFrame(t),k=nextSmooth(t/.24),target=[0,30,-14];
  const finalTarget=pose.target.map((v,i)=>T.MathUtils.lerp(v,target[i],k));
- const radius=T.MathUtils.lerp(pose.position[2]-pose.target[2],250+(reduced?0:60*nextSmooth((t-.18)/.12)*(1-nextSmooth((t-.55)/.15))),k);
+ const radius=T.MathUtils.lerp(pose.position[2]-pose.target[2],250+(reduced?0:66*nextSmooth((t-.18)/.12)*(1-nextSmooth((t-.55)/.15))),k);
  const orbit=reduced?0:f.orbit;
  return {target:finalTarget,position:[T.MathUtils.lerp(pose.position[0],Math.sin(orbit)*radius,k),T.MathUtils.lerp(pose.position[1],34+(reduced?0:18*Math.sin(Math.PI*t)),k),finalTarget[2]+T.MathUtils.lerp(pose.position[2]-pose.target[2],Math.cos(orbit)*radius,k)]};
 }
@@ -59,7 +59,7 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null){
  const early=new T.Vector3(Math.cos(theta)*radius*fit,30+Math.sin(theta)*radius*.46,-14+Math.sin(theta)*radius*.62+(a.u-.5)*48);
  const route=endingFlowCenter(endingGateProgress(Math.max(0,t-(a.u-.5)*.035)),fit);
  const angle=a.longitude+(t-.22)*(3.2+.8*a.u)*motion+a.branch*.6;
- const spread=52+18*a.u+14*nextSmooth((t-.46)/.10);
+ const spread=52+18*a.u+14*nextSmooth((t-.46)/.10)+12*nextSmooth((t-.55)/.15)*(1-nextSmooth((t-.80)/.10));
  const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
  const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
@@ -90,8 +90,8 @@ export function createEndingParticles(){
  geometry.setAttribute('position',new T.BufferAttribute(glyph,3));geometry.setAttribute('aSeed',new T.BufferAttribute(seed,4));
  // Ordinary alpha blending bounds dense crossings to the palette; visibility
  // comes from wider bright cores, not unbounded additive accumulation.
- const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:[new T.Matrix4(),new T.Matrix4(),new T.Matrix4()]},uFramePulse:{value:new T.Vector3()}},
- vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform vec3 uFramePulse; uniform mat4 uFrameInverse[3]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;
+ const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
+ vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
  ${ENDING_FLOW_GLSL}
  vec3 biome(float i){if(i<.5)return vec3(.48,1.,.66);if(i<1.5)return vec3(1.,.78,.35);if(i<2.5)return vec3(.3,.77,1.);if(i<3.5)return vec3(.65,.95,.3);return vec3(1.,.28,.24);}
@@ -115,7 +115,7 @@ export function createEndingParticles(){
  float wave=exp(-pow((aCloud.z-front)/12.,2.))*(1.-ease((uT-.25)/.08));
  // Each moving gate illuminates only its finite opening, using the same
  // transform and per-gate visibility as its rendered frame.
- float passage=0.;for(int i=0;i<3;i++){
+ float passage=0.;for(int i=0;i<${ENDING_GATE_COUNT};i++){
   vec3 local=(uFrameInverse[i]*vec4(p,1.)).xyz;
   vec2 outside=max(abs(local.xy)-vec2(1.),vec2(0.));
   float faceDistance=length(vec3(outside,local.z));
@@ -142,6 +142,6 @@ export function createEndingParticles(){
  }`});
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  return {points,update(t,time,camera,reduced=false){points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
-  endingDimensionTransforms(t,camera.aspect,reduced).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.fromArray(endingDimensionFrame(t,reduced).gates.map(g=>g.visibility));
+  endingDimensionTransforms(t,camera.aspect,reduced).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(t,reduced).gates.map(g=>g.visibility));
  },dispose(){geometry.dispose();material.dispose();}};
 }
