@@ -2,13 +2,14 @@ import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
 import {sampleNext} from './guild-next-route.js';
 import {endingCamera,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
+import {createEndingFrames} from './guild-ending-frames.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 import {petalFrontQuaternion} from './petal-fronts.js';
 import {petalDisplayTexture} from './petal-display-texture.js';
 
 export function createMemoryScene({mobile=true}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
- const ending=createEndingParticles();
+ const ending=createEndingParticles(),dimensions=createEndingFrames();group.add(dimensions.group);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  let activeTarget=null;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null;
@@ -92,9 +93,10 @@ export function createMemoryScene({mobile=true}={}){
   dustMaterial.uniforms.time.value=time;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);
   const expandedPose={position:camera.position.toArray(),target:shot.target};
-  const nextPose=Number.isFinite(state?.nextT)?endingCamera(expandedPose,state.nextT):null;
+  const nextPose=Number.isFinite(state?.nextT)?endingCamera(expandedPose,state.nextT,state?.reducedMotion):null;
   if(nextPose&&(!endingCache||endingCache.layout!==layout||endingCache.aspect!==camera.aspect))endingCache={layout,aspect:camera.aspect,frame:endingPetalFrame(expandedPose,camera.aspect,layout.anchors)};
   ending.update(state?.nextT,time,camera,state?.reducedMotion);
+  dimensions.update(state?.nextT,camera.aspect,state?.reducedMotion);
   const nextOpening=nextPose?sampleNext(state.nextT).opening:0;
   activeTarget=nextPose?.target||shot.target;if(nextPose)camera.position.fromArray(nextPose.position);camera.lookAt(...activeTarget);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
@@ -202,5 +204,5 @@ export function createMemoryScene({mobile=true}={}){
    }alpha.needsUpdate=true;
   }
  }
- return {group,install,prepare,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
 }

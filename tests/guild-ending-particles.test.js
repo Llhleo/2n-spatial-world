@@ -15,10 +15,19 @@ test('nebula occupies irregular separated volumes with genuine depth',()=>{
  assert.ok(upper[1]-lower[1]>45);assert.ok(Math.abs(upper[2]-lower[2])>6);
  assert.ok(points.every(p=>p.every(Number.isFinite)));
 });
-test('cloud establishes before the light tide and remains uncollapsed until gathering',()=>{
+test('cloud establishes briefly, moves through dimensions and gathers before the reading hold',()=>{
  assert.equal(endingFrame(0).cloud,0);assert.ok(endingFrame(.1).cloud>0&&endingFrame(.1).cloud<1);
- for(const t of [.25,.4,.5,.60]){assert.equal(endingFrame(t).cloud,1);assert.equal(endingFrame(t).glyph,0);}
- assert.ok(endingFrame(.75).glyph>0);assert.equal(endingFrame(1).glyph,1);
+ for(const t of [.25,.4]){assert.equal(endingFrame(t).cloud,1);assert.equal(endingFrame(t).glyph,0);}
+ assert.ok(endingFrame(.55).glyph>0);assert.equal(endingFrame(.70).glyph,1);assert.equal(endingFrame(1).glyph,1);
+});
+test('particle transit has broad moving volume rather than thin edge paths',()=>{
+ assert.equal(typeof ending.endingTransitPoint,'function');
+ const a=ending.endingTransitPoint(.2,.4,.6,1,.3),b=ending.endingTransitPoint(.2,.4,.6,1,.42);
+ assert.ok(Math.hypot(...a.map((v,i)=>v-b[i]))>12);
+ const points=Array.from({length:3000},(_,i)=>ending.endingTransitPoint((i*.61803398875)%1,(i*.41421356237)%1,(i*.73205080757)%1,i%5,.35));
+ for(const axis of [0,1,2]){const values=points.map(p=>p[axis]);assert.ok(Math.max(...values)-Math.min(...values)>60);}
+ let previous=ending.endingTransitPoint(.2,.4,.6,1,0);for(let i=1;i<=1000;i++){const current=ending.endingTransitPoint(.2,.4,.6,1,i/1000);assert.ok(current.every(Number.isFinite));assert.ok(Math.hypot(...current.map((v,k)=>v-previous[k]))<2);previous=current;}
+ assert.deepEqual(ending.endingTransitPoint(.2,.4,.6,1,.3,true),ending.endingTransitPoint(.2,.4,.6,1,.42,true));
 });
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
  const swarm=createEndingParticles(),cam=new T.PerspectiveCamera(48,.46);assert.equal(ENDING_PARTICLE_COUNT,262144);assert.equal(swarm.points.geometry.getAttribute('position').count,262144);
@@ -59,5 +68,24 @@ test('standalone scene entry actually attaches and activates the particle system
  for(const nextT of [.15,.45,.7,1]){scene.update({memoryPhase:2,eventIndex:2,nextT},cam,0);
   const swarm=scene.group.getObjectByName('ending-shape-swarm');assert.ok(swarm?.isPoints&&swarm.visible);assert.equal(swarm.geometry.getAttribute('position').count,262144);assert.equal(swarm.material.uniforms.uT.value,nextT);
  }
+ scene.dispose();source.geometry.dispose();source.material.dispose();
+});
+test('memory scene renders dimension scaffolds only in their stage and replay restores them',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');
+ const scene=createMemoryScene(),source=new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial());scene.install(source,'garden','rose');
+ const cam=new T.PerspectiveCamera(48,.46,.2,2400);scene.update({memoryPhase:2,eventIndex:2,nextT:.35},cam,0);
+ const frames=scene.group.getObjectByName('ending-dimension-frames');assert.ok(frames?.visible,'actual scene must attach frames');
+ const resources=new Set();frames.traverse(o=>{if(o.geometry)resources.add(o.geometry);if(o.material)resources.add(o.material);});let released=0;for(const r of resources)r.addEventListener('dispose',()=>released++);
+ scene.update({memoryPhase:2,eventIndex:2,nextT:1},cam,0);assert.equal(frames.visible,false);
+ scene.update({memoryPhase:2,eventIndex:2,nextT:.35},cam,0);assert.equal(frames.visible,true);
+ scene.update({memoryPhase:2,eventIndex:2},cam,0);assert.equal(frames.visible,false);
+ scene.dispose();assert.equal(released,resources.size);source.geometry.dispose();source.material.dispose();
+});
+test('reduced-motion scene enters continuously without sustained camera orbit or vertical excursion',async()=>{
+ const {createMemoryScene}=await import('../src/guild-memory-scene.js');const scene=createMemoryScene(),source=new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial());scene.install(source,'garden','rose');
+ const cam=new T.PerspectiveCamera(48,.46,.2,2400);
+ for(const nextT of [.3,.4,.5,.65,1]){scene.update({memoryPhase:2,eventIndex:2,nextT,reducedMotion:true},cam,0);assert.ok(Math.abs(cam.position.x)<1e-8);assert.equal(cam.position.y,34);}
+ assert.deepEqual(endingCamera(pose,0,true),pose);assert.deepEqual(endingCamera(pose,1,true),endingCamera(pose,1));
+ let prev=endingCamera(pose,0,true);for(let i=1;i<=1000;i++){const p=endingCamera(pose,i/1000,true);assert.ok(Math.hypot(...p.position.map((v,k)=>v-prev.position[k]))<2);prev=p;}
  scene.dispose();source.geometry.dispose();source.material.dispose();
 });
