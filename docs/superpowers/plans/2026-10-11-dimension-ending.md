@@ -80,4 +80,6 @@
 
 ## 执行状态
 
-用户已确认并授权实施、实验分支同步和私有Sites更新。框架、粒子穿行、18秒独立入口已实现，单元测试与独立构建通过；最终审查及发布核对进行中。手机GPU视觉待实机验收。
+已完成并发布独立结尾预览：https://twon-dark-spatial-world.llhleo.chatgpt.site 。全部309项测试通过，独立构建通过。独立审查的两项重要问题已用回归测试修复；完整CPU/GPU形变轨迹对照测试作为后续小项。手机GPU视觉待实机验收。
+
+GitHub实现提交：9be9333949213ce0c5388c3b0d2caf9953747a9b，仅experiment/particle-ending。星云备份：checkpoint/particle-ending-nebula-20261011 → 14a4a2c。Sites已部署源码25396d03142e9398ff0a5a92cdc61c2766c75dae；部署appgdep_6acb4084ab308191a18501e41b0f1cef返回succeeded。main、Pages和其他正式托管未修改。
