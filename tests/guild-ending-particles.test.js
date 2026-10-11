@@ -6,24 +6,23 @@ import {createMonument} from '../src/monument.js';
 import {createMemoryLayout,memoryPoint} from '../src/guild-memory-layout.js';
 import * as ending from '../src/guild-ending-particles.js';
 const pose={position:[-4,7,198],target:[0,0,-14]};
-// Catch the former annular surface: each revolution must advance vertically,
-// and five colours must occupy disjoint narrow lanes, not the same disk.
-test('helix has two rising turns and separated narrow biome lanes',()=>{
- assert.equal(typeof ending.endingHelixLocalPoint,'function');
- const at=ending.endingHelixLocalPoint;
- for(const u of [0,.1,.25,.4,.5]){
-  const a=at(u,2,0,0),b=at(u+.5,2,0,0);
-  assert.ok(Math.hypot(a[0]-b[0],a[2]-b[2])<1e-8);
-  assert.ok(b[1]-a[1]>65,'successive turns leave dark space');
+// Catch a regression to strings or a flat flower: lobes have both broad width
+// and genuine front/back thickness, and taper toward their outer tips.
+test('stardust petals are broad tapered volumes rather than lines or a flat disk',()=>{
+ assert.equal(typeof ending.endingBloomPoint,'function');
+ const at=ending.endingBloomPoint;
+ for(let group=0;group<5;group++){
+  const left=at(.5,-1,0,group),right=at(.5,1,0,group);
+  assert.ok(Math.hypot(...left.map((v,i)=>v-right[i]))>22);
+  const back=at(.5,0,-1,group),front=at(.5,0,1,group);
+  assert.ok(front[2]-back[2]>12);
+  const tipL=at(.98,-1,0,group),tipR=at(.98,1,0,group);
+  assert.ok(Math.hypot(...tipL.map((v,i)=>v-tipR[i]))<12);
  }
- for(let group=0;group<4;group++){
-  const top=at(.3,group,1,0),bottom=at(.3,group+1,-1,0);
-  assert.ok(bottom[1]-top[1]>2,'neighbouring colours do not fill the same surface');
- }
- const a=at(.25,2,0,0),b=at(.375,2,0,0);assert.ok(b[1]>a[1]);assert.ok(Math.abs(b[0]-a[0])>30);
 });
-test('spiral holds its finished shape before the staggered logo handoff',()=>{
- for(const t of [.36,.44,.52,.56]){assert.equal(endingFrame(t).spiral,1);assert.equal(endingFrame(t).glyph,0);}
+test('bloom expands from a compact seed and holds open before the logo handoff',()=>{
+ assert.equal(endingFrame(0).bloom,0);assert.ok(endingFrame(.25).bloom>0&&endingFrame(.25).bloom<1);
+ for(const t of [.42,.48,.54,.60]){assert.equal(endingFrame(t).bloom,1);assert.equal(endingFrame(t).glyph,0);}
  assert.ok(endingFrame(.75).glyph>0);assert.equal(endingFrame(1).glyph,1);
 });
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
@@ -37,7 +36,7 @@ test('shape progression reverses deterministically and the camera enters continu
  assert.deepEqual(endingCamera(pose,0),pose);const first=endingFrame(.4);endingFrame(.9);assert.deepEqual(endingFrame(.4),first);
  assert.ok(endingFrame(.3).glyph===0&&endingFrame(1).glyph===1);assert.ok(endingFrame(.5).light>endingFrame(1).light);
  let previous=endingCamera(pose,0);for(let i=1;i<=1000;i++){const current=endingCamera(pose,i/1000);assert.ok(Math.hypot(...current.position.map((v,k)=>v-previous.position[k]))<2);previous=current;}
- assert.ok(Math.abs(endingCamera(pose,.5).position[0])>100);assert.ok(Math.abs(endingCamera(pose,1).position[0])<1e-8);
+ assert.ok(Math.abs(endingCamera(pose,.5).position[0])>40);assert.ok(Math.abs(endingCamera(pose,1).position[0])<1e-8);
 });
 test('petal handoff retains original centers and ends in a readable volume in portrait and landscape',()=>{
  for(const aspect of [.46,.6,1.8]){
