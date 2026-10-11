@@ -4,7 +4,28 @@ import * as T from 'three';
 import {createEndingParticles,ENDING_PARTICLE_COUNT,endingFrame,endingCamera,endingPetalFrame,endingPetalPoint} from '../src/guild-ending-particles.js';
 import {createMonument} from '../src/monument.js';
 import {createMemoryLayout,memoryPoint} from '../src/guild-memory-layout.js';
+import * as ending from '../src/guild-ending-particles.js';
 const pose={position:[-4,7,198],target:[0,0,-14]};
+// Catch the former annular surface: each revolution must advance vertically,
+// and five colours must occupy disjoint narrow lanes, not the same disk.
+test('helix has two rising turns and separated narrow biome lanes',()=>{
+ assert.equal(typeof ending.endingHelixLocalPoint,'function');
+ const at=ending.endingHelixLocalPoint;
+ for(const u of [0,.1,.25,.4,.5]){
+  const a=at(u,2,0,0),b=at(u+.5,2,0,0);
+  assert.ok(Math.hypot(a[0]-b[0],a[2]-b[2])<1e-8);
+  assert.ok(b[1]-a[1]>65,'successive turns leave dark space');
+ }
+ for(let group=0;group<4;group++){
+  const top=at(.3,group,1,0),bottom=at(.3,group+1,-1,0);
+  assert.ok(bottom[1]-top[1]>2,'neighbouring colours do not fill the same surface');
+ }
+ const a=at(.25,2,0,0),b=at(.375,2,0,0);assert.ok(b[1]>a[1]);assert.ok(Math.abs(b[0]-a[0])>30);
+});
+test('spiral holds its finished shape before the staggered logo handoff',()=>{
+ for(const t of [.36,.44,.52,.56]){assert.equal(endingFrame(t).spiral,1);assert.equal(endingFrame(t).glyph,0);}
+ assert.ok(endingFrame(.75).glyph>0);assert.equal(endingFrame(1).glyph,1);
+});
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
  const swarm=createEndingParticles(),cam=new T.PerspectiveCamera(48,.46);assert.equal(ENDING_PARTICLE_COUNT,262144);assert.equal(swarm.points.geometry.getAttribute('position').count,262144);
  assert.equal(swarm.points.material.blending,T.NormalBlending);
