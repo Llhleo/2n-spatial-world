@@ -6,23 +6,18 @@ import {createMonument} from '../src/monument.js';
 import {createMemoryLayout,memoryPoint} from '../src/guild-memory-layout.js';
 import * as ending from '../src/guild-ending-particles.js';
 const pose={position:[-4,7,198],target:[0,0,-14]};
-// Catch a regression to strings or a flat flower: lobes have both broad width
-// and genuine front/back thickness, and taper toward their outer tips.
-test('stardust petals are broad tapered volumes rather than lines or a flat disk',()=>{
- assert.equal(typeof ending.endingBloomPoint,'function');
- const at=ending.endingBloomPoint;
- for(let group=0;group<5;group++){
-  const left=at(.5,-1,0,group),right=at(.5,1,0,group);
-  assert.ok(Math.hypot(...left.map((v,i)=>v-right[i]))>22);
-  const back=at(.5,0,-1,group),front=at(.5,0,1,group);
-  assert.ok(front[2]-back[2]>12);
-  const tipL=at(.98,-1,0,group),tipR=at(.98,1,0,group);
-  assert.ok(Math.hypot(...tipL.map((v,i)=>v-tipR[i]))<12);
- }
+// Catch a regression to a flat disk or repeated radial petal silhouette.
+test('nebula occupies irregular separated volumes with genuine depth',()=>{
+ assert.equal(typeof ending.endingNebulaPoint,'function');
+ const points=[];for(let i=0;i<3000;i++)points.push(ending.endingNebulaPoint((i*.61803398875)%1,(i*.41421356237)%1,(i*.73205080757)%1,i%5));
+ for(const axis of [0,1,2]){const a=points.map(p=>p[axis]);assert.ok(Math.max(...a)-Math.min(...a)>60,'cloud is not planar');}
+ const lower=ending.endingNebulaPoint(.2,.4,0,0),upper=ending.endingNebulaPoint(.2,.4,0,2);
+ assert.ok(upper[1]-lower[1]>45);assert.ok(Math.abs(upper[2]-lower[2])>6);
+ assert.ok(points.every(p=>p.every(Number.isFinite)));
 });
-test('bloom expands from a compact seed and holds open before the logo handoff',()=>{
- assert.equal(endingFrame(0).bloom,0);assert.ok(endingFrame(.25).bloom>0&&endingFrame(.25).bloom<1);
- for(const t of [.42,.48,.54,.60]){assert.equal(endingFrame(t).bloom,1);assert.equal(endingFrame(t).glyph,0);}
+test('cloud establishes before the light tide and remains uncollapsed until gathering',()=>{
+ assert.equal(endingFrame(0).cloud,0);assert.ok(endingFrame(.1).cloud>0&&endingFrame(.1).cloud<1);
+ for(const t of [.25,.4,.5,.60]){assert.equal(endingFrame(t).cloud,1);assert.equal(endingFrame(t).glyph,0);}
  assert.ok(endingFrame(.75).glyph>0);assert.equal(endingFrame(1).glyph,1);
 });
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
