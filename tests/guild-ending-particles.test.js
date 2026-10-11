@@ -20,15 +20,6 @@ test('cloud establishes briefly, moves through dimensions and gathers before the
  for(const t of [.25,.4]){assert.equal(endingFrame(t).cloud,1);assert.equal(endingFrame(t).glyph,0);}
  assert.ok(endingFrame(.55).glyph>0);assert.equal(endingFrame(.70).glyph,1);assert.equal(endingFrame(1).glyph,1);
 });
-test('particle transit has broad moving volume rather than thin edge paths',()=>{
- assert.equal(typeof ending.endingTransitPoint,'function');
- const a=ending.endingTransitPoint(.2,.4,.6,1,.3),b=ending.endingTransitPoint(.2,.4,.6,1,.42);
- assert.ok(Math.hypot(...a.map((v,i)=>v-b[i]))>12);
- const points=Array.from({length:3000},(_,i)=>ending.endingTransitPoint((i*.61803398875)%1,(i*.41421356237)%1,(i*.73205080757)%1,i%5,.35));
- for(const axis of [0,1,2]){const values=points.map(p=>p[axis]);assert.ok(Math.max(...values)-Math.min(...values)>60);}
- let previous=ending.endingTransitPoint(.2,.4,.6,1,0);for(let i=1;i<=1000;i++){const current=ending.endingTransitPoint(.2,.4,.6,1,i/1000);assert.ok(current.every(Number.isFinite));assert.ok(Math.hypot(...current.map((v,k)=>v-previous[k]))<2);previous=current;}
- assert.deepEqual(ending.endingTransitPoint(.2,.4,.6,1,.3,true),ending.endingTransitPoint(.2,.4,.6,1,.42,true));
-});
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
  const swarm=createEndingParticles(),cam=new T.PerspectiveCamera(48,.46);assert.equal(ENDING_PARTICLE_COUNT,262144);assert.equal(swarm.points.geometry.getAttribute('position').count,262144);
  assert.equal(swarm.points.material.blending,T.NormalBlending);

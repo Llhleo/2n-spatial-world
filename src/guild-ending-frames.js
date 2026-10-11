@@ -1,38 +1,49 @@
 import * as T from 'three';
 import {nextSmooth} from './guild-next-route.js';
 
-// Independently authored study of world-execute-web's dimension unfolding:
-// luminous geometry is the scaffold, never a destination for every dust point.
+import {endingFlowCenter,endingFlowTangent} from './guild-ending-flow.js';
+
+// Reference: world-execute-web's unfolding geometry and camera choreography.
+// Three open gates occupy different points of one curved flight; they never
+// form a concentric cage. Each rocks open, travels aside, then fades alone.
 export function endingDimensionFrame(t=0,reduced=false){
  const u=Math.max(0,Math.min(1,Number.isFinite(t)?t:0));
- const open=nextSmooth((u-3/18)/(1.5/18)),fold=nextSmooth((u-8.5/18)/(2.5/18));
- const action=nextSmooth((u-4.5/18)/(4/18))*(reduced?0:1);
- return {visibility:open*(1-fold),draw:open,fold,
-  rotations:[[-.20+action*.65,.32+action*.9,-.12+action*.18],[.34-action*.8,-.36-action*1.2,.20+action*.55],[-.4+action*.5,.45+action*1.4,-.28-action*.7]],
-  scales:[30*(.8+.2*open)*(1-.86*fold),22*(.76+.24*open)*(1-.88*fold),15*(.7+.3*open)*(1-.9*fold)]};
+ const crossings=[.294,.386,.479];
+ const gates=crossings.map((cross,i)=>{
+  const open=nextSmooth((u-cross+.12)/.065),retire=nextSmooth((u-cross-.025)/.10);
+  const action=reduced?0:nextSmooth((u-cross+.10)/.16);
+  return {visibility:open*(1-retire),draw:open,retire,
+   rotation:[[-.14,.18,-.08][i]+action*.18,[-.24,.20,-.18][i]+action*[-.22,.25,-.18][i],[-.10,.12,-.10][i]+action*[.24,-.26,.22][i]],
+   scale:[42,28,26][i]*(.82+.18*open)*(1+(reduced?0:.14*retire)),
+   drift:reduced?[0,0,0]:[[-18,20,-16][i]*retire,8*retire,-20*retire]};
+ });
+ return {gates,visibility:Math.max(...gates.map(g=>g.visibility)),draw:Math.max(...gates.map(g=>g.draw)),
+  rotations:gates.map(g=>g.rotation),scales:gates.map(g=>g.scale)};
 }
-// Shared transforms drive both visible geometry and particle face lighting.
 export function endingDimensionTransforms(t,aspect=.6,reduced=false){
  const f=endingDimensionFrame(t,reduced),fit=Math.min(1,Math.max(.1,aspect)/.6);
- const parent=new T.Matrix4().compose(new T.Vector3(0,30,-14),new T.Quaternion(),new T.Vector3(fit,1,1));
- return f.scales.map((scale,i)=>parent.clone().multiply(new T.Matrix4().compose(
-  new T.Vector3([-2,2,0][i]*(1-f.fold),[0,2,-2][i]*(1-f.fold),[-4,3,0][i]*(1-f.fold)),
-  new T.Quaternion().setFromEuler(new T.Euler(...f.rotations[i])),new T.Vector3(scale,scale,scale))));
+ return f.gates.map((g,i)=>{
+  const s=[.35,.60,.85][i],center=endingFlowCenter(s,fit);
+  const orientation=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,1),new T.Vector3(...endingFlowTangent(s,fit)).normalize());
+  orientation.multiply(new T.Quaternion().setFromEuler(new T.Euler(...g.rotation)));
+  return new T.Matrix4().compose(new T.Vector3(center[0]+g.drift[0]*fit,center[1]+g.drift[1],center[2]+g.drift[2]),
+   orientation,new T.Vector3(g.scale*fit,g.scale*.78,g.scale));
+ });
 }
 export function endingFaceProximity(point,t,aspect=.6,reduced=false){
- const visibility=endingDimensionFrame(t,reduced).visibility;if(!visibility)return 0;
- let light=0;for(const m of endingDimensionTransforms(t,aspect,reduced)){
-  const p=new T.Vector3(...point).applyMatrix4(m.invert()),q=[Math.abs(p.x)-1,Math.abs(p.y)-1,Math.abs(p.z)-1];
-  const distance=Math.hypot(...q.map(v=>Math.max(0,v)))+Math.min(Math.max(...q),0);
-  light=Math.max(light,Math.exp(-((distance/.12)**2)));
- }return light*visibility;
+ const f=endingDimensionFrame(t,reduced);let light=0;
+ endingDimensionTransforms(t,aspect,reduced).forEach((m,i)=>{
+  const p=new T.Vector3(...point).applyMatrix4(m.invert());
+  const distance=Math.hypot(Math.max(0,Math.abs(p.x)-1),Math.max(0,Math.abs(p.y)-1),p.z);
+  light=Math.max(light,Math.exp(-((distance/.15)**2))*f.gates[i].visibility);
+ });return light;
 }
 
 export function createEndingFrames(){
  const group=new T.Group();group.name='ending-dimension-frames';group.visible=false;
  const geometry=new T.CylinderGeometry(1,1,1,8,1,true),layers=[],materials=[];
- const vertices=Array.from({length:8},(_,i)=>new T.Vector3(i&1?1:-1,i&2?1:-1,i&4?1:-1));
- const edges=[];for(let i=0;i<8;i++)for(let axis=0;axis<3;axis++){const j=i^(1<<axis);if(i<j)edges.push([vertices[i],vertices[j]]);}
+ const vertices=[[-1,-1,0],[1,-1,0],[1,1,0],[-1,1,0]].map(p=>new T.Vector3(...p));
+ const edges=vertices.map((a,i)=>[a,vertices[(i+1)%4]]);
  for(let i=0;i<3;i++){
   const layer=new T.Group(),core=new T.MeshBasicMaterial({color:[0x78cfe2,0xc5b5f1,0xf2d6a2][i],transparent:true,opacity:0,depthWrite:false,toneMapped:false});
   const halo=core.clone();materials.push(core,halo);const segments=[];group.add(layer);
@@ -50,9 +61,10 @@ export function createEndingFrames(){
   group.visible=f.visibility>0;
   layers.forEach(({layer,core,halo,segments},i)=>{
    layer.matrixAutoUpdate=false;layer.matrix.copy(transforms[i]);
-   core.opacity=f.visibility*.82;halo.opacity=f.visibility*.085;
+   const gate=f.gates[i];layer.visible=gate.visibility>0;
+   core.opacity=gate.visibility*.82;halo.opacity=gate.visibility*.085;
    for(const {a,b,edge,glow,index} of segments){
-    const draw=nextSmooth(f.draw*1.65-index/18);const middle=a.clone().lerp(b,draw*.5),length=a.distanceTo(b)*draw;
+    const draw=nextSmooth(gate.draw*1.45-index/10);const middle=a.clone().lerp(b,draw*.5),length=a.distanceTo(b)*draw;
     for(const [mesh,width] of [[edge,.16],[glow,.65]]){mesh.visible=draw>0;mesh.position.copy(middle);mesh.scale.set(width/Math.max(.1,f.scales[i]),length,width/Math.max(.1,f.scales[i]));}
    }
   });
