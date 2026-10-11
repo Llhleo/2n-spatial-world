@@ -18,7 +18,7 @@ test('all 12 luminous gate edges fit the portrait camera throughout the rotating
  for(const aspect of [.46,.6,1.8])for(const t of [.25,.35,.45]){
   art.update(t,aspect);art.group.updateMatrixWorld(true);
   const shot=endingCamera(pose,t),cam=new T.PerspectiveCamera(48,aspect);cam.position.fromArray(shot.position);cam.lookAt(...shot.target);cam.updateMatrixWorld();
-  for(const edge of edges)for(const y of [-.5,.5]){const screen=new T.Vector3(0,y,0).applyMatrix4(edge.matrixWorld).project(cam);assert.ok(Math.abs(screen.x)<.9&&Math.abs(screen.y)<.9,JSON.stringify({aspect,t,screen}));}
+  for(const edge of edges)if(edge.parent.visible)for(const y of [-.5,.5]){const screen=new T.Vector3(0,y,0).applyMatrix4(edge.matrixWorld).project(cam);assert.ok(Math.abs(screen.x)<.9&&Math.abs(screen.y)<.9,JSON.stringify({aspect,t,screen}));}
  }
  art.dispose();
 });
@@ -31,7 +31,7 @@ test('frame replay restores visible edges and disposal releases every owned reso
 });
 test('particle passage light follows bounded moving gate openings, not a world-space plane',()=>{
  assert.equal(typeof frames?.endingDimensionTransforms,'function');assert.equal(typeof frames?.endingFaceProximity,'function');
- for(const t of [.23,.25])for(const aspect of [.46,1.8]){
+ for(const t of [.31,.34])for(const aspect of [.46,1.8]){
   const matrices=frames.endingDimensionTransforms(t,aspect),face=new T.Vector3(.2,.3,0).applyMatrix4(matrices[0]),outside=new T.Vector3(4,4,0).applyMatrix4(matrices[0]);
   assert.ok(frames.endingFaceProximity(face.toArray(),t,aspect)>.9);
   assert.ok(frames.endingFaceProximity(outside.toArray(),t,aspect)<.01,'infinite face planes must not illuminate off-gate particles');

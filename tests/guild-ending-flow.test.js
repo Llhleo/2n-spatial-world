@@ -8,8 +8,8 @@ const cloud=[-22,18,12],mark=[12,46,-10],seed=[.2,.4,.6,1];
 test('rendered flow uses the same continuous route through gates and into the original mark',()=>{
  const swarm=createEndingParticles();assert.ok(swarm.points.material.vertexShader.includes(ENDING_FLOW_GLSL));
  assert.deepEqual(endingFlowPoint(cloud,mark,seed,1,.6),mark);
- const h=1e-5;
- for(const t of [.1666667,.27,.35,.4722222,.55,.63]){
+ const h=1e-6;
+ for(const t of [.18,.26,.30,.36,.46,.55,.58,.63,.70,.74,.82]){
   const a=endingFlowPoint(cloud,mark,seed,t-h,.6),b=endingFlowPoint(cloud,mark,seed,t,.6),c=endingFlowPoint(cloud,mark,seed,t+h,.6);
   const left=b.map((v,i)=>(v-a[i])/h),right=c.map((v,i)=>(v-b[i])/h);
   assert.ok(Math.hypot(...left)>2,'movement must not freeze before the mark');
@@ -28,7 +28,7 @@ test('gates separate in depth, move as particles pass, and each retires independ
 test('flow stays volumetric and fits the portrait camera while closing onto sampled surfaces',async()=>{
  const {endingNebulaPoint,endingCamera}=await import('../src/guild-ending-particles.js');
  const swarm=createEndingParticles(),glyph=swarm.points.geometry.getAttribute('position');
- for(const aspect of [.46,.6,1.8])for(const t of [.15,.25,.35,.45,.55,.65,.70,1]){
+ for(const aspect of [.46,.6,1.8])for(const t of [.32,.35,.45,.55,.65,.70,.88,1]){
   const shot=endingCamera({position:[-4,7,198],target:[0,0,-14]},t);
   const cam=new T.PerspectiveCamera(48,aspect);cam.position.fromArray(shot.position);cam.lookAt(...shot.target);cam.updateMatrixWorld();
   const points=[];
@@ -38,9 +38,9 @@ test('flow stays volumetric and fits the portrait camera while closing onto samp
    const mark=[glyph.getX(i)*scale,glyph.getY(i)*scale+43,glyph.getZ(i)*scale-14];
    const p=endingFlowPoint(cloud,mark,seed,t,aspect),screen=new T.Vector3(...p).project(cam);points.push(p);
    assert.ok(Math.abs(screen.x)<.95&&Math.abs(screen.y)<.95&&screen.z<1,JSON.stringify({aspect,t,screen}));
-   if(t>=.70)assert.ok(p.every((v,k)=>Math.abs(v-mark[k])<1e-7));
+   if(t>=.88)assert.ok(p.every((v,k)=>Math.abs(v-mark[k])<1e-7));
   }
-  if(t===.25)for(const axis of [0,1,2])assert.ok(Math.max(...points.map(p=>p[axis]))-Math.min(...points.map(p=>p[axis]))>15,'the moving dust is a volume, not several lines');
+  if(t===.35)for(const axis of [0,1,2])assert.ok(Math.max(...points.map(p=>p[axis]))-Math.min(...points.map(p=>p[axis]))>15,'the moving dust is a volume, not several lines');
  }
  swarm.dispose();
 });

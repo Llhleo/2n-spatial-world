@@ -2,7 +2,7 @@ import * as T from 'three';
 import {nextSmooth} from './guild-next-route.js';
 import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
-import {ENDING_FLOW_GLSL} from './guild-ending-flow.js';
+import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
 import {endingDimensionTransforms,endingDimensionFrame} from './guild-ending-frames.js';
 
 // Reference study: FrostNovaOrg/world-execute-web engine/swarm.js,
@@ -19,12 +19,14 @@ export function endingNebulaPoint(u,v,w,group){
 }
 export function endingFrame(t=0){
  const u=Math.max(0,Math.min(1,Number.isFinite(t)?t:0));
- return {reveal:nextSmooth(u/.14),cloud:nextSmooth(u/(3/18)),dimension:nextSmooth((u-3/18)/.14),glyph:nextSmooth((u-8.5/18)/(4/18)),settle:nextSmooth((u-12.5/18)/.12),orbit:(-.12+.38*nextSmooth((u-.10)/.34))*(1-nextSmooth((u-8.5/18)/(4/18))),light:1+1.7*Math.sin(Math.PI*u)**2};
+ const gateOrbit=(-.12+.38*nextSmooth((u-.10)/.34))*(1-nextSmooth((u-.55)/.15));
+ const orbit=T.MathUtils.lerp(Math.sin(Math.PI*nextSmooth(u))*.61,gateOrbit,nextSmooth((u-.18)/.12));
+ return {reveal:nextSmooth(u/.16),cloud:nextSmooth(u/(3/18)),dimension:nextSmooth((u-3/18)/.14),glyph:endingGlyphProgress(u),settle:nextSmooth((u-.88)/.12),orbit,light:1+1.7*Math.sin(Math.PI*u)**2};
 }
 export function endingCamera(pose,t,reduced=false){
  const f=endingFrame(t),k=nextSmooth(t/.24),target=[0,30,-14];
  const finalTarget=pose.target.map((v,i)=>T.MathUtils.lerp(v,target[i],k));
- const radius=T.MathUtils.lerp(pose.position[2]-pose.target[2],250,k);
+ const radius=T.MathUtils.lerp(pose.position[2]-pose.target[2],250+(reduced?0:60*nextSmooth((t-.18)/.12)*(1-nextSmooth((t-.55)/.15))),k);
  const orbit=reduced?0:f.orbit;
  return {target:finalTarget,position:[T.MathUtils.lerp(pose.position[0],Math.sin(orbit)*radius,k),T.MathUtils.lerp(pose.position[1],34+(reduced?0:18*Math.sin(Math.PI*t)),k),finalTarget[2]+T.MathUtils.lerp(pose.position[2]-pose.target[2],Math.cos(orbit)*radius,k)]};
 }
@@ -44,15 +46,26 @@ export function endingPetalFrame(pose,aspect,anchors){
  }
  return slots;
 }
+export function endingPetalPose(a,t,reduced=false){
+ const escort=nextSmooth((t-.22)/.10)*(1-nextSmooth((t-.70)/.15));
+ const phase=a.longitude+t*12+a.branch*.7;
+ return reduced?[0,0,0]:[.07*Math.sin(phase)*escort,.08*Math.cos(phase*.8)*escort,.22*Math.sin(phase*.6)*escort];
+}
 export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null){
- const f=endingFrame(t),slot=slots?.get(a.id),theta=a.longitude+(reduced?0:time*.025);
- const fit=Math.min(1,(slot?.aspect||.6)/.6),radius=66+12*a.u;
- const cloud=new T.Vector3(Math.cos(theta)*radius*.72*fit,30+Math.sin(theta)*radius*.75,-14+Math.sin(a.longitude*2)*45);
- const destination=slot?.position.clone()||cloud.clone();
+ const slot=slots?.get(a.id),aspect=slot?.aspect||.6,fit=Math.min(1,aspect/.6),motion=reduced?0:1;
+ // Original 158c2fb entry: petals begin rotating while they move outwards.
+ const spiral=nextSmooth((t-.12)/.35),theta=a.longitude+spiral*1.6+t*18*.09*spiral*motion;
+ const radius=54+(a.branch||0)*18+12*a.u;
+ const early=new T.Vector3(Math.cos(theta)*radius*fit,30+Math.sin(theta)*radius*.46,-14+Math.sin(theta)*radius*.62+(a.u-.5)*48);
+ const route=endingFlowCenter(endingGateProgress(Math.max(0,t-(a.u-.5)*.035)),fit);
+ const angle=a.longitude+(t-.22)*(3.2+.8*a.u)*motion+a.branch*.6;
+ const spread=52+18*a.u+14*nextSmooth((t-.46)/.10);
+ const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
+ const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
+ const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
  if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
- cloud.lerp(destination,nextSmooth((t-8.5/18)/(4/18)));
- const k=f.cloud;
- return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),k));
+ cloud.lerp(destination,nextSmooth((t-.68)/.22));
+ return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,
 // pitched faces, original proportions and thickness. No hand-drawn glyph.
@@ -84,7 +97,7 @@ export function createEndingParticles(){
  vec3 biome(float i){if(i<.5)return vec3(.48,1.,.66);if(i<1.5)return vec3(1.,.78,.35);if(i<2.5)return vec3(.3,.77,1.);if(i<3.5)return vec3(.65,.95,.3);return vec3(1.,.28,.24);}
  void main(){
  float turn=aSeed.x*6.2831853,depth=aSeed.y,group=aSeed.w;
- float morph=ease((uT-.44)/.258),reveal=ease((uT-aSeed.z*.05)/.10);
+ float morph=glyphProgress(uT,aSeed.z),reveal=ease((uT-aSeed.z*.05)/.10);
  float gather=morph;
  float fit=min(1.,uAspect/.6);
  float motion=1.-uReduced;
@@ -92,10 +105,11 @@ export function createEndingParticles(){
  float dimension=ease((uT-.1666667)/.105);
  float sculptureScale=min(1.12,uAspect*1.75);
  vec3 mark=position*sculptureScale+vec3(0.,43.,-14.);
- vec3 p=flowPoint(aCloud,mark,aSeed,uT,fit,uReduced);
+ vec3 p=flowPoint(aCloud,mark,aSeed,uT,uAspect,uReduced);
  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
  float star=step(.955,aSeed.y);
- float px=clamp(uPixels*mix(.72,1.1,max(star,gather))/max(1.,-mv.z),1.8,8.);
+ float frontStage=1.-ease((uT-.18)/.12);
+ float px=clamp(uPixels*mix(mix(.72,1.1,max(star,gather)),1.1,frontStage)/max(1.,-mv.z),1.8,8.);
  gl_PointSize=px;
  float front=mix(-48.,48.,ease((uT-.12)/.15));
  float wave=exp(-pow((aCloud.z-front)/12.,2.))*(1.-ease((uT-.25)/.08));
@@ -115,8 +129,12 @@ export function createEndingParticles(){
  float nearSide=clamp((mv.z+300.)/100.,0.,1.);
  vEnergy*=mix(pockets*(.65+.35*nearSide)+star*.55,.75,gather);
  vMetal=.42+.45*max(0.,dot(normalize(aNormal),normalize(vec3(-.5,.7,1.))))+.10*pow(max(0.,dot(normalize(aNormal),normalize(vec3(.5,.2,1.)))),8.);
- float shade=.36+.28*nearSide+.22*pockets+.14*aSeed.z;
- vec3 colour=mix(biome(group),vec3(.75,.82,.9),star*.25)*shade;
+ float legacyPulse=pow(max(0.,sin(depth*14.-uT*19.+group)),12.);
+ float legacyReveal=ease((uT-aSeed.z*.07)/.12);
+ float legacyEnergy=legacyReveal*(.16+.3*aSeed.z)*climax*(.5+1.5*legacyPulse);
+ vEnergy=mix(vEnergy,legacyEnergy,frontStage);
+ float shade=mix(.55+.22*nearSide+.13*pockets+.10*aSeed.z,1.,frontStage);
+ vec3 colour=mix(biome(group),vec3(.75,.82,.9),star*.25*(1.-frontStage))*shade;
  vMorph=gather;vColor=mix(colour,vec3(.72,.80,.89)*vMetal,gather);
  }`,
  fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=(core*.85+halo*.15);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);

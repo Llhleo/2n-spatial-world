@@ -18,7 +18,7 @@ test('nebula occupies irregular separated volumes with genuine depth',()=>{
 test('cloud establishes briefly, moves through dimensions and gathers before the reading hold',()=>{
  assert.equal(endingFrame(0).cloud,0);assert.ok(endingFrame(.1).cloud>0&&endingFrame(.1).cloud<1);
  for(const t of [.25,.4]){assert.equal(endingFrame(t).cloud,1);assert.equal(endingFrame(t).glyph,0);}
- assert.ok(endingFrame(.55).glyph>0);assert.equal(endingFrame(.70).glyph,1);assert.equal(endingFrame(1).glyph,1);
+ assert.equal(endingFrame(.73).glyph,0);assert.ok(endingFrame(.80).glyph>0);assert.equal(endingFrame(.88).glyph,1);assert.equal(endingFrame(1).glyph,1);
 });
 test('ending keeps the reference-scale swarm on every device and releases GPU resources',()=>{
  const swarm=createEndingParticles(),cam=new T.PerspectiveCamera(48,.46);assert.equal(ENDING_PARTICLE_COUNT,262144);assert.equal(swarm.points.geometry.getAttribute('position').count,262144);

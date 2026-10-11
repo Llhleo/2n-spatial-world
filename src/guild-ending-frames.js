@@ -8,13 +8,13 @@ import {endingFlowCenter,endingFlowTangent} from './guild-ending-flow.js';
 // form a concentric cage. Each rocks open, travels aside, then fades alone.
 export function endingDimensionFrame(t=0,reduced=false){
  const u=Math.max(0,Math.min(1,Number.isFinite(t)?t:0));
- const crossings=[.294,.386,.479];
+ const crossings=[.348,.402,.457];
  const gates=crossings.map((cross,i)=>{
   const open=nextSmooth((u-cross+.12)/.065),retire=nextSmooth((u-cross-.025)/.10);
   const action=reduced?0:nextSmooth((u-cross+.10)/.16);
   return {visibility:open*(1-retire),draw:open,retire,
    rotation:[[-.14,.18,-.08][i]+action*.18,[-.24,.20,-.18][i]+action*[-.22,.25,-.18][i],[-.10,.12,-.10][i]+action*[.24,-.26,.22][i]],
-   scale:[42,28,26][i]*(.82+.18*open)*(1+(reduced?0:.14*retire)),
+   scale:[54,54,55][i]*(.82+.18*open)*(1+(reduced?0:.14*retire)),
    drift:reduced?[0,0,0]:[[-18,20,-16][i]*retire,8*retire,-20*retire]};
  });
  return {gates,visibility:Math.max(...gates.map(g=>g.visibility)),draw:Math.max(...gates.map(g=>g.draw)),

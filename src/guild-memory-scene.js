@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
 import {sampleNext} from './guild-next-route.js';
-import {endingCamera,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
+import {endingCamera,endingPetalPose,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
 import {createEndingFrames} from './guild-ending-frames.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 import {petalFrontQuaternion} from './petal-fronts.js';
@@ -146,7 +146,9 @@ export function createMemoryScene({mobile=true}={}){
   for(const pool of pools.values()){
    let count=0;
    for(const [slot,a] of pool.anchors.entries()){point.copy(locations.get(a.id));
-    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist+(state?.reducedMotion?0:.035*(1-eased(phase))*Math.sin(time*.6+a.u*5))))).multiply(pool.face);
+    rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist+(state?.reducedMotion?0:.035*(1-eased(phase))*Math.sin(time*.6+a.u*5)))));
+    if(nextPose)rotation.multiply(new T.Quaternion().setFromEuler(new T.Euler(...endingPetalPose(a,state.nextT,state?.reducedMotion))));
+    rotation.multiply(pool.face);
     const depth=Math.max(1,-point.clone().applyMatrix4(camera.matrixWorldInverse).z);
     const reference=camera.position.distanceTo(new T.Vector3(0,0,-14));
     const balance=1+(Math.max(.65,Math.min(1.2,Math.pow(depth/reference,.4)))-1)*eased(phase-1);
@@ -169,7 +171,6 @@ export function createMemoryScene({mobile=true}={}){
       rotation.slerp(tracked,1-travel);scale.lerp(start.scale,1-travel);}
 
     }
-    if(nextOpening&&!state?.reducedMotion)rotation.multiply(new T.Quaternion().setFromEuler(new T.Euler(.12*Math.sin(time*.14+a.longitude)*nextOpening,.18*Math.sin(time*.17+a.u*11)*nextOpening,.09*Math.sin(time*.11+a.branch+a.u*7)*nextOpening)));
     matrix.compose(point,rotation,scale);matrix.multiply(new T.Matrix4().makeTranslation(-pool.center.x,-pool.center.y,-pool.center.z));pool.mesh.setMatrixAt(count++,matrix);
    }
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;

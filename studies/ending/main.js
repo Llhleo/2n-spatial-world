@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {createMemoryScene} from '../../src/guild-memory-scene.js';
 import {createNextView} from '../../src/guild-next-view.js';
-import {sampleNext} from '../../src/guild-next-route.js';
+import {nextSmooth,sampleNext} from '../../src/guild-next-route.js';
 import {loadPetal} from '../../src/petal-loader.js';
 import {FLOWER_SPECS} from '../../src/lookback.js';
 const renderer=new T.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true,powerPreference:'high-performance'});
@@ -16,6 +16,6 @@ const clock=new T.Clock();renderer.setAnimationLoop(()=>{
  const dt=Math.min(clock.getDelta(),.05);if(!ready)return;
  if(playing){progress=Math.min(1,progress+dt/18);slider.value=progress;if(progress===1){playing=false;play.textContent='播放';}}
  memory.update({memoryPhase:2,eventIndex:2,...sampleNext(progress),reducedMotion:reducedMotion.matches},camera,dt);memory.setTerrainVisible(false);
- text.update({...sampleNext(progress),target:memory.shot.target},camera,{width:innerWidth,height:innerHeight});memory.updateTextOcclusion(camera,text.readingBounds,2);renderer.render(scene,camera);
+ text.update({...sampleNext(progress),nextOpacity:nextSmooth((progress-.84)/.06),target:memory.shot.target},camera,{width:innerWidth,height:innerHeight});memory.updateTextOcclusion(camera,text.readingBounds,2);renderer.render(scene,camera);
 });
-Promise.all([text.prepare(),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`/assets/companion-display/${name}.glb`,100);memory.install(source,kind,name);})]).then(()=>{memory.prepare();const swarm=memory.group.getObjectByName('ending-shape-swarm'),frames=memory.group.getObjectByName('ending-dimension-frames');if(!swarm?.geometry.getAttribute('aCloud')||!frames)throw new Error('流光门阵未完整接入');ready=true;status.textContent='五境星云 → 流光门阵 → 2ⁿ · 262,144 粒子';}).catch(e=>{status.textContent=`准备失败：${e.message}`;});
+Promise.all([text.prepare(),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`/assets/companion-display/${name}.glb`,100);memory.install(source,kind,name);})]).then(()=>{memory.prepare();const swarm=memory.group.getObjectByName('ending-shape-swarm'),frames=memory.group.getObjectByName('ending-dimension-frames');if(!swarm?.geometry.getAttribute('aCloud')||!frames)throw new Error('流光门阵未完整接入');ready=true;status.textContent='五色星流 → 穿门形变 → 回中聚团 → 2ⁿ · 262,144 粒子';}).catch(e=>{status.textContent=`准备失败：${e.message}`;});
