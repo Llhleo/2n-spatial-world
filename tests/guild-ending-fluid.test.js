@@ -26,6 +26,29 @@ test('fixed-step playback replays and seeks to the same physical state',()=>{
  assert.equal(a.total,b.total);assert.deepEqual(a.state,b.state);a.clock.seek(.3);a.clock.seek(.55);assert.equal(a.total,b.total);assert.deepEqual(a.state,b.state);
  const paused=structuredClone(a.state);a.clock.seek(.55);assert.deepEqual(a.state,paused);
 });
+test('backscroll restores coupled material guides, particle motion and gate feedback from the same progress',async()=>{
+ const {createMaterialGuides}=await import('../src/guild-ending-material.js');
+ const {endingStreamPoint}=await import('../src/guild-ending-flow.js');
+ function run(){
+  const material=createMaterialGuides();let states,hits;
+  const clock=fluid.createFluidClock(()=>{
+   material.reset(.46,false);hits=new Float32Array(6).fill(-10);
+   states=Array.from({length:64},(_,i)=>{const seed=[i*.61803398875%1,i*.41421356237%1,i*.73205080757%1,i%5],p=endingStreamPoint(seed,.18,.46),n=endingStreamPoint(seed,.18001,.46);return {seed,p,v:p.map((x,k)=>(n[k]-x)/.00018)};});
+  },(t,dt)=>{
+   const gates=fluid.fluidGateStates(t,.46),bulk=fluid.fluidVolumePressure(states,.46),volume={...bulk,material};
+   for(const s of states){const next=fluid.stepFluidParticle(s.p,s.v,s.seed,t,dt,gates,[0,43,-14],.46,false,volume);fluid.recordFluidPassage(hits,s.p,next.position,t,gates);s.p=next.position;s.v=next.velocity;}
+   material.step(t,dt,gates,bulk,fluid.stepFluidParticle);
+  });
+  return {clock,snapshot:()=>JSON.stringify({states,guides:material.textures.map(t=>Array.from(t.image.data)),hits:Array.from(hits)}),dispose:()=>material.dispose()};
+ }
+ const direct=run(),scrub=run();
+ try{
+  direct.clock.seek(.44);const expected=direct.snapshot();scrub.clock.seek(.97);scrub.clock.seek(.44);
+  assert.equal(scrub.snapshot()===expected,true,'rewind includes transported frames and gate feedback, not just positions');
+  scrub.clock.seek(.44);assert.equal(scrub.snapshot()===expected,true,'holding scroll never integrates another tick');
+  scrub.clock.seek(.7);scrub.clock.seek(.44);assert.equal(scrub.snapshot()===expected,true);
+ }finally{direct.dispose();scrub.dispose();}
+});
 test('a visible aperture crossing excites a ripple, off-aperture travel does not',()=>{
  assert.equal(typeof fluid?.recordFluidPassage,'function');
  const gates=[{center:[0,0,0],normal:[0,0,1],radius:10,visibility:1}],hits=new Float32Array(1).fill(-10);

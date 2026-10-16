@@ -8,7 +8,10 @@ export function materialTarget(seed,t,aspect,reduced,frame){
  const [u,v,w,g]=seed,fit=Math.min(1,aspect/.6),clock=t*18*(reduced?0:1);
  const angle=u*TAU+clock*(.18+.12*w),radius=(12+2*Math.sin(v*7+clock*.4))*Math.sqrt(w);
  const flow=frame.center.map((x,k)=>x+(frame.u[k]*Math.cos(angle)+frame.v[k]*Math.sin(angle))*radius*(k===0?fit:1));
- const theta=g*TAU/5+(u-.5)*1.7+clock*(.10+.10*w),lat=Math.max(-1,Math.min(1,v*2-1+.10*Math.sin(theta*2+clock*.3)));
+ const theta=g*TAU/5+(u-.5)*1.7+clock*(.10+.10*w),baseLat=v*2-1;
+ // Fade latitude displacement at the poles: clamping used to collapse a
+ // finite band onto x=z=0 and draw an unintended bright vertical filament.
+ const lat=baseLat+.10*(1-baseLat*baseLat)*Math.sin(theta*2+clock*.3);
  const ring=Math.sqrt(Math.max(0,1-lat*lat)),r=38*Math.cbrt(w)*(1+.12*Math.sin(theta*3+lat*4+clock*.3));
  const body=[Math.cos(theta)*ring*r*fit,43+lat*r*.86+4*Math.sin(theta*2+clock*.2)*Math.cbrt(w),-14+Math.sin(theta)*ring*r];
  const gather=nextSmooth((t-.46)/.15);
@@ -21,7 +24,7 @@ vec3 materialTarget(vec4 seed,float t,float fit,float reduced,vec3 center,vec3 a
  float radius=(12.+2.*sin(seed.y*7.+clock*.4))*sqrt(seed.z);
  vec3 flow=center+(a*cos(angle)+b*sin(angle))*radius*vec3(fit,1.,1.);
  float theta=seed.w*6.28318530718/5.+(seed.x-.5)*1.7+clock*(.10+.10*seed.z);
- float lat=clamp(seed.y*2.-1.+.10*sin(theta*2.+clock*.3),-1.,1.),ring=sqrt(max(0.,1.-lat*lat));
+ float baseLat=seed.y*2.-1.,lat=baseLat+.10*(1.-baseLat*baseLat)*sin(theta*2.+clock*.3),ring=sqrt(max(0.,1.-lat*lat));
  float r=38.*pow(seed.z,1./3.)*(1.+.12*sin(theta*3.+lat*4.+clock*.3));
  vec3 body=vec3(cos(theta)*ring*r*fit,43.+lat*r*.86+4.*sin(theta*2.+clock*.2)*pow(seed.z,1./3.),-14.+sin(theta)*ring*r);
  return mix(flow,body,smooth5((t-.46)/.15));

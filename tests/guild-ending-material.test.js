@@ -20,6 +20,18 @@ test('central volume retains biome color regions instead of uniformly mixing eve
  }
  assert.ok(Math.hypot(...means[0].map((x,k)=>x-means[2][k]))>18,'opposite biome regions remain distinct');
 });
+test('central flow never clamps a finite band of particles onto the polar axis',()=>{
+ const frame={center:[0,43,-14],u:[1,0,0],v:[0,0,1]};
+ for(const t of [.64,.68,.72]){
+  let collapsed=0;
+  for(let i=0;i<12000;i++){
+   const seed=[i*.61803398875%1,(i+.5)/12000,.3+(i*.73205080757%1)*.7,i%5];
+   const p=m.materialTarget(seed,t,.6,false,frame);
+   if(Math.hypot(p[0],p[2]+14)<.1)collapsed++;
+  }
+  assert.ok(collapsed<12,`a bright polar line is not a designed feature: ${collapsed} samples collapsed at ${t}`);
+ }
+});
 test('material volume keeps moving internally while morph remains gradual and separate',()=>{
  assert.equal(typeof m?.materialTarget,'function');
  const frame={center:[0,0,0],u:[1,0,0],v:[0,0,1]},seed=[.2,.4,.6,1];

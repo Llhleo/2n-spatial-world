@@ -44,7 +44,7 @@ export function endingPetalFrame(pose,aspect,anchors){
    const radius=5.9/(depth*half),gap=placed.length?Math.min(...placed.map(p=>Math.hypot((x-p.x)*aspect,y-p.y)/(radius+p.radius))):2;
    if(gap>score){score=gap;best={x,y,radius};}
   }
-  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,aspect});
+  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,ring:index%3,aspect});
  }
  return slots;
 }
@@ -53,7 +53,7 @@ export function endingPetalPose(a,t,reduced=false){
  const phase=a.longitude+t*12+a.branch*.7;
  return reduced?[0,0,0]:[.07*Math.sin(phase)*escort,.08*Math.cos(phase*.8)*escort,.22*Math.sin(phase*.6)*escort];
 }
-export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null){
+export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,particleEnding=true){
  const slot=slots?.get(a.id),aspect=slot?.aspect||.6,fit=Math.min(1,aspect/.6),motion=reduced?0:1;
  // Original 158c2fb entry: petals begin rotating while they move outwards.
  const spiral=nextSmooth((t-.12)/.35),theta=a.longitude+spiral*1.6+t*18*.09*spiral*motion;
@@ -65,7 +65,14 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null){
  const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
  const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
- if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
+ if(slot&&!reduced){
+  // All ending movement is sampled from progress, including reverse scrolling.
+  const clock=particleEnding?t*18:time;
+  destination.add(new T.Vector3(Math.sin(clock*.12+slot.phase)*.8,Math.cos(clock*.13+slot.phase)*.8,Math.sin(clock*.11+slot.phase)*1.8));
+  const angle=slot.phase-(t-.88)*Math.PI*2*2.6,r=56+(slot.ring||0)*7,orbitFit=Math.min(1,aspect/.75);
+  const orbit=new T.Vector3(Math.cos(angle)*r*orbitFit,43+Math.sin(angle)*r*.65,-14-Math.sin(angle)*r*.72);
+  if(particleEnding)destination.lerp(orbit,nextSmooth((t-.88)/.07));
+ }
  cloud.lerp(destination,nextSmooth((t-.68)/.22));
  return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));
 }
@@ -86,14 +93,21 @@ export function createEndingParticles({renderer}={}){
   let pick=random()*total,surface=surfaces.at(-1);for(const s of surfaces){if(pick<s.area){surface=s;break;}pick-=s.area;}
   surface.sampler.sample(point,normal);point.sub(center);glyph.set(point.toArray(),i*3);normals.set(normal.toArray(),i*3);
  }
- monument.traverse(o=>o.geometry?.dispose());monument.children[0].material.dispose();
+ // The same sculpture supplies an invisible depth surface. Transparent
+ // particles alone cannot hide solid petals travelling behind the mark.
+ monument.children[0].material.dispose();
+ const depthMaterial=new T.MeshBasicMaterial({colorWrite:false,depthWrite:true,depthTest:true,alphaHash:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+ const occluder=monument;occluder.name='ending-mark-depth';occluder.visible=false;occluder.renderOrder=-2;
+ for(const mesh of occluder.children){mesh.geometry.translate(-center.x,-center.y,-center.z);mesh.material=depthMaterial;}
  geometry.setAttribute('aNormal',new T.BufferAttribute(normals,3));
  geometry.setAttribute('aCloud',new T.BufferAttribute(cloud,3));
  geometry.setAttribute('position',new T.BufferAttribute(glyph,3));geometry.setAttribute('aSeed',new T.BufferAttribute(seed,4));
  const uv=new Float32Array(ENDING_PARTICLE_COUNT*2),side=Math.sqrt(ENDING_PARTICLE_COUNT);
  for(let i=0;i<ENDING_PARTICLE_COUNT;i++)uv.set([(i%side+.5)/side,(Math.floor(i/side)+.5)/side],i*2);
  geometry.setAttribute('aFluidUV',new T.BufferAttribute(uv,2));
- const fluid=renderer?createEndingFluid(renderer,geometry):null;
+ let fluid=null;
+ try{fluid=renderer?createEndingFluid(renderer,geometry):null;}
+ catch(error){geometry.dispose();occluder.traverse(o=>o.geometry?.dispose());depthMaterial.dispose();throw error;}
  // Ordinary alpha blending bounds dense crossings to the palette; visibility
  // comes from wider bright cores, not unbounded additive accumulation.
  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
@@ -154,9 +168,11 @@ export function createEndingParticles({renderer}={}){
  }`});
  material.uniforms.uFluidPosition={value:null};material.uniforms.uFluidEnabled={value:fluid?1:0};
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
- return {points,update(t,time,camera,reduced=false){points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
+ let disposed=false;
+ return {points,occluder,update(t,time,camera,reduced=false,particleEnding=!!fluid){if(disposed)return;points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
+  occluder.visible=particleEnding&&Number.isFinite(t)&&t>.92;occluder.position.set(0,43,-14);occluder.scale.setScalar(Math.min(1.12,camera.aspect*1.75));depthMaterial.opacity=nextSmooth((t-.92)/.04);
   if(fluid)material.uniforms.uFluidPosition.value=fluid.update(t,camera.aspect,reduced);
   const route=fluid?materialRouteTime(t):t;
   endingDimensionTransforms(route,camera.aspect,reduced,!!fluid).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(route,reduced,!!fluid).gates.map(g=>g.visibility));
- },get fluidHits(){return fluid?.hits||null;},dispose(){fluid?.dispose();geometry.dispose();material.dispose();}};
+ },get fluidHits(){return fluid?.hits||null;},dispose(){if(disposed)return;disposed=true;fluid?.dispose();geometry.dispose();material.dispose();occluder.traverse(o=>o.geometry?.dispose());depthMaterial.dispose();}};
 }

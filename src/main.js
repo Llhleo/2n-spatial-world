@@ -42,6 +42,9 @@ if (renderer) {
   const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
+  // Preparation switch for the new ending; default production route is retained
+  // until its iPhone scroll/occlusion review has been accepted.
+  const particleEnding=new URLSearchParams(location.search).get('ending')==='particles';
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;
@@ -57,7 +60,7 @@ if (renderer) {
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){
     if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
-    try{await Promise.all([history.prepare(),nextView.prepare()]);}catch(error){historyError=error;}finally{historyPreparing=false;}
+    try{await Promise.all([history.prepare(),nextView.prepare()]);if(particleEnding)memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
   }
   createLighting(scene, renderer);
   createRevealLight(scene);
@@ -119,7 +122,7 @@ if (renderer) {
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
   const replayButton=document.querySelector('#replay');
-  let player=createAutoplay(autoplayDuration(peopleRoute));
+  let player=createAutoplay(autoplayDuration(peopleRoute,particleEnding));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
   retry.addEventListener('click',event=>{event.stopPropagation();void prepareEverything();});
@@ -134,8 +137,8 @@ if (renderer) {
     cancelDistancePreparation();
     peopleRoute=next;people.adoptRoute(next);
     cancelDistancePreparation=preparePeopleDistance(next);
-    player=createAutoplay(autoplayDuration(next));
-    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next),true);
+    player=createAutoplay(autoplayDuration(next,particleEnding));
+    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next,particleEnding),true);
   }
   function adoptReadyMetrics(){
     if(!people?.ready||metricsAdopted)return;
@@ -184,7 +187,7 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute),true);controlled=true;
+    player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding),true);controlled=true;
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
@@ -204,7 +207,7 @@ if (renderer) {
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
-      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute),peopleRoute);
+      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute,particleEnding),peopleRoute);
       scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
     }
     const scroll = scrollProgress(scrollY,view.range);
@@ -233,7 +236,7 @@ if (renderer) {
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
-    const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
+    const state=sampleStoryPose(progress,camera,portrait,peopleRoute,particleEnding);
     const inNext=chapter.chapter==='next',closing=chapter.chapter==='history'||inNext;
     nextView.group.visible=false;
     if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
@@ -255,7 +258,7 @@ if (renderer) {
       });
       people.group.visible=people.group.visible&&state.peopleOpacity>0;
     }
-    const nextButtons=inNext&&state.buttonsVisible&&nextView.ready;
+    const nextButtons=inNext&&state.buttonsVisible&&nextView.ready&&(!particleEnding||memory.particleEndingReady);
     replayButton.hidden=introLocked||!nextButtons;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
@@ -294,9 +297,9 @@ if (renderer) {
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
-    const readingReady=inNext?nextView.ready:!!history?.ready;
+    const readingReady=inNext?nextView.ready&&(!particleEnding||memory.particleEndingReady):!!history?.ready;
     historyStatus.hidden=introLocked||!closing||readingReady;
-    historyStatus.querySelector('span').textContent=historyError?'文字暂未准备好，可重试':inNext?'正在准备结尾文字，可继续滑动':'正在准备公会历史，可继续滑动';
+    historyStatus.querySelector('span').textContent=historyError?'故事资源准备失败，可重试':inNext?'正在准备结尾，可继续滑动':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
     if(memoryPreview&&!introLocked){
       memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
@@ -304,7 +307,7 @@ if (renderer) {
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&memory.assetCount===14){
-      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,nextT:inNext?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
+      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding,nextT:inNext&&(!particleEnding||memory.particleEndingReady)?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
