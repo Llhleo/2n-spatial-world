@@ -20,12 +20,12 @@ test('opt-in particle ending occupies eighteen autoplay seconds and maps scroll 
  }
  assert.ok(Math.abs(autoplayToScroll(before/duration,route,true)-NEXT_START_UNITS/TOTAL_UNITS)<1e-10);
 });
-test('actual memory scene restores petal matrices and camera when ending scroll reverses after idle frames',()=>{
+test('scroll-driven petal stages restore after the later ambient orbit has run',()=>{
  const memory=createMemoryScene(),asset=new T.Mesh(new T.BoxGeometry(3,1,2),new T.MeshStandardMaterial()),camera=new T.PerspectiveCamera(48,.46,.2,2400);
  memory.install(asset,'garden','rose');
  const shot=t=>{memory.update({memoryPhase:2,eventIndex:2,nextT:t,particleEnding:true},camera,.04);memory.group.updateMatrixWorld(true);return {camera:camera.position.toArray(),matrices:memory.group.children.filter(o=>o.isInstancedMesh).flatMap(o=>Array.from(o.instanceMatrix.array))};};
  try{
-  for(const t of [.1,.4,.7,.95]){
+  for(const t of [.1,.4,.7]){
    const initial=shot(t);for(let i=0;i<12;i++)shot(1);
    const restored=shot(t);assert.deepEqual(restored.camera,initial.camera);
    const error=Math.max(...restored.matrices.map((x,k)=>Math.abs(x-initial.matrices[k])));
@@ -34,6 +34,17 @@ test('actual memory scene restores petal matrices and camera when ending scroll 
   assert.ok(memory.group.getObjectByName('ending-mark-depth'),'the rendered scene attaches the occlusion surface');
   memory.update({memoryPhase:2,eventIndex:2,nextT:1,particleEnding:false},camera,0);
   assert.equal(memory.group.getObjectByName('ending-mark-depth').visible,false,'legacy route keeps its previous visuals');
+ }finally{memory.dispose();asset.geometry.dispose();asset.material.dispose();}
+});
+test('the actual scene keeps petals orbiting at a held final progress while the sculpture and camera hold',()=>{
+ const memory=createMemoryScene(),asset=new T.Mesh(new T.SphereGeometry(2.2,8,6),new T.MeshStandardMaterial()),camera=new T.PerspectiveCamera(48,.46,.2,2400);memory.install(asset,'garden','rose');
+ const update=()=>memory.update({memoryPhase:2,eventIndex:2,nextT:1,particleEnding:true},camera,.05);
+ try{
+  update();const pool=memory.group.children.find(o=>o.isInstancedMesh),before=Array.from(pool.instanceMatrix.array),view=camera.position.toArray();
+  for(let i=0;i<100;i++)update();
+  assert.deepEqual(camera.position.toArray(),view);assert.equal(memory.group.getObjectByName('ending-shape-swarm').material.uniforms.uT.value,1);
+  const moved=Array.from(pool.instanceMatrix.array).some((x,k)=>Math.abs(x-before[k])>2);
+  assert.ok(moved,'lifting the finger must not freeze the final petal orbit');
  }finally{memory.dispose();asset.geometry.dispose();asset.material.dispose();}
 });
 test('preparing the opt-in GPU ending rejects unsupported hardware without replacing the existing history scene',()=>{

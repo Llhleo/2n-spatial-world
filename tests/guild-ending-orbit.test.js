@@ -17,16 +17,16 @@ test('the new orbit keeps the rendered petals inside narrow and wide camera fram
   }}finally{memory.dispose();asset.geometry.dispose();asset.material.dispose();}
  }
 });
-test('formed mark petals orbit clockwise with depth and depend on progress rather than elapsed reading time',()=>{
+test('formed petals travel slowly through front/back depth while vertical travel stays small',()=>{
  const layout=createMemoryLayout({assets:[{key:'rose',radius:2.2}]}),slots=endingPetalFrame(pose,.46,layout.anchors);
  let front=0,back=0;
  for(const a of layout.anchors){
-  const start=memoryPoint(a,2),p=endingPetalPoint(a,start,.95,0,false,slots),q=endingPetalPoint(a,start,1,0,false,slots);
-  assert.deepEqual(p,endingPetalPoint(a,start,.95,300,false,slots),'scroll pause cannot advance the orbit');
-  assert.ok(Math.hypot(...p.map((v,k)=>v-q[k]))>10,'formed petals keep moving as scroll advances');
-  assert.ok(p[0]*(q[1]-43)-(p[1]-43)*q[0]<0,'front-view travel is clockwise');
+  const start=memoryPoint(a,2),p=endingPetalPoint(a,start,1,0,false,slots),q=endingPetalPoint(a,start,1,5,false,slots);
+  const distance=Math.hypot(...p.map((v,k)=>v-q[k]));
+  assert.ok(distance>5&&distance<55,'a five-second idle continues a slow orbit');
+  assert.ok(Math.abs(q[1]-p[1])<6,'the orbit moves through depth, not a vertical wheel');
+  assert.ok(p[0]*(q[2]+14)-(p[2]+14)*q[0]>0,'right side moves toward the viewer in a clockwise horizontal orbit');
   if(p[2]>2)front++;if(p[2]<-30)back++;
-  assert.deepEqual(p,endingPetalPoint(a,start,.95,400,false,slots),'backscroll returns to the same position');
  }
  assert.ok(front>5&&back>5,'the orbit occupies both sides of the model');
 });

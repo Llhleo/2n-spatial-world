@@ -55,7 +55,7 @@ if (renderer) {
     ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===3?memoryText:index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;scrollTo({top:[.14,.52,.86][index]*viewport().range,behavior:'smooth'});[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
     document.body.append(memoryControls);
   }
-  const nextView=createNextView();scene.add(nextView.group);
+  const nextView=createNextView({particleEnding});scene.add(nextView.group);
   let history=null,historyPreparing=false,historyError=null;
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){

@@ -40,6 +40,16 @@ test('material volume keeps moving internally while morph remains gradual and se
  assert.ok(m.materialGlyphProgress(14/18,.5)<.4);
  assert.equal(m.materialGlyphProgress(16.5/18,.5),1);
 });
+test('arrival spring gives a small damped rebound instead of a dead stop at the target',()=>{
+ assert.equal(typeof m.materialSpring,'function');
+ let p=-12,v=0,peak=-Infinity;
+ for(let i=0;i<240;i++){
+  const a=m.materialSpring([p,0,0],[v,0,0],[0,0,0],[0,0,0],.64);
+  v+=a[0]/120;p+=v/120;peak=Math.max(peak,p);
+ }
+ assert.ok(peak>.1&&peak<1.5,`arrival has a controlled, visible rebound: ${peak}`);
+ assert.ok(Math.abs(p)<.5&&Math.abs(v)<1,'rebound damps rather than becoming a repeated oscillation');
+});
 test('the actual force follows the local section instead of remaining on the inherited thin band',()=>{
  const guides=m.createMaterialGuides();guides.reset(.6,false);
  const seed=[.2,.4,.6,1],frame=guides.sample(seed),target=m.materialTarget(seed,.4,.6,false,frame);
@@ -57,11 +67,15 @@ for(const aspect of [.46,.6])test(`the current material simulation crosses visib
  const particles=Array.from({length:256},(_,i)=>state(i*997)),probes=Array.from({length:64},(_,i)=>state(i*4093));let before;
  try{for(let tick=0;tick<=831;tick++){
   const t=.18+tick/1080,gates=fluid.fluidGateStates(t,aspect),bulk=fluid.fluidVolumePressure(probes,aspect),volume={...bulk,material};
+  let hardStops=0;
   for(const s of [...particles,...probes]){
    s.previousWorld=s.p;
+   const previousSpeed=Math.hypot(...s.v);
    const next=fluid.stepFluidParticle(s.p,s.v,s.seed,t,1/60,gates,s.mark,aspect,false,volume);
+   if(previousSpeed>2&&Math.hypot(...next.velocity)<previousSpeed*.2)hardStops++;
    assert.ok(Math.hypot(...next.position.map((x,k)=>x-s.p[k]))<2.67,'no per-frame position teleport');s.p=next.position;s.v=next.velocity;
   }
+  if(t<.95)assert.ok(hardStops<(particles.length+probes.length)*.25,`the whole swarm cannot lose its velocity in one tick at ${t}`);
   for(const s of particles)for(let i=0;i<gates.length;i++){
    const gate=gates[i],inverse=new T.Matrix4().fromArray(gate.inverse),p=new T.Vector3(...s.p).applyMatrix4(inverse),previous=new T.Vector3(...s.previousWorld).applyMatrix4(inverse);
    if(previous.z*p.z<=0&&Math.abs(p.x)<1&&Math.abs(p.y)<1&&gate.visibility>.1)s.passed[i]=true;

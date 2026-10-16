@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
-import {sampleNext} from './guild-next-route.js';
+import {sampleNext,nextSmooth} from './guild-next-route.js';
 import {endingCamera,endingPetalPose,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
 import {createEndingFrames} from './guild-ending-frames.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
@@ -13,7 +13,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  const dimensions=createEndingFrames();group.add(dimensions.group,ending.occluder);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  let activeTarget=null;
- const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null;
+ const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null,orbitTime=0,lastEndingT=0;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
  const ambient=new T.AmbientLight(0xffffff,1.15);group.add(ambient);
@@ -55,7 +55,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   }
  }
  function captureEntry(sourceGroup,entryCamera){
-  endingOrigin=null;
+  endingOrigin=null;orbitTime=0;lastEndingT=0;
   prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();entryView=entryCamera.clone();
   const entry={position:entryCamera.position.toArray(),target:entryCamera.position.clone().add(new T.Vector3(0,0,-1).applyQuaternion(entryCamera.quaternion)).toArray()};
   const frame=memoryEntryFrame(entry).invert(),records=[];
@@ -102,6 +102,11 @@ export function createMemoryScene({mobile=true,renderer}={}){
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   const particleEnding=state?.particleEnding??!!ending.fluidHits,inEnding=particleEnding&&Number.isFinite(state?.nextT);
   if(inEnding&&!endingOrigin)endingOrigin={time,spin};
+  if(inEnding){
+   if(state.nextT<.1&&lastEndingT>.1)orbitTime=0;
+   if(!state?.reducedMotion)orbitTime+=elapsed*nextSmooth((state.nextT-.88)/.07);
+   lastEndingT=state.nextT;
+  }
   const motionTime=inEnding?endingOrigin.time+state.nextT*18:time,motionSpin=inEnding?endingOrigin.spin:spin;
   dustMaterial.uniforms.time.value=motionTime;
   camera.position.fromArray(layout.shots[from].position).lerp(new T.Vector3().fromArray(layout.shots[from+1].position),blend);camera.up.set(0,1,0);
@@ -133,7 +138,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
     const radial=point.clone().sub(new T.Vector3(0,0,-14));
     if(radial.lengthSq()>0)point.addScaledVector(radial.normalize(),motion*eased(phase)*(1-expand)*.35*Math.sin(motionTime*(.78+a.u*.3)+a.u*6+a.branch*1.7));
     point.y+=motion*expand*(bob(a)-meanBob);
-    if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,motionTime, state?.reducedMotion,endingCache?.frame,particleEnding));
+    if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,particleEnding?orbitTime:motionTime, state?.reducedMotion,endingCache?.frame,particleEnding));
     locations.set(a.id,point.clone());
   }
   // Bounded, deterministic separation prevents petals crossing during the morph.

@@ -66,11 +66,12 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
  const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
  if(slot&&!reduced){
-  // All ending movement is sampled from progress, including reverse scrolling.
+  // The main scene remains scroll-driven; formed petals have a separate,
+  // slow ambient clock so releasing the finger does not freeze their orbit.
   const clock=particleEnding?t*18:time;
   destination.add(new T.Vector3(Math.sin(clock*.12+slot.phase)*.8,Math.cos(clock*.13+slot.phase)*.8,Math.sin(clock*.11+slot.phase)*1.8));
-  const angle=slot.phase-(t-.88)*Math.PI*2*2.6,r=56+(slot.ring||0)*7,orbitFit=Math.min(1,aspect/.75);
-  const orbit=new T.Vector3(Math.cos(angle)*r*orbitFit,43+Math.sin(angle)*r*.65,-14-Math.sin(angle)*r*.72);
+  const ring=slot.ring||0,angle=slot.phase-time*.14,r=56+ring*7,orbitFit=Math.min(1,aspect/.75);
+  const orbit=new T.Vector3(Math.cos(angle)*r*orbitFit,43+[-22,3,27][ring]+1.6*Math.sin(angle*2+ring),-14-Math.sin(angle)*r*.9);
   if(particleEnding)destination.lerp(orbit,nextSmooth((t-.88)/.07));
  }
  cloud.lerp(destination,nextSmooth((t-.68)/.22));

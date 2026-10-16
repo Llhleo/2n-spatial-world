@@ -4,6 +4,12 @@ import {endingStreamPoint} from './guild-ending-flow.js';
 const TAU=Math.PI*2,SAMPLES=64,GROUPS=5;
 export const materialRouteTime=t=>.18+(t-.18)*(.40/(8.5/18-.18));
 export const materialGlyphProgress=(t,seed=0)=>nextSmooth((t-13.2/18-seed*.035)/(3.3/18-.035));
+export function materialSpring(p,v,target,targetV,t){
+ // A slightly underdamped arrival permits one small rebound. The coefficients
+ // blend smoothly back to critical damping before the final glyph settles.
+ const damping=1-.28*nextSmooth((t-.46)/.08)*(1-nextSmooth((t-.71)/.04));
+ return p.map((x,k)=>8*(target[k]-x)+2*Math.sqrt(8)*damping*(targetV[k]-v[k]));
+}
 export function materialTarget(seed,t,aspect,reduced,frame){
  const [u,v,w,g]=seed,fit=Math.min(1,aspect/.6),clock=t*18*(reduced?0:1);
  const angle=u*TAU+clock*(.18+.12*w),radius=(12+2*Math.sin(v*7+clock*.4))*Math.sqrt(w);
@@ -28,6 +34,10 @@ vec3 materialTarget(vec4 seed,float t,float fit,float reduced,vec3 center,vec3 a
  float r=38.*pow(seed.z,1./3.)*(1.+.12*sin(theta*3.+lat*4.+clock*.3));
  vec3 body=vec3(cos(theta)*ring*r*fit,43.+lat*r*.86+4.*sin(theta*2.+clock*.2)*pow(seed.z,1./3.),-14.+sin(theta)*ring*r);
  return mix(flow,body,smooth5((t-.46)/.15));
+}
+vec3 materialSpring(vec3 p,vec3 v,vec3 target,vec3 targetV,float t){
+ float damping=1.-.28*smooth5((t-.46)/.08)*(1.-smooth5((t-.71)/.04));
+ return 8.*(target-p)+2.*sqrt(8.)*damping*(targetV-v);
 }`;
 export const MATERIAL_RENDER_GLSL=MATERIAL_GLSL.split('vec3 materialTarget')[0].replaceAll('smooth5','ease');
 

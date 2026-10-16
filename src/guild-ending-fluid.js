@@ -3,7 +3,7 @@ import {GPUComputationRenderer} from 'three/addons/misc/GPUComputationRenderer.j
 import {nextSmooth} from './guild-next-route.js';
 import {endingFlowCenter,endingFlowTangent,endingStreamPoint,endingGateProgress} from './guild-ending-flow.js';
 import {ENDING_GATE_COUNT,endingDimensionTransforms,endingDimensionFrame} from './guild-ending-frames.js';
-import {createMaterialGuides,materialTarget,materialGlyphProgress,materialRouteTime,MATERIAL_GLSL} from './guild-ending-material.js';
+import {createMaterialGuides,materialTarget,materialSpring,materialGlyphProgress,materialRouteTime,MATERIAL_GLSL} from './guild-ending-material.js';
 
 export const FLUID_DT=1/60,FLUID_START=.18,FLUID_SECONDS=18;
 // A fixed tick index, never accumulated display deltas. Backwards seeks reset
@@ -88,11 +88,9 @@ export function fluidAcceleration(p,v,seed,t,gates,mark,aspect=.6,reduced=false,
  if(volume?.material){
   const frame=volume.material.sample(seed),target=materialTarget(seed,t,aspect,reduced,frame),h=.0001;
   const before=materialTarget(seed,t-h,aspect,reduced,frame),after=materialTarget(seed,t+h,aspect,reduced,frame),gather=nextSmooth((t-.46)/.15);
-  for(let i=0;i<3;i++){
-   const targetV=frame.velocity[i]*(1-gather)+(after[i]-before[i])/(2*h*18);
-   const spring=8*(target[i]-p[i])+2*Math.sqrt(8)*(targetV-v[i]);
-   a[i]+=start*.85*(spring-a[i]);
-  }
+  const targetV=frame.velocity.map((x,i)=>x*(1-gather)+(after[i]-before[i])/(2*h*18));
+  const spring=materialSpring(p,v,target,targetV,t);
+  for(let i=0;i<3;i++)a[i]+=start*.85*(spring[i]-a[i]);
  }
  const glyph=materialGlyphProgress(t,seed[2]);
  const k=35*glyph,drag=2*Math.sqrt(k);
@@ -152,7 +150,7 @@ vec3 velocityStep(vec3 p,vec3 v,vec4 seed,vec3 mark){
  vec3 target=materialTarget(seed,fT,fit,fReduced,center,ma,mb);
  vec3 before=materialTarget(seed,fT-.0001,fit,fReduced,center,ma,mb),after=materialTarget(seed,fT+.0001,fit,fReduced,center,ma,mb);
  vec3 targetV=va*(1.-smooth5((fT-.46)/.15))+(after-before)/(.0002*18.);
- vec3 spring=8.*(target-p)+2.*sqrt(8.)*(targetV-v);
+ vec3 spring=materialSpring(p,v,target,targetV,fT);
  a=mix(a,spring,smooth5((fT-.18)/.06)*.85);
  float glyph=materialGlyphProgress(fT,seed.z),k=35.*glyph,drag=2.*sqrt(k);
  a=a*(1.-glyph)+k*(mark-p)-drag*v;
