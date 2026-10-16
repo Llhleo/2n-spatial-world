@@ -1,6 +1,5 @@
 import * as T from 'three';
 import {nextSmooth} from './guild-next-route.js';
-import {fluidRouteTime} from './guild-ending-timing.js';
 
 import {endingFlowCenter,endingFlowTangent} from './guild-ending-flow.js';
 
@@ -62,14 +61,14 @@ export function createEndingFrames(){
  }
  let disposed=false;
  return {group,update(t,aspect=.6,reduced=false,hits=null){
-  if(disposed)return;const route=hits?fluidRouteTime(t):t,f=endingDimensionFrame(route,reduced),transforms=endingDimensionTransforms(route,aspect,reduced);
+  if(disposed)return;const f=endingDimensionFrame(t,reduced),transforms=endingDimensionTransforms(t,aspect,reduced);
   group.visible=f.visibility>0;
   layers.forEach(({layer,core,halo,segments,ripple,rippleMaterial},i)=>{
    layer.matrixAutoUpdate=false;layer.matrix.copy(transforms[i]);
    const gate=f.gates[i];layer.visible=gate.visibility>0;
    const age=hits?(t-hits[i])*18:100;
    const pulse=age>=0&&age<1.2?(1-age/1.2)**2:0;
-   const emphasis=.25+.75*Math.exp(-(((route-[.348,.408,.427,.450,.473,.50][i])/.026)**2));
+   const emphasis=.25+.75*Math.exp(-(((t-[.348,.408,.427,.450,.473,.50][i])/.026)**2));
    core.opacity=gate.visibility*(hits?(.68*emphasis+.14*pulse):.82);halo.opacity=gate.visibility*(hits?(.055*emphasis+.03*pulse):.085);
    ripple.visible=pulse>0&&!reduced;ripple.scale.setScalar(.18+Math.max(0,age)*.72);rippleMaterial.opacity=gate.visibility*pulse*.24;
    for(const {a,b,edge,glow,index} of segments){
