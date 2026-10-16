@@ -44,7 +44,7 @@ test('flow stays volumetric and fits the portrait camera while closing onto samp
  }
  swarm.dispose();
 });
-test('actual sampled particles cross each moving gate opening while it is visible',()=>{
+test('legacy analytic path samples cross each moving gate opening while it is visible',()=>{
  const swarm=createEndingParticles(),geo=swarm.points.geometry;
  for(const aspect of [.46,.6])for(const reduced of [false,true]){
   const steps=[];

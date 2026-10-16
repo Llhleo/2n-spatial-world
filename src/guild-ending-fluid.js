@@ -1,8 +1,9 @@
 import * as T from 'three';
 import {GPUComputationRenderer} from 'three/addons/misc/GPUComputationRenderer.js';
 import {nextSmooth} from './guild-next-route.js';
-import {endingFlowCenter,endingFlowTangent,endingStreamPoint,endingGateProgress,endingGlyphProgress} from './guild-ending-flow.js';
+import {endingFlowCenter,endingFlowTangent,endingStreamPoint,endingGateProgress} from './guild-ending-flow.js';
 import {ENDING_GATE_COUNT,endingDimensionTransforms,endingDimensionFrame} from './guild-ending-frames.js';
+import {createMaterialGuides,materialTarget,materialGlyphProgress,materialRouteTime,MATERIAL_GLSL} from './guild-ending-material.js';
 
 export const FLUID_DT=1/60,FLUID_START=.18,FLUID_SECONDS=18;
 // A fixed tick index, never accumulated display deltas. Backwards seeks reset
@@ -18,14 +19,14 @@ export function createFluidClock(reset,step){
  }};
 }
 export function fluidGuide(t,aspect=.6){
- const fit=Math.min(1,aspect/.6),x=Math.max(0,Math.min(1,(t-.18)/.40));
- const center=endingFlowCenter(endingGateProgress(t),fit);
- const ds=30*x*x*(1-x)*(1-x)/(.40*FLUID_SECONDS);
- return {center,velocity:endingFlowTangent(endingGateProgress(t),fit).map(v=>v*ds)};
+ const fit=Math.min(1,aspect/.6),route=materialRouteTime(t),x=Math.max(0,Math.min(1,(route-.18)/.40));
+ const center=endingFlowCenter(endingGateProgress(route),fit);
+ const ds=30*x*x*(1-x)*(1-x)/(8.5-.18*FLUID_SECONDS);
+ return {center,velocity:endingFlowTangent(endingGateProgress(route),fit).map(v=>v*ds)};
 }
 export function fluidGateStates(t,aspect=.6,reduced=false){
- const frame=endingDimensionFrame(t,reduced);
- return endingDimensionTransforms(t,aspect,reduced).map((matrix,i)=>{
+ const route=materialRouteTime(t),frame=endingDimensionFrame(route,reduced,true);
+ return endingDimensionTransforms(route,aspect,reduced,true).map((matrix,i)=>{
   const inv=matrix.clone().invert(),e=inv.elements;
   const normal=new T.Vector3(e[2],e[6],e[10]).normalize();
   return {center:new T.Vector3().setFromMatrixPosition(matrix).toArray(),normal:normal.toArray(),radius:frame.scales[i],visibility:frame.gates[i].visibility,inverse:Array.from(e)};
@@ -73,9 +74,28 @@ export function fluidAcceleration(p,v,seed,t,gates,mark,aspect=.6,reduced=false,
   const along=guide.velocity.reduce((s,x,i)=>s+x*n[i],0)>=0?1:-1;
   for(let i=0;i<3;i++)a[i]+=near*(-side[i]*.75+n[i]*along*16+tangent[i]*.32*motion);
  }
+ // Material guide centers need position transport as well as matching speed:
+ // velocity-only following preserves the initial cloud's large offsets and
+ // lets whole strands miss an aperture. This force acts on CPU guides only.
+ if(volume?.transportGuide){
+  const angle=seed[3]*Math.PI*2/5+seed[1]*2,offset=[Math.cos(angle)*10*fit,(seed[1]-.5)*16,Math.sin(angle)*10];
+  for(let i=0;i<3;i++){
+   const spring=8*(guide.center[i]+offset[i]-p[i])+2*Math.sqrt(8)*(guide.velocity[i]-v[i]);
+   a[i]+=start*.85*(spring-a[i]);
+  }
+ }
  // Critically damped attraction grows only after the unshaped central hold.
- const glyph=endingGlyphProgress(t,seed[2]);
- const k=110*glyph,drag=2*Math.sqrt(k);
+ if(volume?.material){
+  const frame=volume.material.sample(seed),target=materialTarget(seed,t,aspect,reduced,frame),h=.0001;
+  const before=materialTarget(seed,t-h,aspect,reduced,frame),after=materialTarget(seed,t+h,aspect,reduced,frame),gather=nextSmooth((t-.46)/.15);
+  for(let i=0;i<3;i++){
+   const targetV=frame.velocity[i]*(1-gather)+(after[i]-before[i])/(2*h*18);
+   const spring=8*(target[i]-p[i])+2*Math.sqrt(8)*(targetV-v[i]);
+   a[i]+=start*.85*(spring-a[i]);
+  }
+ }
+ const glyph=materialGlyphProgress(t,seed[2]);
+ const k=35*glyph,drag=2*Math.sqrt(k);
  return a.map((x,i)=>x*(1-glyph)+(k*(mark[i]-p[i])-drag*v[i]));
 }
 export function stepFluidParticle(p,v,seed,t,dt,gates,mark,aspect=.6,reduced=false,volume=null){
@@ -95,10 +115,16 @@ export const FLUID_FORCE_GLSL=`
 uniform float fT,fDt,fAspect,fReduced;
 uniform vec3 fCenter,fGuideVelocity,fMassCenter,fVolumePressure;
 uniform sampler2D fSeed,fGlyph;
+uniform sampler2D fMaterialPosition,fMaterialVelocity,fMaterialU,fMaterialV;
 uniform vec3 fGateCenter[${ENDING_GATE_COUNT}],fGateNormal[${ENDING_GATE_COUNT}];
 uniform mat4 fGateInverse[${ENDING_GATE_COUNT}];
 uniform float fGateRadius[${ENDING_GATE_COUNT}],fGateVisibility[${ENDING_GATE_COUNT}];
 float smooth5(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
+${MATERIAL_GLSL}
+vec3 sampleMaterial(sampler2D field,vec4 seed){
+ float x=clamp(seed.y*63.,0.,63.),j=min(62.,floor(x)),f=x-j;
+ return mix(texture2D(field,vec2((j+.5)/64.,(seed.w+.5)/5.)).xyz,texture2D(field,vec2((j+1.5)/64.,(seed.w+.5)/5.)).xyz,f);
+}
 vec3 curlField(vec3 p,float time){
  vec3 q=p*.045;float a=time*.4;
  return vec3(-sin(q.x+a*.6)*sin(q.y)-cos(q.z-a*.8)*cos(q.x),
@@ -122,7 +148,13 @@ vec3 velocityStep(vec3 p,vec3 v,vec4 seed,vec3 mark){
   float along=dot(fGuideVelocity,n)>=0.?1.:-1.;
   a+=near*(-side*.75+n*along*16.+cross(n,side)*.32*(1.-fReduced));
  }
- float glyph=smooth5((fT-.80-seed.z*.02)/.08),k=110.*glyph,drag=2.*sqrt(k);
+ vec3 center=sampleMaterial(fMaterialPosition,seed),va=sampleMaterial(fMaterialVelocity,seed),ma=sampleMaterial(fMaterialU,seed),mb=sampleMaterial(fMaterialV,seed);
+ vec3 target=materialTarget(seed,fT,fit,fReduced,center,ma,mb);
+ vec3 before=materialTarget(seed,fT-.0001,fit,fReduced,center,ma,mb),after=materialTarget(seed,fT+.0001,fit,fReduced,center,ma,mb);
+ vec3 targetV=va*(1.-smooth5((fT-.46)/.15))+(after-before)/(.0002*18.);
+ vec3 spring=8.*(target-p)+2.*sqrt(8.)*(targetV-v);
+ a=mix(a,spring,smooth5((fT-.18)/.06)*.85);
+ float glyph=materialGlyphProgress(fT,seed.z),k=35.*glyph,drag=2.*sqrt(k);
  a=a*(1.-glyph)+k*(mark-p)-drag*v;
  vec3 nextV=v+a*fDt;float speed=length(nextV);
  return speed>160.?nextV*(160./speed):nextV;
@@ -140,13 +172,14 @@ export function createEndingFluid(renderer,geometry){
  vec3 nextV=velocityStep(p,v,seed,mark);`;
  const position=gpu.addVariable('texturePosition',common+'gl_FragColor=vec4(p+nextV*fDt,1.);}',pos0);
  const velocity=gpu.addVariable('textureVelocity',common+'gl_FragColor=vec4(nextV,1.);}',vel0);
+ const material=createMaterialGuides();
  for(const variable of [position,velocity]){
   gpu.setVariableDependencies(variable,[position,velocity]);
   Object.assign(variable.material.uniforms,{fT:{value:.18},fDt:{value:FLUID_DT},fAspect:{value:.6},fReduced:{value:0},fCenter:{value:new T.Vector3()},fGuideVelocity:{value:new T.Vector3()},fSeed:{value:seeds},fGlyph:{value:glyphs},
-   fMassCenter:{value:new T.Vector3()},fVolumePressure:{value:new T.Vector3()},fGateInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},
+   fMassCenter:{value:new T.Vector3()},fVolumePressure:{value:new T.Vector3()},fGateInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},fMaterialPosition:{value:material.textures[0]},fMaterialVelocity:{value:material.textures[1]},fMaterialU:{value:material.textures[2]},fMaterialV:{value:material.textures[3]},
    fGateCenter:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Vector3())},fGateNormal:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Vector3())},fGateRadius:{value:new Float32Array(ENDING_GATE_COUNT)},fGateVisibility:{value:new Float32Array(ENDING_GATE_COUNT)}});
  }
- const clean=()=>{gpu.dispose();position.material.dispose();velocity.material.dispose();seeds.dispose();glyphs.dispose();};
+ const clean=()=>{gpu.dispose();position.material.dispose();velocity.material.dispose();seeds.dispose();glyphs.dispose();material.dispose();};
  // Compile the real compute shaders before declaring the preview ready.
  const previousError=renderer.debug.onShaderError,target=renderer.getRenderTarget(),xr=renderer.xr.enabled,shadow=renderer.shadowMap.autoUpdate;
  try{
@@ -155,6 +188,7 @@ export function createEndingFluid(renderer,geometry){
  }catch(error){clean();throw error;}finally{renderer.debug.onShaderError=previousError;renderer.xr.enabled=xr;renderer.shadowMap.autoUpdate=shadow;renderer.setRenderTarget(target);}
  let aspect=.6,reduced=false,disposed=false;const hits=new Float32Array(ENDING_GATE_COUNT).fill(-10),observers=[];
  const reset=()=>{
+  material.reset(aspect,reduced);
   for(let i=0;i<count;i++){
    const seed=Array.from(seeds.image.data.subarray(i*4,i*4+4));
    const p=endingStreamPoint(seed,.18,aspect,reduced),next=endingStreamPoint(seed,.18001,aspect,reduced);
@@ -171,7 +205,7 @@ export function createEndingFluid(renderer,geometry){
   }
  };
  const clock=createFluidClock(reset,(t,dt)=>{
-  const guide=fluidGuide(t,aspect),gates=fluidGateStates(t,aspect,reduced),volume=fluidVolumePressure(observers,aspect);
+  const guide=fluidGuide(t,aspect),gates=fluidGateStates(t,aspect,reduced),bulk=fluidVolumePressure(observers,aspect),volume={...bulk,material};
   for(const variable of [position,velocity]){
    const u=variable.material.uniforms;u.fT.value=t;u.fDt.value=dt;u.fAspect.value=aspect;u.fReduced.value=reduced?1:0;u.fCenter.value.fromArray(guide.center);u.fGuideVelocity.value.fromArray(guide.velocity);
    u.fMassCenter.value.fromArray(volume.center);u.fVolumePressure.value.fromArray(volume.pressure);
@@ -183,6 +217,7 @@ export function createEndingFluid(renderer,geometry){
    const next=stepFluidParticle(o.position,o.velocity,o.seed,t,dt,gates,mark,aspect,reduced,volume);
    recordFluidPassage(hits,o.position,next.position,t,gates);o.position=next.position;o.velocity=next.velocity;
   }
+  material.step(t,dt,gates,bulk,stepFluidParticle);
  });
  return {hits,update(t,nextAspect,nextReduced){
   if(disposed)return null;const change=aspect!==nextAspect||reduced!==!!nextReduced;aspect=nextAspect;reduced=!!nextReduced;

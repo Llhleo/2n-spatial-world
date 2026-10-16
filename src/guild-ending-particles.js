@@ -4,6 +4,7 @@ import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
 import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
 import {createEndingFluid} from './guild-ending-fluid.js';
+import {materialRouteTime,MATERIAL_RENDER_GLSL} from './guild-ending-material.js';
 import {endingDimensionTransforms,endingDimensionFrame,ENDING_GATE_COUNT} from './guild-ending-frames.js';
 
 // Reference study: FrostNovaOrg/world-execute-web engine/swarm.js,
@@ -99,10 +100,11 @@ export function createEndingParticles({renderer}={}){
  vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidPosition;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
  ${ENDING_FLOW_GLSL}
+ ${MATERIAL_RENDER_GLSL}
  vec3 biome(float i){if(i<.5)return vec3(.48,1.,.66);if(i<1.5)return vec3(1.,.78,.35);if(i<2.5)return vec3(.3,.77,1.);if(i<3.5)return vec3(.65,.95,.3);return vec3(1.,.28,.24);}
  void main(){
  float turn=aSeed.x*6.2831853,depth=aSeed.y,group=aSeed.w;
- float morph=glyphProgress(uT,aSeed.z),reveal=ease((uT-aSeed.z*.05)/.10);
+ float morph=uFluidEnabled>.5?materialGlyphProgress(uT,aSeed.z):glyphProgress(uT,aSeed.z),reveal=ease((uT-aSeed.z*.05)/.10);
  float gather=morph;
  float fit=min(1.,uAspect/.6);
  float motion=1.-uReduced;
@@ -111,7 +113,7 @@ export function createEndingParticles({renderer}={}){
  float sculptureScale=min(1.12,uAspect*1.75);
  vec3 mark=position*sculptureScale+vec3(0.,43.,-14.);
  vec3 p;
- if(uFluidEnabled>.5&&uT>=.18){p=texture2D(uFluidPosition,aFluidUV).xyz;p=mix(p,mark,ease((uT-.94)/.06));}
+ if(uFluidEnabled>.5&&uT>=.18){p=texture2D(uFluidPosition,aFluidUV).xyz;p=mix(p,mark,ease((uT-.96)/.04));}
  else{p=flowPoint(aCloud,mark,aSeed,uT,uAspect,uReduced);}
  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
  float star=step(.955,aSeed.y);
@@ -154,6 +156,7 @@ export function createEndingParticles({renderer}={}){
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  return {points,update(t,time,camera,reduced=false){points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
   if(fluid)material.uniforms.uFluidPosition.value=fluid.update(t,camera.aspect,reduced);
-  endingDimensionTransforms(t,camera.aspect,reduced).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(t,reduced).gates.map(g=>g.visibility));
+  const route=fluid?materialRouteTime(t):t;
+  endingDimensionTransforms(route,camera.aspect,reduced,!!fluid).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(route,reduced,!!fluid).gates.map(g=>g.visibility));
  },get fluidHits(){return fluid?.hits||null;},dispose(){fluid?.dispose();geometry.dispose();material.dispose();}};
 }

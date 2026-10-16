@@ -35,15 +35,19 @@ test('a visible aperture crossing excites a ripple, off-aperture travel does not
 test('physical central hold retains broad depth and height instead of collapsing into a sheet',async()=>{
  assert.equal(typeof fluid.fluidVolumePressure,'function');
  const {endingStreamPoint}=await import('../src/guild-ending-flow.js');
+ const {createMaterialGuides}=await import('../src/guild-ending-material.js');
+ const material=createMaterialGuides();material.reset(.6,false);
  const states=Array.from({length:96},(_,i)=>{const seed=[i*.61803398875%1,i*.41421356237%1,i*.73205080757%1,i%5];return {p:endingStreamPoint(seed,.18,.6),v:[0,0,0],seed};});
- for(let tick=0;tick<648;tick++){
+ for(let tick=0;tick<562;tick++){
   const t=.18+tick/1080,gates=fluid.fluidGateStates(t,.6);
-  const volume=fluid.fluidVolumePressure(states,.6);
+  const bulk=fluid.fluidVolumePressure(states,.6),volume={...bulk,material};
   for(const s of states){const next=fluid.stepFluidParticle(s.p,s.v,s.seed,t,1/60,gates,[0,43,-14],.6,false,volume);s.p=next.position;s.v=next.velocity;}
+  material.step(t,1/60,gates,bulk,fluid.stepFluidParticle);
  }
  for(let k=0;k<3;k++)assert.ok(Math.max(...states.map(s=>s.p[k]))-Math.min(...states.map(s=>s.p[k]))>50,'central fluid cannot collapse to a thin plane');
  const center=fluid.fluidVolumePressure(states,.6).center;
  assert.ok(Math.hypot(center[0],center[1]-43,center[2]+14)<8,'the broad unshaped mass returns to the middle before glyph attraction');
+ material.dispose();
 });
 test('portrait-scaled frame rejects a crossing outside its rectangular opening',()=>{
  const inverse=[.25,0,0,0,0,.125,0,0,0,0,.1,0,0,0,0,1];
