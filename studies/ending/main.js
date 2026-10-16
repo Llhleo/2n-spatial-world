@@ -6,7 +6,10 @@ import {loadPetal} from '../../src/petal-loader.js';
 import {FLOWER_SPECS} from '../../src/lookback.js';
 const renderer=new T.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true,powerPreference:'high-performance'});
 renderer.outputColorSpace=T.SRGBColorSpace;renderer.setClearColor(0x060709);renderer.setPixelRatio(devicePixelRatio);
-const scene=new T.Scene(),camera=new T.PerspectiveCamera(48,1,.2,2400),memory=createMemoryScene({mobile:innerWidth<700}),text=createNextView();scene.add(memory.group,text.group);
+const scene=new T.Scene(),camera=new T.PerspectiveCamera(48,1,.2,2400),text=createNextView();
+let memory;
+try{memory=createMemoryScene({mobile:innerWidth<700,renderer});}catch(error){document.querySelector('#status').textContent=`流体初始化失败：${error.message}`;throw error;}
+scene.add(memory.group,text.group);
 const slider=document.querySelector('#progress'),play=document.querySelector('#play'),status=document.querySelector('#status');let progress=0,playing=true,ready=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();text.resize({width:innerWidth,height:innerHeight});if(ready)text.prepare().catch(e=>status.textContent=e.message);}
@@ -18,4 +21,4 @@ const clock=new T.Clock();renderer.setAnimationLoop(()=>{
  memory.update({memoryPhase:2,eventIndex:2,...sampleNext(progress),reducedMotion:reducedMotion.matches},camera,dt);memory.setTerrainVisible(false);
  text.update({...sampleNext(progress),nextOpacity:nextSmooth((progress-.88)/.06),target:memory.shot.target},camera,{width:innerWidth,height:innerHeight});memory.updateTextOcclusion(camera,text.readingBounds,2);renderer.render(scene,camera);
 });
-Promise.all([text.prepare(),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`/assets/companion-display/${name}.glb`,100);memory.install(source,kind,name);})]).then(()=>{memory.prepare();const swarm=memory.group.getObjectByName('ending-shape-swarm'),frames=memory.group.getObjectByName('ending-dimension-frames');if(!swarm?.geometry.getAttribute('aCloud')||!frames)throw new Error('流光门阵未完整接入');ready=true;status.textContent='五色星流 → 六门穿行 → 翻涌聚团 → 2ⁿ · 262,144 粒子';}).catch(e=>{status.textContent=`准备失败：${e.message}`;});
+Promise.all([text.prepare(),...FLOWER_SPECS.map(async([kind,name])=>{const source=await loadPetal(`/assets/companion-display/${name}.glb`,100);memory.install(source,kind,name);})]).then(()=>{memory.prepare();const swarm=memory.group.getObjectByName('ending-shape-swarm'),frames=memory.group.getObjectByName('ending-dimension-frames');if(!swarm?.material.uniforms.uFluidEnabled.value||!frames)throw new Error('GPU流体未完整接入');ready=true;status.textContent='五色星流 → 惯性涡流穿门 → 回中聚团 → 2ⁿ · 262,144 粒子';}).catch(e=>{status.textContent=`准备失败：${e.message}`;});

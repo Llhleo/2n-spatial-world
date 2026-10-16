@@ -7,9 +7,9 @@ import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
 import {petalFrontQuaternion} from './petal-fronts.js';
 import {petalDisplayTexture} from './petal-display-texture.js';
 
-export function createMemoryScene({mobile=true}={}){
+export function createMemoryScene({mobile=true,renderer}={}){
  const group=new T.Group();group.name='guild-memory-corridor';group.visible=false;
- const ending=createEndingParticles(),dimensions=createEndingFrames();group.add(dimensions.group);
+ const ending=createEndingParticles({renderer}),dimensions=createEndingFrames();group.add(dimensions.group);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  let activeTarget=null;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null;
@@ -96,7 +96,7 @@ export function createMemoryScene({mobile=true}={}){
   const nextPose=Number.isFinite(state?.nextT)?endingCamera(expandedPose,state.nextT,state?.reducedMotion):null;
   if(nextPose&&(!endingCache||endingCache.layout!==layout||endingCache.aspect!==camera.aspect))endingCache={layout,aspect:camera.aspect,frame:endingPetalFrame(expandedPose,camera.aspect,layout.anchors)};
   ending.update(state?.nextT,time,camera,state?.reducedMotion);
-  dimensions.update(state?.nextT,camera.aspect,state?.reducedMotion);
+  dimensions.update(state?.nextT,camera.aspect,state?.reducedMotion,ending.fluidHits);
   const nextOpening=nextPose?sampleNext(state.nextT).opening:0;
   activeTarget=nextPose?.target||shot.target;if(nextPose)camera.position.fromArray(nextPose.position);camera.lookAt(...activeTarget);camera.updateMatrixWorld();
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);

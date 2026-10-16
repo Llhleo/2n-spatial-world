@@ -3,6 +3,7 @@ import {nextSmooth} from './guild-next-route.js';
 import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
 import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
+import {createEndingFluid} from './guild-ending-fluid.js';
 import {endingDimensionTransforms,endingDimensionFrame,ENDING_GATE_COUNT} from './guild-ending-frames.js';
 
 // Reference study: FrostNovaOrg/world-execute-web engine/swarm.js,
@@ -69,7 +70,7 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null){
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,
 // pitched faces, original proportions and thickness. No hand-drawn glyph.
-export function createEndingParticles(){
+export function createEndingParticles({renderer}={}){
  const geometry=new T.BufferGeometry(),seed=new Float32Array(ENDING_PARTICLE_COUNT*4),glyph=new Float32Array(ENDING_PARTICLE_COUNT*3),normals=new Float32Array(ENDING_PARTICLE_COUNT*3),cloud=new Float32Array(ENDING_PARTICLE_COUNT*3);
  let state=971231;const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
  const monument=createMonument(),box=new T.Box3().setFromObject(monument),center=box.getCenter(new T.Vector3()),point=new T.Vector3(),normal=new T.Vector3();
@@ -88,10 +89,14 @@ export function createEndingParticles(){
  geometry.setAttribute('aNormal',new T.BufferAttribute(normals,3));
  geometry.setAttribute('aCloud',new T.BufferAttribute(cloud,3));
  geometry.setAttribute('position',new T.BufferAttribute(glyph,3));geometry.setAttribute('aSeed',new T.BufferAttribute(seed,4));
+ const uv=new Float32Array(ENDING_PARTICLE_COUNT*2),side=Math.sqrt(ENDING_PARTICLE_COUNT);
+ for(let i=0;i<ENDING_PARTICLE_COUNT;i++)uv.set([(i%side+.5)/side,(Math.floor(i/side)+.5)/side],i*2);
+ geometry.setAttribute('aFluidUV',new T.BufferAttribute(uv,2));
+ const fluid=renderer?createEndingFluid(renderer,geometry):null;
  // Ordinary alpha blending bounds dense crossings to the palette; visibility
  // comes from wider bright cores, not unbounded additive accumulation.
  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
- vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;
+ vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidPosition;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
  ${ENDING_FLOW_GLSL}
  vec3 biome(float i){if(i<.5)return vec3(.48,1.,.66);if(i<1.5)return vec3(1.,.78,.35);if(i<2.5)return vec3(.3,.77,1.);if(i<3.5)return vec3(.65,.95,.3);return vec3(1.,.28,.24);}
@@ -105,12 +110,16 @@ export function createEndingParticles(){
  float dimension=ease((uT-.1666667)/.105);
  float sculptureScale=min(1.12,uAspect*1.75);
  vec3 mark=position*sculptureScale+vec3(0.,43.,-14.);
- vec3 p=flowPoint(aCloud,mark,aSeed,uT,uAspect,uReduced);
+ vec3 p;
+ if(uFluidEnabled>.5&&uT>=.18){p=texture2D(uFluidPosition,aFluidUV).xyz;p=mix(p,mark,ease((uT-.94)/.06));}
+ else{p=flowPoint(aCloud,mark,aSeed,uT,uAspect,uReduced);}
  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
  float star=step(.955,aSeed.y);
  float frontStage=1.-ease((uT-.18)/.12);
  float px=clamp(uPixels*mix(mix(.72,1.1,max(star,gather)),1.1,frontStage)/max(1.,-mv.z),1.8,8.);
- gl_PointSize=px;
+ float focusDepth=max(1.,-(modelViewMatrix*vec4(flowCenter(gateProgress(uT),fit),1.)).z);
+ float blur=min(2.2,abs(-mv.z-focusDepth)*.018)*(1.-frontStage)*(1.-gather)*uFluidEnabled;
+ gl_PointSize=px+blur;vBlur=blur/(px+blur);
  float front=mix(-48.,48.,ease((uT-.12)/.15));
  float wave=exp(-pow((aCloud.z-front)/12.,2.))*(1.-ease((uT-.25)/.08));
  // Each moving gate illuminates only its finite opening, using the same
@@ -133,15 +142,18 @@ export function createEndingParticles(){
  float legacyReveal=ease((uT-aSeed.z*.07)/.12);
  float legacyEnergy=legacyReveal*(.16+.3*aSeed.z)*climax*(.5+1.5*legacyPulse);
  vEnergy=mix(vEnergy,legacyEnergy,frontStage);
+ vEnergy*=px*px/((px+blur)*(px+blur));
  float shade=mix(.55+.22*nearSide+.13*pockets+.10*aSeed.z,1.,frontStage);
  vec3 colour=mix(biome(group),vec3(.75,.82,.9),star*.25*(1.-frontStage))*shade;
  vMorph=gather;vColor=mix(colour,vec3(.72,.80,.89)*vMetal,gather);
  }`,
- fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=(core*.85+halo*.15);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);
+ fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;varying float vBlur;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=mix(core*.85+halo*.15,halo,vBlur);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);
  #include <colorspace_fragment>
  }`});
+ material.uniforms.uFluidPosition={value:null};material.uniforms.uFluidEnabled={value:fluid?1:0};
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  return {points,update(t,time,camera,reduced=false){points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
+  if(fluid)material.uniforms.uFluidPosition.value=fluid.update(t,camera.aspect,reduced);
   endingDimensionTransforms(t,camera.aspect,reduced).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(t,reduced).gates.map(g=>g.visibility));
- },dispose(){geometry.dispose();material.dispose();}};
+ },get fluidHits(){return fluid?.hits||null;},dispose(){fluid?.dispose();geometry.dispose();material.dispose();}};
 }

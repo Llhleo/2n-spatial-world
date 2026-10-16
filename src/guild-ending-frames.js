@@ -43,7 +43,7 @@ export function endingFaceProximity(point,t,aspect=.6,reduced=false){
 
 export function createEndingFrames(){
  const group=new T.Group();group.name='ending-dimension-frames';group.visible=false;
- const geometry=new T.CylinderGeometry(1,1,1,8,1,true),layers=[],materials=[];
+ const geometry=new T.CylinderGeometry(1,1,1,8,1,true),rippleGeometry=new T.RingGeometry(.98,1,96),layers=[],materials=[];
  const vertices=[[-1,-1,0],[1,-1,0],[1,1,0],[-1,1,0]].map(p=>new T.Vector3(...p));
  const edges=vertices.flatMap((a,i)=>{const b=vertices[(i+1)%4];return [[a,a.clone().lerp(b,.34)],[a.clone().lerp(b,.66),b]];});
  for(let i=0;i<ENDING_GATE_COUNT;i++){
@@ -55,20 +55,26 @@ export function createEndingFrames(){
    for(const mesh of [edge,glow]){mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),b.clone().sub(a).normalize());mesh.frustumCulled=false;layer.add(mesh);}
    segments.push({a,b,edge,glow,index});
   }
-  layers.push({layer,core,halo,segments});
+  const rippleMaterial=new T.MeshBasicMaterial({color:core.color,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide,toneMapped:false});
+  const ripple=new T.Mesh(rippleGeometry,rippleMaterial);ripple.name=`gate-pressure-wave-${i}`;ripple.frustumCulled=false;layer.add(ripple);materials.push(rippleMaterial);
+  layers.push({layer,core,halo,segments,ripple,rippleMaterial});
  }
  let disposed=false;
- return {group,update(t,aspect=.6,reduced=false){
+ return {group,update(t,aspect=.6,reduced=false,hits=null){
   if(disposed)return;const f=endingDimensionFrame(t,reduced),transforms=endingDimensionTransforms(t,aspect,reduced);
   group.visible=f.visibility>0;
-  layers.forEach(({layer,core,halo,segments},i)=>{
+  layers.forEach(({layer,core,halo,segments,ripple,rippleMaterial},i)=>{
    layer.matrixAutoUpdate=false;layer.matrix.copy(transforms[i]);
    const gate=f.gates[i];layer.visible=gate.visibility>0;
-   core.opacity=gate.visibility*.82;halo.opacity=gate.visibility*.085;
+   const age=hits?(t-hits[i])*18:100;
+   const pulse=age>=0&&age<1.2?(1-age/1.2)**2:0;
+   const emphasis=.25+.75*Math.exp(-(((t-[.348,.408,.427,.450,.473,.50][i])/.026)**2));
+   core.opacity=gate.visibility*(hits?(.68*emphasis+.14*pulse):.82);halo.opacity=gate.visibility*(hits?(.055*emphasis+.03*pulse):.085);
+   ripple.visible=pulse>0&&!reduced;ripple.scale.setScalar(.18+Math.max(0,age)*.72);rippleMaterial.opacity=gate.visibility*pulse*.24;
    for(const {a,b,edge,glow,index} of segments){
     const draw=nextSmooth(gate.draw*1.65-index/20);const middle=a.clone().lerp(b,draw*.5),length=a.distanceTo(b)*draw;
     for(const [mesh,width] of [[edge,.16],[glow,.65]]){mesh.visible=draw>0;mesh.position.copy(middle);mesh.scale.set(width/Math.max(.1,f.scales[i]),length,width/Math.max(.1,f.scales[i]));}
    }
   });
- },dispose(){if(disposed)return;disposed=true;geometry.dispose();for(const m of materials)m.dispose();group.clear();}};
+ },dispose(){if(disposed)return;disposed=true;geometry.dispose();rippleGeometry.dispose();for(const m of materials)m.dispose();group.clear();}};
 }
