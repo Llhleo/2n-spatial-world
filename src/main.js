@@ -10,6 +10,7 @@ import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToS
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createNextView} from './guild-next-view.js';
+import {particleEndingEnabled} from './guild-next-route.js';
 import {createHistoryView} from './guild-history-view.js';
 import {createMemoryScene} from './guild-memory-scene.js';
 import {renderMemoryPreview} from './guild-memory-preview.js';
@@ -42,6 +43,7 @@ if (renderer) {
   const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
+  const particleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;
@@ -52,12 +54,12 @@ if (renderer) {
     ['相遇','延续','繁盛','文案'].forEach((title,index)=>{const button=document.createElement('button');button.type='button';button.textContent=title;button.setAttribute('aria-pressed',String(index===3?memoryText:index===0));button.addEventListener('click',event=>{event.stopPropagation();if(index===3){memoryText=!memoryText;button.setAttribute('aria-pressed',String(memoryText));}else{memoryIndex=index;scrollTo({top:[.14,.52,.86][index]*viewport().range,behavior:'smooth'});[...memoryControls.querySelectorAll('button')].slice(0,3).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));}});memoryControls.append(button);});
     document.body.append(memoryControls);
   }
-  const nextView=createNextView();scene.add(nextView.group);
+  const nextView=createNextView({particleEnding});scene.add(nextView.group);
   let history=null,historyPreparing=false,historyError=null;
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){
     if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
-    try{await Promise.all([history.prepare(),nextView.prepare()]);}catch(error){historyError=error;}finally{historyPreparing=false;}
+    try{await Promise.all([history.prepare(),nextView.prepare()]);if(particleEnding)memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
   }
   createLighting(scene, renderer);
   createRevealLight(scene);
@@ -119,7 +121,7 @@ if (renderer) {
   peopleRetry.addEventListener('click',event=>{event.stopPropagation();void preparePeople();});
   const autoplayButton=document.querySelector('#autoplay');
   const replayButton=document.querySelector('#replay');
-  let player=createAutoplay(autoplayDuration(peopleRoute));
+  let player=createAutoplay(autoplayDuration(peopleRoute,particleEnding));
   let dimTimer,buttonShown=false;
   function revealButton(){clearTimeout(dimTimer);autoplayButton.classList.remove('dimmed');dimTimer=setTimeout(()=>autoplayButton.classList.add('dimmed'),1400);}
   retry.addEventListener('click',event=>{event.stopPropagation();void prepareEverything();});
@@ -134,8 +136,8 @@ if (renderer) {
     cancelDistancePreparation();
     peopleRoute=next;people.adoptRoute(next);
     cancelDistancePreparation=preparePeopleDistance(next);
-    player=createAutoplay(autoplayDuration(next));
-    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next),true);
+    player=createAutoplay(autoplayDuration(next,particleEnding));
+    if(playing)player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),next,particleEnding),true);
   }
   function adoptReadyMetrics(){
     if(!people?.ready||metricsAdopted)return;
@@ -184,7 +186,7 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute),true);controlled=true;
+    player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding),true);controlled=true;
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
@@ -204,7 +206,7 @@ if (renderer) {
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     if(wasPlaying){
-      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute),peopleRoute);
+      progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute,particleEnding),peopleRoute);
       scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
     }
     const scroll = scrollProgress(scrollY,view.range);
@@ -233,7 +235,7 @@ if (renderer) {
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
-    const state=sampleStoryPose(progress,camera,portrait,peopleRoute);
+    const state=sampleStoryPose(progress,camera,portrait,peopleRoute,particleEnding);
     const inNext=chapter.chapter==='next',closing=chapter.chapter==='history'||inNext;
     nextView.group.visible=false;
     if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
@@ -255,7 +257,7 @@ if (renderer) {
       });
       people.group.visible=people.group.visible&&state.peopleOpacity>0;
     }
-    const nextButtons=inNext&&state.buttonsVisible&&nextView.ready;
+    const nextButtons=inNext&&state.buttonsVisible&&nextView.ready&&(!particleEnding||memory.particleEndingReady);
     replayButton.hidden=introLocked||!nextButtons;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
@@ -294,9 +296,9 @@ if (renderer) {
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
-    const readingReady=inNext?nextView.ready:!!history?.ready;
+    const readingReady=inNext?nextView.ready&&(!particleEnding||memory.particleEndingReady):!!history?.ready;
     historyStatus.hidden=introLocked||!closing||readingReady;
-    historyStatus.querySelector('span').textContent=historyError?'文字暂未准备好，可重试':inNext?'正在准备结尾文字，可继续滑动':'正在准备公会历史，可继续滑动';
+    historyStatus.querySelector('span').textContent=historyError?'故事资源准备失败，可重试':inNext?'正在准备结尾，可继续滑动':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
     if(memoryPreview&&!introLocked){
       memoryControls.hidden=false;autoplayButton.hidden=true;replayButton.hidden=true;arrival.style.opacity=0;peopleStatus.hidden=true;
@@ -304,7 +306,7 @@ if (renderer) {
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&memory.assetCount===14){
-      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,nextT:inNext?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
+      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding,nextT:inNext&&(!particleEnding||memory.particleEndingReady)?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);
