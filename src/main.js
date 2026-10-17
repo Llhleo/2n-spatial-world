@@ -10,6 +10,7 @@ import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToS
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createNextView} from './guild-next-view.js';
+import {particleEndingEnabled} from './guild-next-route.js';
 import {createHistoryView} from './guild-history-view.js';
 import {createMemoryScene} from './guild-memory-scene.js';
 import {renderMemoryPreview} from './guild-memory-preview.js';
@@ -42,9 +43,7 @@ if (renderer) {
   const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
-  // Preparation switch for the new ending; default production route is retained
-  // until its iPhone scroll/occlusion review has been accepted.
-  const particleEnding=new URLSearchParams(location.search).get('ending')==='particles';
+  const particleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;

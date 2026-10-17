@@ -95,7 +95,11 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
   const arc=64*u*u*u*(1-u)*(1-u)*(1-u)*motion;
   cloud.add(new T.Vector3(flight.bend[0]*fit,flight.bend[1],flight.bend[2]).multiplyScalar(arc));
  }else cloud.lerp(destination,nextSmooth((t-.68)/.22));
- return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));
+ const flight=slot?.flight||petalFlight(a),departure=.006+.018*flight.delay/.22;
+ // Preserve each live story point and its velocity at the boundary, then
+ // carry it into the star field over the existing first 3.24 seconds.
+ const enter=particleEnding?nextSmooth((t-departure)/(.18-departure)):(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12));
+ return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),enter));
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,
 // pitched faces, original proportions and thickness. No hand-drawn glyph.

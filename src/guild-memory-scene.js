@@ -111,7 +111,10 @@ export function createMemoryScene({mobile=true,renderer}={}){
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   const particleEnding=state?.particleEnding??!!ending.fluidHits,inEnding=particleEnding&&Number.isFinite(state?.nextT);
   particleLayer=inEnding;
-  if(inEnding&&!endingOrigin)endingOrigin={time,spin};
+  if(inEnding&&!endingOrigin)endingOrigin={time:time-state.nextT*18,spin};
+  // Idle time in the ending must not advance the hidden story's breathing.
+  // Rewinding across the boundary resumes the phase actually being rendered.
+  if(!inEnding&&endingOrigin){time=endingOrigin.time+elapsed;endingOrigin=null;orbitTime=0;}
   if(inEnding){
    if(state.nextT<.1&&lastEndingT>.1)orbitTime=0;
    if(!state?.reducedMotion)orbitTime+=elapsed*nextSmooth((state.nextT-PARTICLE_PETALS_ARRIVED)/(1-PARTICLE_PETALS_ARRIVED));
