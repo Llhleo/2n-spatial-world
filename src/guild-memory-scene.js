@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
-import {sampleNext,nextSmooth} from './guild-next-route.js';
+import {sampleNext,nextSmooth,PARTICLE_PETALS_ARRIVED} from './guild-next-route.js';
 import {endingCamera,endingPetalPose,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
 import {createEndingFrames} from './guild-ending-frames.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
@@ -12,7 +12,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  let ending=createEndingParticles({renderer});
  const dimensions=createEndingFrames();group.add(dimensions.group,ending.occluder);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
- let activeTarget=null;
+ let activeTarget=null,particleLayer=false;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null,orbitTime=0,lastEndingT=0;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
@@ -84,6 +84,13 @@ export function createMemoryScene({mobile=true,renderer}={}){
  }
 
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
+ function updatePetalLayer(pool,reading=pool.reading||false){
+  pool.reading=reading;
+  const transparent=particleLayer||reading||pool.nativeTransparent;
+  if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
+  pool.material.depthWrite=pool.nativeDepthWrite;
+  pool.mesh.renderOrder=particleLayer||reading?3:0;
+ }
  function prepareParticleEnding(nextRenderer){
   if(disposed||ending.fluidHits)return;
   if(!nextRenderer?.extensions.has('EXT_color_buffer_float'))throw new Error('此设备不支持粒子结尾所需的浮点缓冲');
@@ -101,10 +108,11 @@ export function createMemoryScene({mobile=true,renderer}={}){
   const elapsed=Math.min(.05,Math.max(0,dt));
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   const particleEnding=state?.particleEnding??!!ending.fluidHits,inEnding=particleEnding&&Number.isFinite(state?.nextT);
+  particleLayer=inEnding;
   if(inEnding&&!endingOrigin)endingOrigin={time,spin};
   if(inEnding){
    if(state.nextT<.1&&lastEndingT>.1)orbitTime=0;
-   if(!state?.reducedMotion)orbitTime+=elapsed*nextSmooth((state.nextT-.88)/.07);
+   if(!state?.reducedMotion)orbitTime+=elapsed*nextSmooth((state.nextT-PARTICLE_PETALS_ARRIVED)/(1-PARTICLE_PETALS_ARRIVED));
    lastEndingT=state.nextT;
   }
   const motionTime=inEnding?endingOrigin.time+state.nextT*18:time,motionSpin=inEnding?endingOrigin.spin:spin;
@@ -162,6 +170,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
    if(head)packing.set(branch,{head:head.x/-head.z,span:last.x/-last.z-first.x/-first.z});
   }
   for(const pool of pools.values()){
+   updatePetalLayer(pool);
    let count=0;
    for(const [slot,a] of pool.anchors.entries()){point.copy(locations.get(a.id));
     rotation.copy(camera.quaternion).multiply(new T.Quaternion().setFromEuler(new T.Euler(.22*Math.sin(a.u*9),a.twist+.2*Math.sin(a.u*7+phase),a.twist+(state?.reducedMotion?0:.035*(1-eased(phase))*Math.sin(motionTime*.6+a.u*5)))));
@@ -208,10 +217,9 @@ export function createMemoryScene({mobile=true,renderer}={}){
    const p=new T.Vector3(x,y,z),view=p.clone().applyMatrix4(camera.matrixWorldInverse),screen=p.project(camera);textDepth=Math.min(textDepth,-view.z);rect.left=Math.min(rect.left,screen.x);rect.right=Math.max(rect.right,screen.x);rect.bottom=Math.min(rect.bottom,screen.y);rect.top=Math.max(rect.top,screen.y);
   }
   for(const pool of pools.values()){
-   const enabled=weight>0,transparent=enabled||pool.nativeTransparent;if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
+   updatePetalLayer(pool,weight>0);
    // Per-instance text fading must retain self-occlusion of the solid GLB.
    // Disabling depth writes exposes hidden atlas faces even on alpha=1 petals.
-   pool.material.depthWrite=pool.nativeDepthWrite;pool.mesh.renderOrder=enabled?3:0;
    const alpha=pool.mesh.geometry.getAttribute('memoryAlpha'),sphere=pool.mesh.geometry.boundingSphere;
    for(let i=0;i<pool.mesh.count;i++){
     pool.mesh.getMatrixAt(i,matrix);matrix.premultiply(pool.mesh.matrixWorld);

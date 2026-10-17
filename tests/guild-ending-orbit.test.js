@@ -57,7 +57,9 @@ test('reversing after a long idle keeps the lower orbit open instead of collapsi
  try{
   for(let i=0;i<449;i++)memory.update({memoryPhase:2,eventIndex:2,nextT:1,particleEnding:true},camera,.05);
   let before=points();
-  for(let tick=1;tick<=108;tick++){
+  // The formed orbit now begins after the post-sculpture arrival at 17.8s.
+  // Earlier progress intentionally rewinds that arrival into the escort.
+  for(let tick=1;tick<=12;tick++){
    const t=1-tick/1080;memory.update({memoryPhase:2,eventIndex:2,nextT:t,particleEnding:true},camera,1/60);
    const current=points(),radius=current.reduce((sum,p)=>sum+Math.hypot(p.x/(.46/.75),(p.z+14)/.9),0)/current.length;
    assert.ok(radius>40,`the formed band stays around the mark during rewind at ${t}: ${radius}`);

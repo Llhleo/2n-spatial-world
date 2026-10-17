@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {nextSmooth} from './guild-next-route.js';
+import {nextSmooth,PARTICLE_MARK_FORMED,PARTICLE_PETALS_ARRIVED} from './guild-next-route.js';
 import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
 import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
@@ -78,7 +78,8 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
   destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
   if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
  }
- cloud.lerp(destination,nextSmooth((t-.68)/.22));
+ const arrival=particleEnding?nextSmooth((t-PARTICLE_MARK_FORMED)/(PARTICLE_PETALS_ARRIVED-PARTICLE_MARK_FORMED)):nextSmooth((t-.68)/.22);
+ cloud.lerp(destination,arrival);
  return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,
@@ -101,9 +102,12 @@ export function createEndingParticles({renderer}={}){
  // The same sculpture supplies an invisible depth surface. Transparent
  // particles alone cannot hide solid petals travelling behind the mark.
  monument.children[0].material.dispose();
- const depthMaterial=new T.MeshBasicMaterial({colorWrite:false,depthWrite:true,depthTest:true,alphaHash:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
- const occluder=monument;occluder.name='ending-mark-depth';occluder.visible=false;occluder.renderOrder=-2;
- for(const mesh of occluder.children){mesh.geometry.translate(-center.x,-center.y,-center.z);mesh.material=depthMaterial;}
+ // Transparent queue order is particles -> depth-only shell -> solid petals.
+ // Writing this surface before the fluid clipped its own settling particles;
+ // alpha-hashed depth fading made the clipped surface appear to sparkle.
+ const depthMaterial=new T.MeshBasicMaterial({colorWrite:false,transparent:true,depthWrite:true,depthTest:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+ const occluder=monument;occluder.name='ending-mark-depth';occluder.visible=false;occluder.renderOrder=0;
+ for(const mesh of occluder.children){mesh.geometry.translate(-center.x,-center.y,-center.z);mesh.material=depthMaterial;mesh.renderOrder=1;}
  geometry.setAttribute('aNormal',new T.BufferAttribute(normals,3));
  geometry.setAttribute('aCloud',new T.BufferAttribute(cloud,3));
  geometry.setAttribute('position',new T.BufferAttribute(glyph,3));geometry.setAttribute('aSeed',new T.BufferAttribute(seed,4));
@@ -175,7 +179,7 @@ export function createEndingParticles({renderer}={}){
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  let disposed=false;
  return {points,occluder,update(t,time,camera,reduced=false,particleEnding=!!fluid){if(disposed)return;points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
-  occluder.visible=particleEnding&&Number.isFinite(t)&&t>.92;occluder.position.set(0,43,-14);occluder.scale.setScalar(Math.min(1.12,camera.aspect*1.75));depthMaterial.opacity=nextSmooth((t-.92)/.04);
+  occluder.visible=particleEnding&&Number.isFinite(t)&&t>=PARTICLE_MARK_FORMED;occluder.position.set(0,43,-14);occluder.scale.setScalar(Math.min(1.12,camera.aspect*1.75));
   if(fluid)material.uniforms.uFluidPosition.value=fluid.update(t,camera.aspect,reduced);
   const route=fluid?materialRouteTime(t):t;
   endingDimensionTransforms(route,camera.aspect,reduced,!!fluid).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(route,reduced,!!fluid).gates.map(g=>g.visibility));
