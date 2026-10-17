@@ -57,3 +57,10 @@ test('preparing the opt-in GPU ending rejects unsupported hardware without repla
   assert.equal(memory.group.getObjectByName('ending-shape-swarm'),original);
  }finally{memory.dispose();}
 });
+
+test('history text has fully cleared before the opening particle streams become prominent',()=>{
+ assert.equal(sampleNext(0,{particleEnding:true}).historyOpacity,1);
+ assert.equal(sampleNext(1/18,{particleEnding:true}).historyOpacity,0,'no faint history text remains underneath the streams');
+ assert.ok(sampleNext(.25/18,{particleEnding:true}).historyOpacity>0,'the exit still fades rather than vanishing at entry');
+ assert.ok(sampleNext(1/16).historyOpacity>0,'legacy story-to-ending timing remains unchanged');
+});
