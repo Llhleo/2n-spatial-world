@@ -409,9 +409,10 @@ test('particle ending limits manual flings, discards excess scroll and immediate
  app.setReduced(false);seek(1);app.tick();
  const after=app.calls.memory.at(-1).nextT;
  assert.ok(after>before&&after-before<=.02/18+1e-10,'one fast fling is capped at the normal timeline rate');
+ app.events.get('touchend')({touches:[]});
  for(let i=0;i<150;i++)app.tick();
  const held=app.calls.memory.at(-1).nextT;
- assert.ok(held-after<.001,'the discarded far target cannot keep pushing the ending toward the model');
+ assert.ok(held-after<.2/18,'the quiet-time correction clears the far target after a short settling window');
  seek(0);app.tick();const reverse=app.calls.memory.at(-1).nextT;
  assert.ok(reverse<held&&held-reverse<=.02/18+1e-10,'a new reverse gesture must not wait behind old overshoot');
  assert.equal(app.elements.get('replay').hidden,true);
@@ -420,6 +421,111 @@ test('particle ending limits manual flings, discards excess scroll and immediate
  assert.equal(app.elements.get('replay').hidden,false,'the guard must not strand the final replay button');
  app.setReduced(true);seek(1);app.tick();assert.equal(app.calls.memory.at(-1).nextT,1,'reduced motion still reads directly');
  app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.elements.get('world').dataset.progress,'0.000');
+});
+
+test('a held particle swipe advances without any frame writing back to the native scroll position',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.08)/28,app.gallery.route));app.tick();app.setReduced(false);
+ const before=app.calls.memory.at(-1).nextT,writes=app.calls.scroll.length;
+ for(let i=0;i<150;i++){app.seek(1);app.tick();}
+ assert.equal(app.calls.scroll.length,writes,'programmatic rewrites must not compete with an active native touch gesture');
+ assert.ok(app.calls.memory.at(-1).nextT>before+.15,'a held swipe must keep progressing through the particle animation');
+});
+
+test('particle overshoot is corrected once only after touch release and native inertia becomes quiet',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(1);app.tick();const writes=app.calls.scroll.length;
+ assert.equal(typeof app.events.get('touchend'),'function','gesture completion must be tracked independently from frame limiting');
+ app.events.get('touchend')({touches:[]});
+ for(let i=0;i<12;i++){app.seek(1+i*.00001);app.tick();}
+ assert.equal(app.calls.scroll.length,writes,'native rubber-band movement beyond the page end is still scrolling');
+ for(let i=0;i<6;i++)app.tick();
+ assert.equal(app.calls.scroll.length,writes,'a brief gap between native updates is not scroll completion');
+ for(let i=0;i<12;i++)app.tick();
+ assert.equal(app.calls.scroll.length,writes+1,'the quiet gesture gets one correction, not a feedback loop');
+ const held=app.calls.memory.at(-1).nextT;
+ for(let i=0;i<100;i++)app.tick();
+ assert.equal(app.calls.scroll.length,writes+1);assert.ok(Math.abs(app.calls.memory.at(-1).nextT-held)<1e-8);
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ for(let i=0;i<30;i++){app.seek(1);app.tick();}
+ assert.equal(app.calls.scroll.length,writes+1);assert.ok(app.calls.memory.at(-1).nextT>held+.03,'the next swipe remains usable');
+});
+
+test('reversing an active particle swipe responds before the queued overshoot settles',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(1);app.tick();const before=app.calls.memory.at(-1).nextT,writes=app.calls.scroll.length;
+ app.seek(.999);app.tick();const reverse=app.calls.memory.at(-1).nextT;
+ assert.ok(reverse<before,'the current frame must follow reverse input even while native scroll is far ahead');
+ assert.equal(app.calls.scroll.length,writes,'reversal must be reconciled without a native scroll write');
+ app.seek(1);app.tick();assert.ok(app.calls.memory.at(-1).nextT>reverse,'changing direction again must immediately move forward');
+ for(let i=0;i<1000;i++)app.tick();
+ assert.ok(app.calls.memory.at(-1).nextT>1-1e-7,'reaching the physical page end must still allow the visual timeline to finish');
+});
+
+test('a pending reverse swipe can leave the particle section without resurrecting its old forward target',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.005)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(1);app.tick();
+ for(let i=0;i<20;i++){app.seek(.999-i*.0001);app.tick();}
+ assert.equal(app.elements.get('world').dataset.biome,'history','reversing should cross back through the story boundary');
+ app.events.get('touchend')({touches:[]});for(let i=0;i<80;i++)app.tick();
+ assert.equal(app.elements.get('world').dataset.biome,'history','settling must not restore the discarded forward target');
+});
+
+test('resizing during a capped particle gesture is not interpreted as reverse input',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(.999);app.tick();const before=app.calls.memory.at(-1).nextT;
+ app.resize();app.tick();
+ assert.ok(app.calls.memory.at(-1).nextT>=before,'resizing must not synthesize a reverse gesture');
+});
+
+test('semantic people resize clears a particle offset after a long reverse gesture',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(1);app.tick();app.seek(.999);app.tick();app.seek(.8);app.tick();
+ for(let i=0;i<400;i++)app.tick();
+ assert.equal(app.elements.get('world').dataset.biome,'people');
+ app.resize();app.tick();const retained=app.elements.get('world').dataset.progress;
+ for(let i=0;i<100;i++)app.tick();
+ assert.equal(app.elements.get('world').dataset.progress,retained,'semantic remapping must reconcile the old logical offset');
+});
+
+test('the original history landing reconciles a carried particle input offset',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
+ app.seek(1);app.tick();app.seek(.999);app.tick();app.seek(.8);app.tick();
+ for(let i=0;i<400;i++)app.tick();
+ app.seek(.999);let landed=false;
+ for(let i=0;i<500;i++){
+  const writes=app.calls.scroll.length;app.tick();
+  if(app.calls.scroll.length>writes){
+   const position=Number(app.elements.get('world').dataset.progress);
+   for(let j=0;j<10;j++)app.tick();
+   assert.ok(Number(app.elements.get('world').dataset.progress)>=position,'the existing landing must not reapply an obsolete reverse offset');
+   landed=true;break;
+  }
+ }
+ assert.equal(landed,true,'the original first-history-text landing is retained');
+});
+
+test('shift-space reverses pending particle lag in the same direction as native keyboard scrolling',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();
+ app.events.get('touchend')({touches:[]});app.setReduced(false);app.seek(1);app.tick();
+ const before=app.calls.memory.at(-1).nextT;
+ app.events.get('keydown')({type:'keydown',key:' ',shiftKey:true});app.seek(.999);app.tick();
+ assert.ok(app.calls.memory.at(-1).nextT<before);
 });
 
 test('particle manual protection leaves the legacy ending and autoplay clock unchanged',async()=>{

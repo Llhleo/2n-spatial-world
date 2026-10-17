@@ -15,7 +15,7 @@ export function limitManualHistoryEntry(current,candidate,dt,reduced=false){
 }
 
 // The complete particle timeline uses the same local manual guard. Callers
-// discard the excess native scroll distance when capped, so it cannot queue
+// discard excess native scroll distance after the gesture settles, so it cannot queue
 // a delayed sprint or force a later reverse gesture to fight an old target.
 export function limitManualParticleEnding(current,candidate,dt,reduced=false){
  if(reduced||current===candidate)return candidate;

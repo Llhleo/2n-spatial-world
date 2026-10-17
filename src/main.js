@@ -131,6 +131,9 @@ if (renderer) {
   let introLocked=true;
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
+  let touchScrolling=false,pointerScrolling=false,particleRebasePending=false;
+  let previousNativeScroll=0,nativeScrollQuiet=0;
+  let particleScrollOffset=0,directedInput=0,directedInputAt=-Infinity;
   function adoptPeopleRoute(next){
     const playing=player.playing;
     cancelDistancePreparation();
@@ -161,11 +164,18 @@ if (renderer) {
       const currentChapter=chapterAt(progress);
       const token=old&&currentChapter.chapter==='people'?capturePeoplePosition(peopleRoute,currentChapter.peopleT):null;
       const nextRoute=people.resize(camera.aspect,next.height);
-      if(token){progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;nextScroll=storyToScroll(progress,nextRoute);}
+      if(token){
+        progress=(STORY_UNITS+PEOPLE_UNITS*restorePeoplePosition(nextRoute,token))/28;
+        nextScroll=storyToScroll(progress,nextRoute);
+        particleScrollOffset=0;particleRebasePending=false;
+      }
       adoptPeopleRoute(nextRoute);
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
-    if(old&&controlled)scrollTo({top:nextScroll*next.range,behavior:'instant'});
+    if(old&&controlled){
+      scrollTo({top:nextScroll*next.range,behavior:'instant'});
+      previousNativeScroll=scrollY;nativeScrollQuiet=0;
+    }
   },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
@@ -173,6 +183,10 @@ if (renderer) {
     if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
     if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
     if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
+    if(event?.type==='wheel'||event?.type==='keydown'){
+      directedInput=event.type==='wheel'?Math.sign(event.deltaY||0):(['ArrowUp','PageUp','Home'].includes(event.key)||(event.key===' '&&event.shiftKey))?-1:1;
+      directedInputAt=performance.now();
+    }
     player.pause();
     if (!controlled) {
       // Hand off at the current shot, never jump back to the start on first touch.
@@ -181,17 +195,26 @@ if (renderer) {
     }
   };
   addEventListener('wheel', takeControl, {passive:true});
-  addEventListener('touchstart', takeControl, {passive:true});
-  addEventListener('pointerdown', takeControl, {passive:true});
+  addEventListener('touchstart',event=>{touchScrolling=true;nativeScrollQuiet=0;takeControl(event);},{passive:true});
+  const finishTouch=event=>{touchScrolling=!!event?.touches?.length;nativeScrollQuiet=0;};
+  addEventListener('touchend',finishTouch,{passive:true});
+  addEventListener('touchcancel',finishTouch,{passive:true});
+  addEventListener('pointerdown',event=>{pointerScrolling=true;nativeScrollQuiet=0;takeControl(event);},{passive:true});
+  const finishPointer=()=>{pointerScrolling=false;nativeScrollQuiet=0;};
+  addEventListener('pointerup',finishPointer,{passive:true});
+  addEventListener('pointercancel',finishPointer,{passive:true});
+  addEventListener('blur',()=>{touchScrolling=false;finishPointer();});
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
+    particleScrollOffset=0;particleRebasePending=false;
     player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding),true);controlled=true;
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
   });
   replayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
+    particleScrollOffset=0;particleRebasePending=false;
     player.pause();progress=0;auto=0;controlled=true;
     scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
   });
@@ -209,12 +232,27 @@ if (renderer) {
       progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute,particleEnding),peopleRoute);
       scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
     }
-    const scroll = scrollProgress(scrollY,view.range);
+    const nativePosition=scrollY,scroll=scrollProgress(nativePosition,view.range);
+    const previousScroll=scrollProgress(previousNativeScroll,view.range),nativeDelta=scroll-previousScroll;
+    nativeScrollQuiet=nativePosition===previousNativeScroll?nativeScrollQuiet+dt:0;
+    previousNativeScroll=nativePosition;
     if(!controlled&&!reduced.matches) auto = Math.min(HERO_END*(introLocked?.92:1),auto+dt*HERO_END/30*introState.speed);
     // Initial reduced-motion landing is not a permanent scroll lock. Preference
     // changes hold the current shot; manual reduced-motion reads sample directly.
     const initialEnding=startAtEnding&&!introLocked&&!controlled;
-    const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?scroll:reduced.matches?progress:auto;
+    if(wasPlaying||reduced.matches||initialEnding||memoryPreview||!particleEnding){particleScrollOffset=0;particleRebasePending=false;}
+    else if(controlled&&particleRebasePending&&nativeDelta!==0){
+      const displayed=storyToScroll(progress,peopleRoute),queued=scrollProgress(scroll+particleScrollOffset,1);
+      const reversingInput=touchScrolling||pointerScrolling||(now-directedInputAt<250&&Math.sign(nativeDelta)===directedInput);
+      if(reversingInput&&nativeDelta*(queued-displayed)<0){
+        // Cancel queued visual lag on a real input reversal, without moving
+        // the native page. Subsequent deltas retain this temporary offset.
+        particleScrollOffset=displayed-previousScroll;
+      }
+      if((nativeDelta>0&&scroll===1)||(nativeDelta<0&&scroll===0))particleScrollOffset=0;
+    }
+    const manualScroll=scrollProgress(scroll+particleScrollOffset,1);
+    const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?manualScroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
     if(!wasPlaying){
       if(reduced.matches)progress=target;
@@ -226,19 +264,26 @@ if (renderer) {
         const before=progress;
         const historyCandidate=initialEnding?candidate:limitManualHistoryEntry(progress,candidate,dt);
         progress=!initialEnding&&particleEnding?limitManualParticleEnding(progress,historyCandidate,dt):historyCandidate;
-        if(progress!==historyCandidate){
-          // Rebase every capped particle frame to the displayed position. The
-          // next gesture starts here, including a reversal within one swipe.
-          scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
-        }
+        if(progress!==historyCandidate)particleRebasePending=true;
         if(!initialEnding&&before<manualHistoryEntryEnd&&progress>=manualHistoryEntryEnd&&target>manualHistoryEntryEnd){
           // Discard the fling overshoot at the first readable story event.
           scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
+          particleScrollOffset=0;particleRebasePending=false;
+          previousNativeScroll=scrollY;nativeScrollQuiet=0;
         }
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
+    if(particleScrollOffset!==0)particleRebasePending=true;
+    if(wasPlaying||reduced.matches||initialEnding||memoryPreview||!particleEnding||(chapter.chapter!=='next'&&particleScrollOffset===0))particleRebasePending=false;
+    else if(particleRebasePending&&!touchScrolling&&!pointerScrolling&&nativeScrollQuiet>=.15){
+      // Native touch and momentum own the page position. Only discard a queued
+      // overshoot after the gesture has ended and scroll updates are quiet.
+      const settled=storyToScroll(progress,peopleRoute);
+      scrollTo({top:settled*view.range,behavior:'instant'});
+      previousNativeScroll=scrollY;nativeScrollQuiet=0;particleRebasePending=false;particleScrollOffset=0;
+    }
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute,particleEnding);
