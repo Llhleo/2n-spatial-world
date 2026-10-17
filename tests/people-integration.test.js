@@ -1,4 +1,5 @@
-import {limitManualHistoryEntry,manualHistoryEntryEnd} from '../src/manual-history-entry.js';
+import * as manualEntry from '../src/manual-history-entry.js';
+const {limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding}=manualEntry;
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -117,7 +118,7 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{extensions={has:()=>floatBuffers};setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,particleEndingReady:true,prepareParticleEnding(){},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,particleEndingReady:true,prepareParticleEnding(){},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createNextView(){const view=resource();view.readingBounds=new THREE.Box3();view.update=state=>calls.next.push(state);return view;},createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
@@ -398,6 +399,42 @@ test('manual fling lands on first history text and clears the old far scroll tar
  app.seek(1);for(let i=0;i<240;i++)app.tick();
  assert.equal(app.elements.get('world').dataset.biome,'history');const t=Number(app.elements.get('world').dataset.historyProgress);assert.ok(t>=.21&&t<=.24,`must land at first text instead of distant target (${t})`);
  app.seek(api.storyToScroll((api.LEGACY_TOTAL_UNITS+6.4*.55)/28,app.gallery.route));for(let i=0;i<160;i++)app.tick();assert.ok(Number(app.elements.get('world').dataset.historyProgress)>.5,'new manual scroll can continue after landing');
+});
+
+test('particle ending limits manual flings, discards excess scroll and immediately accepts a reverse gesture',async()=>{
+ const app=entry({reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ const seek=t=>app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*t)/28,app.gallery.route));
+ seek(.3);app.tick();const before=app.calls.memory.at(-1).nextT;
+ app.setReduced(false);seek(1);app.tick();
+ const after=app.calls.memory.at(-1).nextT;
+ assert.ok(after>before&&after-before<=.02/18+1e-10,'one fast fling is capped at the normal timeline rate');
+ for(let i=0;i<150;i++)app.tick();
+ const held=app.calls.memory.at(-1).nextT;
+ assert.ok(held-after<.001,'the discarded far target cannot keep pushing the ending toward the model');
+ seek(0);app.tick();const reverse=app.calls.memory.at(-1).nextT;
+ assert.ok(reverse<held&&held-reverse<=.02/18+1e-10,'a new reverse gesture must not wait behind old overshoot');
+ assert.equal(app.elements.get('replay').hidden,true);
+ for(let i=0;i<1000;i++){seek(1);app.tick();}
+ assert.ok(app.calls.memory.at(-1).nextT>1-1e-7,'continued manual input still reaches the final frame');
+ assert.equal(app.elements.get('replay').hidden,false,'the guard must not strand the final replay button');
+ app.setReduced(true);seek(1);app.tick();assert.equal(app.calls.memory.at(-1).nextT,1,'reduced motion still reads directly');
+ app.events.get('replay:click')({stopPropagation(){}});app.tick();assert.equal(app.elements.get('world').dataset.progress,'0.000');
+});
+
+test('particle manual protection leaves the legacy ending and autoplay clock unchanged',async()=>{
+ const app=entry({floatBuffers:false,reduced:true});await app.settle();app.open();app.tick();
+ app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.3)/28,app.gallery.route));app.tick();
+ app.setReduced(false);app.seek(1);app.tick();
+ assert.ok(app.calls.memory.at(-1).nextT>.31,'the legacy ending keeps its existing damping without the new cap');
+ const particle=entry({reduced:true});await particle.settle();particle.open();particle.tick();
+ particle.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
+ particle.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.3)/28,particle.gallery.route));particle.tick();particle.setReduced(false);
+ const before=particle.calls.memory.at(-1).nextT;
+ particle.events.get('autoplay:click')({stopPropagation(){}});
+ for(let i=0;i<60;i++)particle.tick();
+ assert.ok(Math.abs(particle.calls.memory.at(-1).nextT-before-1.2/18)<1e-8,'autoplay still advances by its original eighteen-second timeline');
 });
 
  test('next ending has only replay and hides autoplay, while replay restores normal controls',async()=>{
