@@ -6,6 +6,34 @@ import {ENDING_GATE_COUNT,endingDimensionTransforms,endingDimensionFrame} from '
 import {createMaterialGuides,materialTarget,materialSpring,materialGlyphProgress,materialRouteTime,MATERIAL_GLSL} from './guild-ending-material.js';
 
 export const FLUID_DT=1/60,FLUID_START=.18,FLUID_SECONDS=18;
+const LAST_TICK=Math.floor((1-FLUID_START)*FLUID_SECONDS/FLUID_DT+1e-7),CACHE_STRIDE=15;
+// Integrate once, retain full-resolution positions, and sample in either
+// direction. GPU history uses half-float targets: 60 x 2 MiB at 262144 points.
+// Cubic interpolation keeps velocity continuous between quarter-second keys.
+export function createFluidTimeline({reset,step,capture,release}){
+ let tick=0,initialized=false,disposed=false;const frames=[];
+ const clear=()=>{for(const frame of frames)release(frame);frames.length=0;tick=0;initialized=false;};
+ return {
+  get ready(){return initialized&&tick===LAST_TICK;},get frameCount(){return frames.length;},
+  warm(budget=1){
+   if(disposed)return;
+   if(!initialized){reset();frames.push(capture());initialized=true;}
+   const end=Math.min(LAST_TICK,tick+Math.max(0,Math.min(4,Math.floor(budget))));
+   while(tick<end){step(FLUID_START+tick*FLUID_DT/FLUID_SECONDS,FLUID_DT);tick++;if(tick%CACHE_STRIDE===0)frames.push(capture());}
+  },
+  sample(progress){
+   if(!frames.length)return null;
+   const at=Math.max(0,Math.min(frames.length-1,((Number.isFinite(progress)?progress:0)-FLUID_START)*FLUID_SECONDS/FLUID_DT/CACHE_STRIDE));
+   const j=Math.min(Math.max(0,frames.length-2),Math.floor(at)),u=at-j,u2=u*u,u3=u2*u;
+   const weights=[-.5*u+u2-.5*u3,1-2.5*u2+1.5*u3,.5*u+2*u2-1.5*u3,-.5*u2+.5*u3];
+   // Extrapolated boundary neighbours preserve the incoming/outgoing tangent.
+   if(j===0){weights[1]+=2*weights[0];weights[2]-=weights[0];weights[0]=0;}
+   if(j+2>=frames.length){weights[1]-=weights[3];weights[2]+=2*weights[3];weights[3]=0;}
+   return {frames:[j-1,j,j+1,j+2].map(i=>frames[Math.max(0,Math.min(frames.length-1,i))]),weights};
+  },
+  invalidate(){if(!disposed)clear();},dispose(){if(disposed)return;clear();disposed=true;}
+ };
+}
 // A fixed tick index, never accumulated display deltas. Backwards seeks reset
 // and replay the same force history; pauses do not advance physics.
 export function createFluidClock(reset,step){
@@ -177,14 +205,16 @@ export function createEndingFluid(renderer,geometry){
    fMassCenter:{value:new T.Vector3()},fVolumePressure:{value:new T.Vector3()},fGateInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},fMaterialPosition:{value:material.textures[0]},fMaterialVelocity:{value:material.textures[1]},fMaterialU:{value:material.textures[2]},fMaterialV:{value:material.textures[3]},
    fGateCenter:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Vector3())},fGateNormal:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Vector3())},fGateRadius:{value:new Float32Array(ENDING_GATE_COUNT)},fGateVisibility:{value:new Float32Array(ENDING_GATE_COUNT)}});
  }
- const clean=()=>{gpu.dispose();position.material.dispose();velocity.material.dispose();seeds.dispose();glyphs.dispose();material.dispose();};
+ let timeline=null;
+ const clean=()=>{timeline?.dispose();gpu.dispose();position.material.dispose();velocity.material.dispose();seeds.dispose();glyphs.dispose();material.dispose();};
  // Compile the real compute shaders before declaring the preview ready.
  const previousError=renderer.debug.onShaderError,target=renderer.getRenderTarget(),xr=renderer.xr.enabled,shadow=renderer.shadowMap.autoUpdate;
  try{
   renderer.debug.onShaderError=(gl,program,vs,fs)=>{throw new Error(gl.getProgramInfoLog(program)||gl.getShaderInfoLog(fs)||'GPU流体着色器编译失败');};
   const error=gpu.init();if(error)throw new Error(error);gpu.compute();
  }catch(error){clean();throw error;}finally{renderer.debug.onShaderError=previousError;renderer.xr.enabled=xr;renderer.shadowMap.autoUpdate=shadow;renderer.setRenderTarget(target);}
- let aspect=.6,reduced=false,disposed=false;const hits=new Float32Array(ENDING_GATE_COUNT).fill(-10),observers=[];
+ let aspect=.6,reduced=false,disposed=false,feedbackTick=0;
+ const hits=new Float32Array(ENDING_GATE_COUNT).fill(-10),simulationHits=new Float32Array(ENDING_GATE_COUNT).fill(-10),feedback=new Float32Array((LAST_TICK+1)*ENDING_GATE_COUNT).fill(-10),observers=[];
  const reset=()=>{
   material.reset(aspect,reduced);
   for(let i=0;i<count;i++){
@@ -195,14 +225,14 @@ export function createEndingFluid(renderer,geometry){
   pos0.needsUpdate=true;vel0.needsUpdate=true;
   for(const variable of [position,velocity])for(const target of variable.renderTargets)gpu.renderTexture(variable.initialValueTexture,target);
   gpu.currentTextureIndex=0;
-  hits.fill(-10);observers.length=0;
+  hits.fill(-10);simulationHits.fill(-10);feedback.fill(-10);feedbackTick=0;observers.length=0;
   // Small deterministic witnesses trigger gate feedback; they never replace
   // or reduce the 262144 independently simulated GPU particles.
   for(let j=0;j<64;j++){
    const i=j*4093;observers.push({position:Array.from(pos0.image.data.subarray(i*4,i*4+3)),velocity:Array.from(vel0.image.data.subarray(i*4,i*4+3)),seed:Array.from(seeds.image.data.subarray(i*4,i*4+4)),glyph:Array.from(glyphs.image.data.subarray(i*4,i*4+3))});
   }
  };
- const clock=createFluidClock(reset,(t,dt)=>{
+ const step=(t,dt)=>{
   const guide=fluidGuide(t,aspect),gates=fluidGateStates(t,aspect,reduced),bulk=fluidVolumePressure(observers,aspect),volume={...bulk,material};
   for(const variable of [position,velocity]){
    const u=variable.material.uniforms;u.fT.value=t;u.fDt.value=dt;u.fAspect.value=aspect;u.fReduced.value=reduced?1:0;u.fCenter.value.fromArray(guide.center);u.fGuideVelocity.value.fromArray(guide.velocity);
@@ -213,12 +243,24 @@ export function createEndingFluid(renderer,geometry){
   for(const o of observers){
    const mark=o.glyph.map((x,i)=>x*Math.min(1.12,aspect*1.75)+[0,43,-14][i]);
    const next=stepFluidParticle(o.position,o.velocity,o.seed,t,dt,gates,mark,aspect,reduced,volume);
-   recordFluidPassage(hits,o.position,next.position,t,gates);o.position=next.position;o.velocity=next.velocity;
+   recordFluidPassage(simulationHits,o.position,next.position,t,gates);o.position=next.position;o.velocity=next.velocity;
   }
   material.step(t,dt,gates,bulk,stepFluidParticle);
- });
- return {hits,update(t,nextAspect,nextReduced){
-  if(disposed)return null;const change=aspect!==nextAspect||reduced!==!!nextReduced;aspect=nextAspect;reduced=!!nextReduced;
-  clock.seek(t,change);return gpu.getCurrentRenderTarget(position).texture;
+  feedback.set(simulationHits,++feedbackTick*ENDING_GATE_COUNT);
+ };
+ timeline=createFluidTimeline({reset,step,capture(){
+  const target=new T.WebGLRenderTarget(side,side,{type:T.HalfFloatType,format:T.RGBAFormat,minFilter:T.NearestFilter,magFilter:T.NearestFilter,depthBuffer:false});
+  gpu.renderTexture(gpu.getCurrentRenderTarget(position).texture,target);return target;
+ },release:target=>target.dispose()});
+ return {hits,get ready(){return timeline.ready;},invalidate(){timeline.invalidate();hits.fill(-10);},warm(nextAspect,nextReduced){
+  if(disposed)return;
+  const change=aspect!==nextAspect||reduced!==!!nextReduced;
+  aspect=nextAspect;reduced=!!nextReduced;if(change)timeline.invalidate();
+  timeline.warm();
+ },update(t){
+  if(disposed||!timeline.ready)return null;
+  const tick=Math.max(0,Math.min(LAST_TICK,Math.floor(((Number.isFinite(t)?t:0)-FLUID_START)*1080+1e-7)));
+  hits.set(feedback.subarray(tick*ENDING_GATE_COUNT,(tick+1)*ENDING_GATE_COUNT));
+  const sample=timeline.sample(t);return {frames:sample.frames.map(target=>target.texture),weights:sample.weights};
  },dispose(){if(disposed)return;disposed=true;clean();}};
 }

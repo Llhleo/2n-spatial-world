@@ -101,6 +101,8 @@ export function createMemoryScene({mobile=true,renderer}={}){
   const next=createEndingParticles({renderer:nextRenderer});
   group.remove(ending.points,ending.occluder);ending.dispose();ending=next;group.add(ending.points,ending.occluder);
  }
+ function warmParticleEnding(aspect,reduced=false){ending.warm(aspect,reduced);}
+ function invalidateParticleEnding(){ending.invalidate();}
  function update(state,camera,dt=0){
   if(disposed)return;prepare();group.visible=!!layout?.anchors.length;time+=Math.min(.05,Math.max(0,dt));
   const index=Number.isInteger(state?.eventIndex)?Math.max(0,Math.min(2,state.eventIndex)):preview,shot=layout.shots[index];
@@ -236,5 +238,5 @@ export function createMemoryScene({mobile=true,renderer}={}){
    }alpha.needsUpdate=true;
   }
  }
- return {group,install,prepare,prepareParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return !!ending.fluidHits;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,prepareParticleEnding,warmParticleEnding,invalidateParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return ending.fluidReady;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
 }

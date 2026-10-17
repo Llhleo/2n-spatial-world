@@ -139,7 +139,7 @@ export function createEndingParticles({renderer}={}){
  // Ordinary alpha blending bounds dense crossings to the palette; visibility
  // comes from wider bright cores, not unbounded additive accumulation.
  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
- vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidPosition;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
+ vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidA,uFluidB,uFluidC,uFluidD;uniform vec4 uFluidWeights;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
  ${ENDING_FLOW_GLSL}
  ${MATERIAL_RENDER_GLSL}
@@ -155,7 +155,7 @@ export function createEndingParticles({renderer}={}){
  float sculptureScale=min(1.12,uAspect*1.75);
  vec3 mark=position*sculptureScale+vec3(0.,43.,-14.);
  vec3 p;
- if(uFluidEnabled>.5&&uT>=.18){p=texture2D(uFluidPosition,aFluidUV).xyz;p=mix(p,mark,ease((uT-.96)/.04));}
+ if(uFluidEnabled>.5&&uT>=.18){p=texture2D(uFluidA,aFluidUV).xyz*uFluidWeights.x+texture2D(uFluidB,aFluidUV).xyz*uFluidWeights.y+texture2D(uFluidC,aFluidUV).xyz*uFluidWeights.z+texture2D(uFluidD,aFluidUV).xyz*uFluidWeights.w;p=mix(p,mark,ease((uT-.96)/.04));}
  else{p=flowPoint(aCloud,mark,aSeed,uT,uAspect,uReduced);}
  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
  float star=step(.955,aSeed.y);
@@ -194,13 +194,15 @@ export function createEndingParticles({renderer}={}){
  fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;varying float vBlur;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=mix(core*.85+halo*.15,halo,vBlur);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);
  #include <colorspace_fragment>
  }`});
- material.uniforms.uFluidPosition={value:null};material.uniforms.uFluidEnabled={value:fluid?1:0};
+ for(const name of ['uFluidA','uFluidB','uFluidC','uFluidD'])material.uniforms[name]={value:null};
+ material.uniforms.uFluidWeights={value:new T.Vector4(0,1,0,0)};material.uniforms.uFluidEnabled={value:fluid?1:0};
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  let disposed=false;
  return {points,occluder,update(t,time,camera,reduced=false,particleEnding=!!fluid){if(disposed)return;points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
   occluder.visible=particleEnding&&Number.isFinite(t)&&t>=PARTICLE_MARK_FORMED;occluder.position.set(0,43,-14);occluder.scale.setScalar(Math.min(1.12,camera.aspect*1.75));
-  if(fluid)material.uniforms.uFluidPosition.value=fluid.update(t,camera.aspect,reduced);
+  const sample=fluid?.update(t);
+  if(sample){['uFluidA','uFluidB','uFluidC','uFluidD'].forEach((name,i)=>material.uniforms[name].value=sample.frames[i]);material.uniforms.uFluidWeights.value.fromArray(sample.weights);}
   const route=fluid?materialRouteTime(t):t;
   endingDimensionTransforms(route,camera.aspect,reduced,!!fluid).forEach((matrix,i)=>material.uniforms.uFrameInverse.value[i].copy(matrix).invert());material.uniforms.uFramePulse.value.set(endingDimensionFrame(route,reduced,!!fluid).gates.map(g=>g.visibility));
- },get fluidHits(){return fluid?.hits||null;},dispose(){if(disposed)return;disposed=true;fluid?.dispose();geometry.dispose();material.dispose();occluder.traverse(o=>o.geometry?.dispose());depthMaterial.dispose();}};
+ },invalidate(){fluid?.invalidate();},warm(aspect,reduced=false){fluid?.warm(aspect,reduced);},get fluidReady(){return !!fluid?.ready;},get fluidHits(){return fluid?.hits||null;},dispose(){if(disposed)return;disposed=true;fluid?.dispose();geometry.dispose();material.dispose();occluder.traverse(o=>o.geometry?.dispose());depthMaterial.dispose();}};
 }

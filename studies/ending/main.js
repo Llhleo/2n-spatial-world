@@ -11,7 +11,7 @@ const scene=new T.Scene(),camera=new T.PerspectiveCamera(48,1,.2,2400),text=crea
 let memory;
 try{memory=createMemoryScene({mobile:innerWidth<700,renderer});}catch(error){document.querySelector('#status').textContent=`流体初始化失败：${error.message}`;throw error;}
 scene.add(memory.group,text.group);
-const slider=document.querySelector('#progress'),play=document.querySelector('#play'),status=document.querySelector('#status');let progress=0,playing=true,ready=false;
+const slider=document.querySelector('#progress'),play=document.querySelector('#play'),status=document.querySelector('#status');let progress=0,playing=true,ready=false,warming=false;
 const scrollMode=new URLSearchParams(location.search).get('scroll')==='1',mode=document.querySelector('#mode');
 document.body.classList.toggle('scroll-mode',scrollMode);
 if(scrollMode){playing=false;play.hidden=true;mode.href='./';mode.textContent='自动';}
@@ -26,7 +26,9 @@ const viewport=stableViewport((next,old)=>{
 },8);
 play.onclick=()=>{playing=!playing;play.textContent=playing?'暂停':'播放';};slider.oninput=()=>{progress=Number(slider.value);if(scrollMode)scrollTo({top:progress*range(),behavior:'instant'});playing=false;play.textContent='播放';};document.querySelector('#replay').onclick=()=>{progress=0;if(scrollMode)scrollTo({top:0,behavior:'instant'});playing=!scrollMode;play.textContent='暂停';};
 const clock=new T.Clock();renderer.setAnimationLoop(()=>{
- const dt=Math.min(clock.getDelta(),.05);if(!ready)return;
+ const dt=Math.min(clock.getDelta(),.05);memory.warmParticleEnding(camera.aspect,reducedMotion.matches);if(!ready)return;
+ if(!memory.particleEndingReady){warming=true;status.textContent='正在分帧准备可倒放粒子轨迹…';return;}
+ if(warming){warming=false;status.textContent=scrollMode?'下滑播放 · 上滑倒放 · 262,144 粒子':'五色星流 → 穿门 → 翻涌凝形 → 2ⁿ 环绕 · 262,144 粒子';}
  if(scrollMode){progress=Math.max(0,Math.min(1,scrollY/range()));slider.value=progress;}
  else if(playing){progress=Math.min(1,progress+dt/PARTICLE_ENDING_SECONDS);slider.value=progress;if(progress===1){playing=false;play.textContent='播放';}}
  const state=sampleNext(progress,{particleEnding:true});
