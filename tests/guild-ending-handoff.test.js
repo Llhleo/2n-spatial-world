@@ -17,6 +17,15 @@ test('new petals wait for the fully formed mark before entering their final orbi
  assert.notDeepEqual(endingPetalPoint(a,start,1,0,false,slots),endingPetalPoint(a,start,1,12,false,slots));
 });
 
+test('each petal identity owns a different arrival path even with the same start and destination',()=>{
+ const start=[20,60,-20],a={id:'petal-1',u:.35,longitude:1.1,branch:0},b={...a,id:'petal-2'};
+ const slots=new Map([a,b].map(p=>[p.id,{phase:1.4,aspect:.46,position:new T.Vector3()}]));
+ for(const t of [16.5/18,1])assert.deepEqual(endingPetalPoint(a,start,t,0,false,slots),endingPetalPoint(b,start,t,0,false,slots));
+ const p=endingPetalPoint(a,start,17.1/18,0,false,slots),q=endingPetalPoint(b,start,17.1/18,0,false,slots);
+ assert.ok(Math.hypot(...p.map((x,k)=>x-q[k]))>5,'independent timing and arcs cannot reduce to a shared ring transform');
+ assert.ok(Math.abs(p[2]-q[2])>2,'individual paths use front/back depth');
+});
+
 test('the mark depth shell renders after particles and before petals with or without text',()=>{
  const memory=createMemoryScene(),asset=new T.Mesh(new T.SphereGeometry(2.2,8,6),new T.MeshStandardMaterial()),camera=new T.PerspectiveCamera(48,.46,.2,2400);
  const lists=new WebGLRenderLists();memory.install(asset,'garden','rose');

@@ -32,6 +32,14 @@ export function endingCamera(pose,t,reduced=false){
  const orbit=reduced?0:f.orbit;
  return {target:finalTarget,position:[T.MathUtils.lerp(pose.position[0],Math.sin(orbit)*radius,k),T.MathUtils.lerp(pose.position[1],34+(reduced?0:18*Math.sin(Math.PI*t)),k),finalTarget[2]+T.MathUtils.lerp(pose.position[2]-pose.target[2],Math.cos(orbit)*radius,k)]};
 }
+function petalFlight(a){
+ let hash=2166136261;const key=String(a.id??`${a.branch}:${a.u}:${a.longitude}`);
+ for(let i=0;i<key.length;i++)hash=Math.imul(hash^key.charCodeAt(i),16777619);
+ hash=Math.imul(hash^(hash>>>16),0x7feb352d);hash=Math.imul(hash^(hash>>>15),0x846ca68b);hash^=hash>>>16;
+ const random=()=>{hash=(Math.imul(hash,1664525)+1013904223)>>>0;return hash/4294967296;};
+ const u=random(),v=random(),w=random();
+ return {delay:u*.22,finish:.84+v*.16,bend:[(u-.5)*24,8+v*12,(w-.5)*48]};
+}
 export function endingPetalFrame(pose,aspect,anchors){
  const end=endingCamera(pose,1),camera=new T.PerspectiveCamera(48,aspect);camera.position.fromArray(end.position);camera.lookAt(...end.target);camera.updateMatrixWorld();
  const slots=new Map(),placed=[],half=Math.tan(T.MathUtils.degToRad(24));
@@ -44,7 +52,7 @@ export function endingPetalFrame(pose,aspect,anchors){
    const radius=5.9/(depth*half),gap=placed.length?Math.min(...placed.map(p=>Math.hypot((x-p.x)*aspect,y-p.y)/(radius+p.radius))):2;
    if(gap>score){score=gap;best={x,y,radius};}
   }
-  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,ring:index%3,aspect});
+  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,ring:index%3,aspect,flight:petalFlight(a)});
  }
  return slots;
 }
@@ -78,8 +86,15 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
   destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
   if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
  }
- const arrival=particleEnding?nextSmooth((t-PARTICLE_MARK_FORMED)/(PARTICLE_PETALS_ARRIVED-PARTICLE_MARK_FORMED)):nextSmooth((t-.68)/.22);
- cloud.lerp(destination,arrival);
+ if(particleEnding){
+  const flight=slot?.flight||petalFlight(a),stage=(t-PARTICLE_MARK_FORMED)/(PARTICLE_PETALS_ARRIVED-PARTICLE_MARK_FORMED);
+  const u=Math.max(0,Math.min(1,(stage-flight.delay)/(flight.finish-flight.delay)));
+  cloud.lerp(destination,nextSmooth(u));
+  // Each identity follows its own 3D arc. The bump and its first two
+  // derivatives vanish at either end, retaining the escort/orbit velocity.
+  const arc=64*u*u*u*(1-u)*(1-u)*(1-u)*motion;
+  cloud.add(new T.Vector3(flight.bend[0]*fit,flight.bend[1],flight.bend[2]).multiplyScalar(arc));
+ }else cloud.lerp(destination,nextSmooth((t-.68)/.22));
  return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,

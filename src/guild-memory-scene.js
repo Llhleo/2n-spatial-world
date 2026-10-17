@@ -35,7 +35,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   source.geometry.computeBoundingSphere();source.geometry.computeBoundingBox();
   const sphere=source.geometry.boundingSphere,dimensions=source.geometry.boundingBox.getSize(new T.Vector3());
   if(!sphere||!Number.isFinite(sphere.radius)||sphere.radius<=0)return;
-  sources.set(id,{source,center:sphere.center.clone(),factor:2.2/sphere.radius,face:petalFrontQuaternion(name,dimensions)});
+  sources.set(id,{source,name,center:sphere.center.clone(),factor:2.2/sphere.radius,face:petalFrontQuaternion(name,dimensions)});
   layout=null;
  }
  function prepare(){
@@ -49,9 +49,10 @@ export function createMemoryScene({mobile=true,renderer}={}){
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
    const material=(entrySources.get(anchors[0].id)?.material||asset.source.material).clone();material.fog=entrySources.size?entrySources.get(anchors[0].id)?.material.fog!==false:false;const geometry=asset.source.geometry.clone(),alpha=new T.InstancedBufferAttribute(new Float32Array(anchors.length).fill(1),1);alpha.setUsage(T.DynamicDrawUsage);geometry.setAttribute('memoryAlpha',alpha);
-   material.map=petalDisplayTexture(material.map);
+   const sourceMap=material.map,displayMap=petalDisplayTexture(sourceMap),stableMap=asset.name==='rose'?petalDisplayTexture(sourceMap,{mipmaps:true}):displayMap;
+   material.map=displayMap;
    material.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float memoryAlpha; varying float vMemoryAlpha;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMemoryAlpha=memoryAlpha;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vMemoryAlpha;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vMemoryAlpha;');};material.customProgramCacheKey=()=> 'memory-instance-alpha-v1';
-   const mesh=new T.InstancedMesh(geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors,nativeTransparent:material.transparent,nativeDepthWrite:material.depthWrite});
+   const mesh=new T.InstancedMesh(geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors,displayMap,stableMap,nativeTransparent:material.transparent,nativeDepthWrite:material.depthWrite});
   }
  }
  function captureEntry(sourceGroup,entryCamera){
@@ -86,6 +87,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  function setPreview(index){preview=Math.max(0,Math.min(2,Math.round(index)||0));}
  function updatePetalLayer(pool,reading=pool.reading||false){
   pool.reading=reading;
+  pool.material.map=particleLayer?pool.stableMap:pool.displayMap;
   const transparent=particleLayer||reading||pool.nativeTransparent;
   if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
   pool.material.depthWrite=pool.nativeDepthWrite;
