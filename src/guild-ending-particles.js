@@ -64,15 +64,19 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
  const spread=52+18*a.u+14*nextSmooth((t-.46)/.10)+12*nextSmooth((t-.55)/.15)*(1-nextSmooth((t-.80)/.10));
  const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
- const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
- if(slot&&!reduced){
-  // The main scene remains scroll-driven; formed petals have a separate,
-  // slow ambient clock so releasing the finger does not freeze their orbit.
-  const clock=particleEnding?t*18:time;
-  destination.add(new T.Vector3(Math.sin(clock*.12+slot.phase)*.8,Math.cos(clock*.13+slot.phase)*.8,Math.sin(clock*.11+slot.phase)*1.8));
-  const ring=slot.ring||0,angle=slot.phase-time*.14,r=56+ring*7,orbitFit=Math.min(1,aspect/.75);
-  const orbit=new T.Vector3(Math.cos(angle)*r*orbitFit,43+[-22,3,27][ring]+1.6*Math.sin(angle*2+ring),-14-Math.sin(angle)*r*.9);
-  if(particleEnding)destination.lerp(orbit,nextSmooth((t-.88)/.07));
+ let destination;
+ if(particleEnding){
+  // Arrive directly in one loose lower XZ band. The old scattered landing
+  // points belong only to the legacy ending, never to this transition.
+  const phase=slot?.phase??a.longitude,r=60+6*Math.sin(phase*.73+a.u*4)+4*Math.cos(phase*1.21),orbitFit=Math.min(1,aspect/.75);
+  const height=21+4*Math.sin(phase*1.7+a.u*4);
+  // One angular phase throughout arrival and idle: blending opposite points
+  // in Cartesian space would collapse the ring on a long-idle rewind.
+  const angle=phase-(reduced?0:time*.14);
+  destination=new T.Vector3(Math.cos(angle)*r*orbitFit,height+1.6*Math.sin(angle*2+a.branch),-14-Math.sin(angle)*r*.9);
+ }else{
+  destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
+  if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
  }
  cloud.lerp(destination,nextSmooth((t-.68)/.22));
  return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12))));

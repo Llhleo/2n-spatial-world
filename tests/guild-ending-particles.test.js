@@ -33,12 +33,12 @@ test('shape progression reverses deterministically and the camera enters continu
  let previous=endingCamera(pose,0);for(let i=1;i<=1000;i++){const current=endingCamera(pose,i/1000);assert.ok(Math.hypot(...current.position.map((v,k)=>v-previous.position[k]))<2);previous=current;}
  assert.ok(Math.abs(endingCamera(pose,.5).position[0])>40);assert.ok(Math.abs(endingCamera(pose,1).position[0])<1e-8);
 });
-test('petal handoff retains original centers and ends in a readable volume in portrait and landscape',()=>{
+test('legacy petal handoff retains original centers and ends in a readable volume in portrait and landscape',()=>{
  for(const aspect of [.46,.6,1.8]){
   const layout=createMemoryLayout({assets:[{key:'rose',radius:2.2}]}),slots=endingPetalFrame(pose,aspect,layout.anchors),end=endingCamera(pose,1),cam=new T.PerspectiveCamera(48,aspect);cam.position.fromArray(end.position);cam.lookAt(...end.target);cam.updateMatrixWorld();
-  const depths=[];for(const a of layout.anchors){const start=memoryPoint(a,2);assert.deepEqual(endingPetalPoint(a,start,0,0,false,slots),start);
-   const point=new T.Vector3(...endingPetalPoint(a,start,1,0,true,slots)),screen=point.clone().project(cam);assert.ok(Math.abs(screen.x)<1&&screen.y>-.4&&screen.y<.9);depths.push(-point.applyMatrix4(cam.matrixWorldInverse).z);
-   assert.deepEqual(endingPetalPoint(a,start,1,0,true,slots),endingPetalPoint(a,start,1,40,true,slots));
+  const depths=[];for(const a of layout.anchors){const start=memoryPoint(a,2);assert.deepEqual(endingPetalPoint(a,start,0,0,false,slots,false),start);
+   const point=new T.Vector3(...endingPetalPoint(a,start,1,0,true,slots,false)),screen=point.clone().project(cam);assert.ok(Math.abs(screen.x)<1&&screen.y>-.4&&screen.y<.9);depths.push(-point.applyMatrix4(cam.matrixWorldInverse).z);
+   assert.deepEqual(endingPetalPoint(a,start,1,0,true,slots,false),endingPetalPoint(a,start,1,40,true,slots,false));
   }assert.ok(Math.max(...depths)-Math.min(...depths)>150);
  }
 });

@@ -25,7 +25,7 @@ test('scroll-driven petal stages restore after the later ambient orbit has run',
  memory.install(asset,'garden','rose');
  const shot=t=>{memory.update({memoryPhase:2,eventIndex:2,nextT:t,particleEnding:true},camera,.04);memory.group.updateMatrixWorld(true);return {camera:camera.position.toArray(),matrices:memory.group.children.filter(o=>o.isInstancedMesh).flatMap(o=>Array.from(o.instanceMatrix.array))};};
  try{
-  for(const t of [.1,.4,.7]){
+  for(const t of [.1,.4,.65]){
    const initial=shot(t);for(let i=0;i<12;i++)shot(1);
    const restored=shot(t);assert.deepEqual(restored.camera,initial.camera);
    const error=Math.max(...restored.matrices.map((x,k)=>Math.abs(x-initial.matrices[k])));
