@@ -15,8 +15,8 @@ export function limitManualHistoryEntry(current,candidate,dt,reduced=false){
 }
 
 // The complete particle timeline uses the same local manual guard. Callers
-// discard excess native scroll distance after the gesture settles, so it cannot queue
-// a delayed sprint or force a later reverse gesture to fight an old target.
+// retain the native target until reached, but cancel queued lag on input reversal.
+// Limiting the picture must never make the physical page end unreachable.
 export function limitManualParticleEnding(current,candidate,dt,reduced=false){
  if(reduced||current===candidate)return candidate;
  const start=NEXT_START_UNITS/28,end=TOTAL_UNITS/28;

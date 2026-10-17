@@ -97,14 +97,14 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false}={}){
+function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0}={}){
  const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
  };
  let complete;
- let frame,resize,oldReady=false,now=0,scrollY=0,currentReduced=reduced;
+ let frame,resize,oldReady=false,now=0,scrollY=0,currentReduced=reduced,cacheTicks=0;
  const resource=()=>({group:new THREE.Group(),ready:true,prepare:async()=>{},update(){},resize(){},capture(){},install(){},prepared:7,displayPrepared:14});
  const companion=resource();companion.captureChain=()=>{calls.captures++;return [];};let openingAttempts=0;companion.prepare=async()=>{openingAttempts++;if(openingFailure&&openingAttempts===1)throw new Error('network interrupted');};companion.update=(...args)=>calls.companion.push(args);
  const gallery=galleryFactory?galleryFactory():resource();
@@ -118,7 +118,7 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{extensions={has:()=>floatBuffers};setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,particleEndingReady:true,prepareParticleEnding(){},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,get particleEndingReady(){return cacheTicks>=cacheWarmFrames;},warmParticleEnding(){cacheTicks++;},prepareParticleEnding(){},invalidateParticleEnding(){cacheTicks=0;calls.invalidated=(calls.invalidated||0)+1;},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createNextView(){const view=resource();view.readingBounds=new THREE.Box3();view.update=state=>calls.next.push(state);return view;},createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
@@ -401,7 +401,7 @@ test('manual fling lands on first history text and clears the old far scroll tar
  app.seek(api.storyToScroll((api.LEGACY_TOTAL_UNITS+6.4*.55)/28,app.gallery.route));for(let i=0;i<160;i++)app.tick();assert.ok(Number(app.elements.get('world').dataset.historyProgress)>.5,'new manual scroll can continue after landing');
 });
 
-test('particle ending limits manual flings, discards excess scroll and immediately accepts a reverse gesture',async()=>{
+test('particle ending limits manual flings, retains the page-end target and accepts a reverse gesture',async()=>{
  const app=entry({reduced:true});await app.settle();app.open();app.tick();
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
  const seek=t=>app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*t)/28,app.gallery.route));
@@ -410,9 +410,11 @@ test('particle ending limits manual flings, discards excess scroll and immediate
  const after=app.calls.memory.at(-1).nextT;
  assert.ok(after>before&&after-before<=.02/18+1e-10,'one fast fling is capped at the normal timeline rate');
  app.events.get('touchend')({touches:[]});
+ const writes=app.calls.scroll.length;
  for(let i=0;i<150;i++)app.tick();
  const held=app.calls.memory.at(-1).nextT;
- assert.ok(held-after<.2/18,'the quiet-time correction clears the far target after a short settling window');
+ assert.ok(held-after>.15,'released input keeps its requested progress instead of discarding the ending');
+ assert.equal(app.calls.scroll.length,writes,'settling never pulls the native page away from the requested endpoint');
  seek(0);app.tick();const reverse=app.calls.memory.at(-1).nextT;
  assert.ok(reverse<held&&held-reverse<=.02/18+1e-10,'a new reverse gesture must not wait behind old overshoot');
  assert.equal(app.elements.get('replay').hidden,true);
@@ -433,7 +435,24 @@ test('a held particle swipe advances without any frame writing back to the nativ
  assert.ok(app.calls.memory.at(-1).nextT>before+.15,'a held swipe must keep progressing through the particle animation');
 });
 
-test('particle overshoot is corrected once only after touch release and native inertia becomes quiet',async()=>{
+test('restoring a lost WebGL context invalidates GPU-only particle history before rendering resumes',async()=>{
+ const app=entry();await app.settle();app.open();app.tick();
+ app.events.get('world:webglcontextlost')({preventDefault(){}});
+ app.events.get('world:webglcontextrestored')();
+ assert.equal(app.calls.invalidated,1,'lost GPU snapshot contents must be regenerated, not reused as ready');
+ app.tick();assert.ok(app.calls.render>0);
+});
+
+test('entry warms particle history behind the readiness gate and waits again after context restoration',async()=>{
+ const app=entry({reduced:true,cacheWarmFrames:5});await app.settle();app.open();
+ for(let i=0;i<4;i++){app.tick();assert.equal(app.calls.memory.at(-1).nextT,undefined,'incomplete snapshots cannot become a visible particle ending');}
+ app.tick();assert.equal(app.calls.memory.at(-1).nextT,1);
+ app.events.get('world:webglcontextrestored')();
+ for(let i=0;i<4;i++){app.tick();assert.equal(app.calls.memory.at(-1).nextT,undefined);}
+ app.tick();assert.equal(app.calls.memory.at(-1).nextT,1,'a fully regenerated cache becomes visible without a further gesture');
+});
+
+test('one released fling to the physical bottom completes the ending without another swipe',async()=>{
  const app=entry({reduced:true});await app.settle();app.open();app.tick();
  app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
  app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.2)/28,app.gallery.route));app.tick();app.setReduced(false);
@@ -445,13 +464,11 @@ test('particle overshoot is corrected once only after touch release and native i
  for(let i=0;i<6;i++)app.tick();
  assert.equal(app.calls.scroll.length,writes,'a brief gap between native updates is not scroll completion');
  for(let i=0;i<12;i++)app.tick();
- assert.equal(app.calls.scroll.length,writes+1,'the quiet gesture gets one correction, not a feedback loop');
+ assert.equal(app.calls.scroll.length,writes,'quiet input cannot discard the bottom target');
  const held=app.calls.memory.at(-1).nextT;
- for(let i=0;i<100;i++)app.tick();
- assert.equal(app.calls.scroll.length,writes+1);assert.ok(Math.abs(app.calls.memory.at(-1).nextT-held)<1e-8);
- app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false}});
- for(let i=0;i<30;i++){app.seek(1);app.tick();}
- assert.equal(app.calls.scroll.length,writes+1);assert.ok(app.calls.memory.at(-1).nextT>held+.03,'the next swipe remains usable');
+ for(let i=0;i<1000;i++)app.tick();
+ assert.equal(app.calls.scroll.length,writes);assert.ok(app.calls.memory.at(-1).nextT>1-1e-7);
+ assert.equal(app.elements.get('replay').hidden,false,'the final action becomes reachable with no additional gesture');
 });
 
 test('reversing an active particle swipe responds before the queued overshoot settles',async()=>{

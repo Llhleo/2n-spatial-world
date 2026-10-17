@@ -132,7 +132,7 @@ if (renderer) {
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
   let touchScrolling=false,pointerScrolling=false,particleRebasePending=false;
-  let previousNativeScroll=0,nativeScrollQuiet=0;
+  let previousNativeScroll=0;
   let particleScrollOffset=0,directedInput=0,directedInputAt=-Infinity;
   function adoptPeopleRoute(next){
     const playing=player.playing;
@@ -174,7 +174,7 @@ if (renderer) {
     }
     if(old&&controlled){
       scrollTo({top:nextScroll*next.range,behavior:'instant'});
-      previousNativeScroll=scrollY;nativeScrollQuiet=0;
+      previousNativeScroll=scrollY;
     }
   },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
@@ -195,12 +195,12 @@ if (renderer) {
     }
   };
   addEventListener('wheel', takeControl, {passive:true});
-  addEventListener('touchstart',event=>{touchScrolling=true;nativeScrollQuiet=0;takeControl(event);},{passive:true});
-  const finishTouch=event=>{touchScrolling=!!event?.touches?.length;nativeScrollQuiet=0;};
+  addEventListener('touchstart',event=>{touchScrolling=true;takeControl(event);},{passive:true});
+  const finishTouch=event=>{touchScrolling=!!event?.touches?.length;};
   addEventListener('touchend',finishTouch,{passive:true});
   addEventListener('touchcancel',finishTouch,{passive:true});
-  addEventListener('pointerdown',event=>{pointerScrolling=true;nativeScrollQuiet=0;takeControl(event);},{passive:true});
-  const finishPointer=()=>{pointerScrolling=false;nativeScrollQuiet=0;};
+  addEventListener('pointerdown',event=>{pointerScrolling=true;takeControl(event);},{passive:true});
+  const finishPointer=()=>{pointerScrolling=false;};
   addEventListener('pointerup',finishPointer,{passive:true});
   addEventListener('pointercancel',finishPointer,{passive:true});
   addEventListener('blur',()=>{touchScrolling=false;finishPointer();});
@@ -222,6 +222,9 @@ if (renderer) {
   function frame(now) {
     const dt = Math.min(.05, (now-previous)/1000); previous=now;
     const view=viewport();
+    // Build at most one fixed physics tick per displayed frame, long before
+    // the ending is reached. Scrubbing only samples the completed GPU history.
+    if(particleEnding)memory.warmParticleEnding?.(camera.aspect,reduced.matches);
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
     const memoryReady=memoryPreview&&memory.assetCount===14;
     const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked&&!memoryReady;
@@ -234,7 +237,6 @@ if (renderer) {
     }
     const nativePosition=scrollY,scroll=scrollProgress(nativePosition,view.range);
     const previousScroll=scrollProgress(previousNativeScroll,view.range),nativeDelta=scroll-previousScroll;
-    nativeScrollQuiet=nativePosition===previousNativeScroll?nativeScrollQuiet+dt:0;
     previousNativeScroll=nativePosition;
     if(!controlled&&!reduced.matches) auto = Math.min(HERO_END*(introLocked?.92:1),auto+dt*HERO_END/30*introState.speed);
     // Initial reduced-motion landing is not a permanent scroll lock. Preference
@@ -269,7 +271,7 @@ if (renderer) {
           // Discard the fling overshoot at the first readable story event.
           scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
           particleScrollOffset=0;particleRebasePending=false;
-          previousNativeScroll=scrollY;nativeScrollQuiet=0;
+          previousNativeScroll=scrollY;
         }
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
@@ -277,13 +279,9 @@ if (renderer) {
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
     if(particleScrollOffset!==0)particleRebasePending=true;
     if(wasPlaying||reduced.matches||initialEnding||memoryPreview||!particleEnding||(chapter.chapter!=='next'&&particleScrollOffset===0))particleRebasePending=false;
-    else if(particleRebasePending&&!touchScrolling&&!pointerScrolling&&nativeScrollQuiet>=.15){
-      // Native touch and momentum own the page position. Only discard a queued
-      // overshoot after the gesture has ended and scroll updates are quiet.
-      const settled=storyToScroll(progress,peopleRoute);
-      scrollTo({top:settled*view.range,behavior:'instant'});
-      previousNativeScroll=scrollY;nativeScrollQuiet=0;particleRebasePending=false;particleScrollOffset=0;
-    }
+    // Keep the requested native target after release, including the physical
+    // bottom. The speed-limited picture catches up; never discard the ending
+    // or pull the page back. Reversals above cancel lag without a scroll write.
     const portrait=view.width<view.height;
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute,particleEnding);
@@ -363,5 +361,5 @@ if (renderer) {
   renderer.setAnimationLoop(frame);
   document.addEventListener('visibilitychange', () => {previous=performance.now();renderer.setAnimationLoop(document.hidden ? null : frame);});
   canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();renderer.setAnimationLoop(null);});
-  canvas.addEventListener('webglcontextrestored',()=>{previous=performance.now();renderer.setAnimationLoop(frame);});
+  canvas.addEventListener('webglcontextrestored',()=>{memory.invalidateParticleEnding?.();previous=performance.now();renderer.setAnimationLoop(frame);});
 }
