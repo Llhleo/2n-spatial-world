@@ -1,0 +1,87 @@
+name: Sync main to WSR 3D directory
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sync-wsr-3d
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require destination credential
+        env:
+          SYNC_TOKEN: ${{ secrets.LLHLEO_2N3D_PAT }}
+        run: |
+          test -n "$SYNC_TOKEN" || { echo 'Missing LLHLEO_2N3D_PAT repository secret'; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          repository: pythonWsr/2n-welcome
+          ref: main
+          token: ${{ secrets.LLHLEO_2N3D_PAT }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run destination mjs and stage only the allowed directory
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote add source3d https://github.com/Llhleo/2n-spatial-world.git
+          git fetch --depth=1 source3d main:refs/remotes/source3d/main
+          SOURCE_SHA=$(git rev-parse refs/remotes/source3d/main)
+          node data/3d/sync-from-copy.mjs --branch=refs/remotes/source3d/main
+          # The existing mjs also maintains root ignore rules and local archives.
+          # Neither belongs in this narrowly scoped synchronization commit.
+          git restore --source=HEAD -- .gitignore
+          git add -A -- data/3d/2n-spatial-world
+          git reset -q HEAD -- data/3d/2n-spatial-world/.github
+          python3 - <<'PY'
+          import subprocess
+          paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z']).split(b'\0')
+          for p in filter(None, paths):
+              if not p.startswith(b'data/3d/2n-spatial-world/'):
+                  raise SystemExit('Refusing out-of-scope file: ' + repr(p))
+          PY
+          git diff --cached --check
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo 'Destination is already synchronized.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+            git diff --cached --stat >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Install and test synchronized source
+        if: steps.sync.outputs.changed == 'true'
+        working-directory: data/3d/2n-spatial-world
+        run: |
+          npm install --no-package-lock --ignore-scripts
+          node --test test/*.test.js tests/*.test.js
+      - name: Publish synchronization PR
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.LLHLEO_2N3D_PAT }}
+          SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
+          GH_REPO: pythonWsr/2n-welcome
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          BRANCH="sync/2n3d-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$BRANCH"
+          git commit -m "chore(3d): sync source main ${SOURCE_SHA:0:7}"
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$BRANCH"
+          printf '使用 WSR 原有 data/3d/sync-from-copy.mjs 同步上游 main。\n\n来源：Llhleo/2n-spatial-world@%s\n范围：仅 data/3d/2n-spatial-world/，保留本地 Vite 配置，不提交根配置和工作流。\n验证：完整 Node 测试及 git diff --check 通过。\n' "$SOURCE_SHA" > "$RUNNER_TEMP/wsr-pr.md"
+          PR_URL=$(gh pr create --base main --head "$BRANCH" --title "chore(3d): sync source main ${SOURCE_SHA:0:7}" --body-file "$RUNNER_TEMP/wsr-pr.md")
+          echo "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          # Respect required reviews/checks; never use --admin or bypass protection.
+          gh pr merge "$PR_URL" --auto --squash --delete-branch
