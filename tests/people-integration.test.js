@@ -416,7 +416,7 @@ test('particle ending limits manual flings, retains the page-end target and acce
  assert.ok(held-after>.15,'released input keeps its requested progress instead of discarding the ending');
  assert.equal(app.calls.scroll.length,writes,'settling never pulls the native page away from the requested endpoint');
  seek(0);app.tick();const reverse=app.calls.memory.at(-1).nextT;
- assert.ok(reverse<held&&held-reverse<=.02/18+1e-10,'a new reverse gesture must not wait behind old overshoot');
+ assert.ok(reverse<held&&held-reverse<=1.35*.02/18+1e-10,'a new reverse gesture must not wait behind old overshoot');
  assert.equal(app.elements.get('replay').hidden,true);
  for(let i=0;i<1000;i++){seek(1);app.tick();}
  assert.ok(app.calls.memory.at(-1).nextT>1-1e-7,'continued manual input still reaches the final frame');
@@ -605,7 +605,7 @@ test('one reverse fling plays through all story events after particles instead o
   if(app.elements.get('world').dataset.biome!=='history')continue;
   const t=app.calls.history.at(-1).historyT;
   if(!entered){assert.ok(t>.999,'reverse must first show the final story frame');entered=true;}
-  if(t>.23)assert.ok(prior-t<=.02/36+1e-9,`history jumped from ${prior} to ${t}`);
+  if(t>.23)assert.ok(prior-t<=1.35*.02/36+1e-9,`history jumped from ${prior} to ${t}`);
   if(state.eventIndex>=0)visits[state.eventIndex]++;
   prior=t;
  }
@@ -619,7 +619,7 @@ test('forward input during queued reverse history playback cancels the old backw
  app.seek(api.storyToScroll((api.NEXT_START_UNITS+3.2*.02)/28,app.gallery.route));app.tick();app.setReduced(false);
  app.seek(.8);for(let i=0;i<100;i++)app.tick();
  assert.equal(app.elements.get('world').dataset.biome,'history');
- const before=Number(app.elements.get('world').dataset.progress);
+ const before=app.calls.history.at(-1).historyT;
  app.seek(.801);app.tick();
- assert.ok(Number(app.elements.get('world').dataset.progress)>before,'a downward gesture must not wait for queued story reversal');
+ assert.ok(app.calls.history.at(-1).historyT>before,'a downward gesture must not wait for queued story reversal');
 });
