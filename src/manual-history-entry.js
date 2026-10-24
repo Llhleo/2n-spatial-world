@@ -14,6 +14,16 @@ export function limitManualHistoryEntry(current,candidate,dt,reduced=false){
  return candidate;
 }
 
+// A reverse target may already be several chapters behind the displayed picture.
+// The particle guard owns its segment first; history then consumes the same
+// target at its own reading speed, retaining the original departure corridor.
+export function limitManualHistoryReverse(current,candidate,dt){
+ if(candidate>=current||current>NEXT_START_UNITS/28)return candidate;
+ if(current<=end)return limitManualHistoryEntry(current,candidate,dt);
+ const step=HISTORY_UNITS/28*Math.max(0,Math.min(.05,dt))/HISTORY_SECONDS;
+ return Math.max(candidate,end,current-step);
+}
+
 // The complete particle timeline uses the same local manual guard. Callers
 // retain the native target until reached, but cancel queued lag on input reversal.
 // Limiting the picture must never make the physical page end unreachable.
@@ -22,6 +32,6 @@ export function limitManualParticleEnding(current,candidate,dt,reduced=false){
  const start=NEXT_START_UNITS/28,end=TOTAL_UNITS/28;
  const step=(end-start)*Math.max(0,Math.min(.05,dt))/PARTICLE_ENDING_SECONDS;
  if(candidate>current&&current<end&&candidate>start)return Math.min(candidate,end,Math.max(start,current)+step);
- if(candidate<current&&current>start&&candidate<end)return Math.max(candidate,Math.min(end,current)-step);
+ if(candidate<current&&current>start&&candidate<end)return Math.max(candidate,start,Math.min(end,current)-step);
  return candidate;
 }

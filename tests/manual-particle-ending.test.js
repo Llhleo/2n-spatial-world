@@ -27,3 +27,9 @@ test('particle protection reverses at the same bounded speed and preserves unrel
  assert.ok(leaving<end&&end-leaving<=(end-start)/1080+1e-10,'reversing the final frame cannot jump straight to the story');
  assert.ok(guard.limitManualParticleEnding(p,end,5)-p<=(end-start)*.05/18+1e-10,'a resumed tab cannot consume the segment in a single long frame');
 });
+
+test('the last reverse particle step lands on the story boundary before entering history',()=>{
+ const p=start+(end-start)/2160;
+ assert.ok(Math.abs(guard.limitManualParticleEnding(p,start-.5,1/60)-start)<1e-12);
+ assert.equal(guard.limitManualParticleEnding(start,start-.0001,1/60),start-.0001);
+});
