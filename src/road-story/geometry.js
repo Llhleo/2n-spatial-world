@@ -14,22 +14,33 @@ const outline=new T.MeshBasicMaterial({color:0xd9dfd9,transparent:true,opacity:.
 const faint=new T.MeshBasicMaterial({color:0x53656d,transparent:true,opacity:.5});
 const warm=new T.MeshBasicMaterial({color:0xe9c994});
 function curve(points){return new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)),false,'centripetal');}
-const stageMotion={kind:0,root:null,position:null,quaternion:null,pattern:false};
+const stageMotion={kind:0,root:null,position:null,quaternion:null,pattern:true};
 function configureStage(root,kind){stageMotion.kind=kind;stageMotion.root=root;stageMotion.position=camera.position.clone();stageMotion.quaternion=camera.quaternion.clone();stageMotion.lineRow=0;}
 function textLayout(kind){return [{x:100,y:640,dateSize:34,titleSize:64,gap:80,depth:235},{x:420,y:1530,dateSize:32,titleSize:48,gap:72,depth:270},{x:195,y:1220,dateSize:82,titleSize:42,gap:80,depth:245}][kind];}
 function waveMesh(mesh){
  mesh.userData.wave=true;const uniform={value:7.25};mesh.material.userData.waveTime=uniform;
- mesh.material.onBeforeCompile=s=>{s.uniforms.waveTime=uniform;s.vertexShader='uniform float waveTime;\n'+s.vertexShader;const n=v=>Number(v).toFixed(6),displace=Object.entries(waveConfig).map(([axis,terms])=>'transformed.'+axis+' += '+terms.map(c=>n(c.a)+'*sin(position.x*'+n(c.x)+'+position.y*'+n(c.y)+'+waveTime*'+n(c.t)+')').join('+')+';').join('\n');s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+displace);};mesh.material.customProgramCacheKey=()=> '2n-tidal-v11';return mesh;
+ mesh.material.onBeforeCompile=shader=>{
+  shader.uniforms.waveTime=uniform;shader.vertexShader='uniform float waveTime;\n'+shader.vertexShader;
+  const n=v=>Number(v).toFixed(6),field=mesh.isInstancedMesh?'mvPosition':'transformed',sample=mesh.isInstancedMesh?'waveSource':'position';
+  const displace=Object.entries(waveConfig).map(([axis,terms])=>field+'.'+axis+' += '+terms.map(c=>n(c.a)+'*sin('+sample+'.x*'+n(c.x)+'+'+sample+'.y*'+n(c.y)+'+waveTime*'+n(c.t)+')').join('+')+';').join('\n');
+  if(mesh.isInstancedMesh){const project=T.ShaderChunk.project_vertex.replace('mvPosition = modelViewMatrix * mvPosition;','vec3 waveSource = mvPosition.xyz;\n'+displace+'\nmvPosition = modelViewMatrix * mvPosition;');shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',project);}
+  else shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+displace);
+ };
+ mesh.material.customProgramCacheKey=()=>mesh.isInstancedMesh?'2n-tidal-instances-v12':'2n-tidal-v11';return mesh;
 }
 function bgStroke(parent,points,radius,mat,segments){return waveMesh(stageMotion.pattern?typeContour(parent,points,mat,stageMotion.lineRow++):tube(parent,points,radius,mat,segments));}
+let glyphGeometry=null;
 function typeContour(parent,points,mat,row=0){
  mat.side=T.DoubleSide;
- const c=curve(points),length=c.getLength(),count=Math.max(4,Math.floor(length/3.2)),pos=[],idx=[];
- const glyphs=[[[0,.8],[.2,1],[.8,1],[1,.8],[1,.6],[0,0],[1,0]],[[1.5,0],[1.5,.7],[1.5,.5],[1.8,.7],[2.15,.7],[2.15,0]]];
- for(let n=0;n<count;n++){const u=row%2?1-(n+.25)/count:(n+.25)/count,p=c.getPointAt(u),t=c.getTangentAt(u).normalize().multiplyScalar(row%2?-1:1),up=V(-t.y,t.x,0).normalize();
-  for(const stroke of glyphs)for(let j=1;j<stroke.length;j++){const q=stroke[j-1],r=stroke[j],s=.9,a=p.clone().addScaledVector(t,q[0]*s).addScaledVector(up,q[1]*s),b=p.clone().addScaledVector(t,r[0]*s).addScaledVector(up,r[1]*s),w=b.clone().sub(a).cross(V(0,0,1)).normalize().multiplyScalar(.065),o=pos.length/3;pos.push(...a.clone().add(w).toArray(),...a.clone().sub(w).toArray(),...b.clone().add(w).toArray(),...b.clone().sub(w).toArray());idx.push(o,o+1,o+2,o+2,o+1,o+3);}
+ const c=curve(points),count=Math.max(4,Math.floor(c.getLength()/3.2));
+ if(!glyphGeometry){
+  const pos=[],idx=[],glyphs=[[[0,.8],[.2,1],[.8,1],[1,.8],[1,.6],[0,0],[1,0]],[[1.5,0],[1.5,.7],[1.5,.5],[1.8,.7],[2.15,.7],[2.15,0]]];
+  for(const stroke of glyphs)for(let j=1;j<stroke.length;j++){const a=V(stroke[j-1][0]*.9,stroke[j-1][1]*.9,0),b=V(stroke[j][0]*.9,stroke[j][1]*.9,0),w=b.clone().sub(a).cross(V(0,0,1)).normalize().multiplyScalar(.065),o=pos.length/3;pos.push(...a.clone().add(w).toArray(),...a.clone().sub(w).toArray(),...b.clone().add(w).toArray(),...b.clone().sub(w).toArray());idx.push(o,o+1,o+2,o+2,o+1,o+3);}
+  glyphGeometry=new T.BufferGeometry();glyphGeometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));glyphGeometry.setIndex(idx);glyphGeometry.computeVertexNormals();
  }
- const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();const mesh=new T.Mesh(g,mat);parent.add(mesh);return mesh;
+ const mesh=new T.InstancedMesh(glyphGeometry,mat,count),matrix=new T.Matrix4();mesh.userData.typeLine=true;
+ for(let n=0;n<count;n++){const u=row%2?1-(n+.25)/count:(n+.25)/count,p=c.getPointAt(u),t=c.getTangentAt(u).normalize().multiplyScalar(row%2?-1:1),up=V(-t.y,t.x,0).normalize(),normal=new T.Vector3().crossVectors(t,up).normalize();matrix.makeBasis(t,up,normal);matrix.setPosition(p);mesh.setMatrixAt(n,matrix);}
+ parent.add(mesh);return mesh;
 }
 function preparePetalClearance(){}
 function inkMotion(mesh,phase=0,strength=.5){mesh.userData.inkMotion={base:mesh.material.color.clone(),phase,strength};return mesh;}
@@ -320,10 +331,16 @@ function mergeStatic(parent,waves=false){
   for(const old of list){old.removeFromParent();old.geometry.dispose();}geometries.forEach(g=>g.dispose());
  }
 }
+function mergeTypeLines(parent){
+ const rows=[];parent.updateMatrixWorld(true);parent.traverse(o=>{if(o.userData.typeLine)rows.push(o);});if(!rows.length)return;
+ const count=rows.reduce((n,o)=>n+o.count,0),material=new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}),mesh=new T.InstancedMesh(glyphGeometry,material,count),matrix=new T.Matrix4(),local=new T.Matrix4(),inverse=parent.matrixWorld.clone().invert();let slot=0;
+ for(const row of rows){local.multiplyMatrices(inverse,row.matrixWorld);for(let i=0;i<row.count;i++){row.getMatrixAt(i,matrix);matrix.premultiply(local);mesh.setMatrixAt(slot,matrix);mesh.setColorAt(slot++,row.material.color);}row.removeFromParent();row.dispose();row.material.dispose();}
+ mesh.name='tidal-2n-glyph-field';mesh.userData.typeLine=true;waveMesh(mesh);mesh.computeBoundingSphere();mesh.boundingSphere.radius+=20;parent.add(mesh);
+}
 for(const c of contexts){
  c.labels.traverse(o=>o.userData.isLabel=true);
  for(const r of c.roads){r.spark.traverse(o=>o.userData.isLabel=true);mergeStatic(r.root,false);}
- for(const bg of c.backgrounds)mergeStatic(bg,true);
+ for(const bg of c.backgrounds){mergeTypeLines(bg);mergeStatic(bg,true);}
 }
 const object=new T.Object3D(),point=new T.Vector3(),world=new T.Vector3(),frustum=new T.Frustum(),viewProjection=new T.Matrix4(),sphere=new T.Sphere(),rotationScratch=new T.Quaternion(),eulerScratch=new T.Euler();
 function update(clock,view,seconds,reduced=false){

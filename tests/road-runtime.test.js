@@ -12,6 +12,10 @@ const data=p=>JSON.parse(fs.readFileSync(new URL('../'+p,import.meta.url)));
 const source=new T.SphereGeometry(1,6,4),material=new T.MeshBasicMaterial(),assets=new Map(PETAL_NAMES.map(n=>[n,{geometry:source,material,face:new T.Quaternion()}]));
 test('real scene geometry survives ten-minute idle, all camera flights, and viewport changes',()=>{
  const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
+ const fields=[];world.group.traverse(o=>{if(o.userData.typeLine)fields.push(o);});
+ assert.ok(fields.length>=3,'default background is repeated 2n text rather than plain contours');
+ assert.ok(fields.every(o=>o.isInstancedMesh),'repeated glyphs share small geometry');
+ for(const field of fields){const shader={uniforms:{},vertexShader:T.ShaderLib.basic.vertexShader};field.material.onBeforeCompile(shader);assert.ok(shader.vertexShader.includes('mvPosition.z +='),'wave displacement follows instance placement');}
  const entry={position:[-340,-160,-10],target:[-330,-160,-10],up:[0,1,0]},camera=new T.PerspectiveCamera(40,414/896,.2,2400);
  // This entry has the same yaw/frame as production; audit actual far cap vertices.
  world.group.matrixAutoUpdate=false;world.group.matrix.copy(memoryEntryFrame(entry));
