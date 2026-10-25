@@ -1,3 +1,7 @@
+import {createGuildRoadStory} from './guild-road-story.js';
+import {renderRoadStory} from './road-story/view.js';
+import {createGesturePlayback} from './gesture-playback.js';
+import {ROAD_READING_STOPS} from './road-story/path.js';
 import './loading-log.js';
 import {limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
@@ -44,6 +48,9 @@ if (renderer) {
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
   const particleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
+  const roads=createGuildRoadStory({historyRecords:historyRecords.events});scene.add(roads.group);
+  const gestureMode=new URLSearchParams(location.search).get('playback')!=='legacy',roadPreview=new URLSearchParams(location.search).get('roadPreview')==='1';
+  if(gestureMode&&!memoryPreview)document.documentElement.classList.add('gesture-playback');
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;
@@ -59,7 +66,7 @@ if (renderer) {
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){
     if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
-    try{await Promise.all([history.prepare(),nextView.prepare()]);if(particleEnding)memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
+    try{await Promise.all([history.prepare(),nextView.prepare(),roads.prepare()]);if(particleEnding)memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
   }
   createLighting(scene, renderer);
   createRevealLight(scene);
@@ -92,7 +99,7 @@ if (renderer) {
     try{
     const initMaps=mesh=>{for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])for(const value of Object.values(material))if(value?.isTexture)renderer.initTexture(value);};
     // Settle every branch before enabling a retry: never overlap preparation runs.
-    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps,(source,kind,name)=>memory?.install(source,kind,name)),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
+    const results=await Promise.allSettled([prepareBiomePetals(world),companionship.prepare(initMaps,(source,kind,name)=>{memory?.install(source,kind,name);roads.install(source,kind,name);}),flowers.prepare(initMaps)].map(job=>job.catch(error=>{cancelPendingModelLoads();throw error;})));
     const rejected=results.find(result=>result.status==='rejected');if(rejected)throw rejected.reason;
     if(Object.values(world.loading.failures).some(list=>list.length))return;
     const groundDeadline=performance.now()+15000;
@@ -131,11 +138,24 @@ if (renderer) {
   let introLocked=true;
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
+  let gesturePlayer=null,gestureKey='',gestureActive=false,previewStarted=false,gestureResumeDirection=0;
+  let touchAnchor=null,touchDirection=0,wheelAt=-Infinity,wheelDirection=0;
+  function ensureGesture(){
+    const before=150+(peopleRoute?.seconds||0),duration=autoplayDuration(peopleRoute,particleEnding),key=before+':'+duration;
+    if(!gesturePlayer||gestureKey!==key){
+      const stops=[0,...[6,14,20,24,27.2,32,38,44,50,55.2].map(v=>v/STORY_UNITS*150),...(peopleRoute?.windows||[]).map(w=>150+w.readEnd*peopleRoute.seconds),...ROAD_READING_STOPS.map(v=>before+v),...[3.24,6,10,14.4,16.5,18].filter(v=>v<=(particleEnding?18:16)).map(v=>before+36+v),duration];
+      gesturePlayer=createGesturePlayback([...new Set(stops)].sort((a,b)=>a-b));gestureKey=key;gestureActive=false;
+    }
+    if(!gestureActive){gesturePlayer.seek(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding)*duration);gestureActive=true;if(gestureResumeDirection){gesturePlayer.request(gestureResumeDirection);gestureResumeDirection=0;}}
+    return gesturePlayer;
+  }
+  function requestGesture(direction){if(introLocked||!direction)return;player.pause();controlled=true;ensureGesture().request(direction);}
   let touchScrolling=false,pointerScrolling=false,particleRebasePending=false;
   let previousNativeScroll=0;
   let particleScrollOffset=0,directedInput=0,directedInputAt=-Infinity;
   function adoptPeopleRoute(next){
     const playing=player.playing;
+    gestureResumeDirection=gesturePlayer?.playing?gesturePlayer.direction:0;gestureActive=false;
     cancelDistancePreparation();
     peopleRoute=next;people.adoptRoute(next);
     cancelDistancePreparation=preparePeopleDistance(next);
@@ -179,6 +199,12 @@ if (renderer) {
   },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
+    if(gestureMode&&!memoryPreview){
+      if(event?.target?.closest?.('button,a,input,select,textarea'))return;
+      if(event?.type==='wheel'){event.preventDefault();const direction=Math.sign(event.deltaY||0),now=performance.now();if(direction&&(now-wheelAt>220||direction!==wheelDirection))requestGesture(direction);wheelAt=now;wheelDirection=direction;}
+      else if(event?.type==='keydown'){if(!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;event.preventDefault();if(!event.repeat)requestGesture(['ArrowUp','PageUp','Home'].includes(event.key)||(event.key===' '&&event.shiftKey)?-1:1);}
+      return;
+    }
     if(memoryPreview){controlled=true;player.pause();return;}
     if(event?.target?.closest?.('#autoplay')||event?.target?.closest?.('#replay'))return;
     if(event?.type!=='wheel'&&(event?.target?.closest?.('#retry-people')||event?.target?.closest?.('#retry-history')))return;
@@ -194,8 +220,12 @@ if (renderer) {
       controlled = true;
     }
   };
-  addEventListener('wheel', takeControl, {passive:true});
-  addEventListener('touchstart',event=>{touchScrolling=true;takeControl(event);},{passive:true});
+  addEventListener('wheel', takeControl, {passive:false});
+  addEventListener('touchstart',event=>{touchScrolling=true;touchAnchor=event.touches?.[0]?.clientY??null;touchDirection=0;takeControl(event);},{passive:true});
+  addEventListener('touchmove',event=>{
+    if(!gestureMode||memoryPreview||introLocked||event.touches.length!==1||event.target.closest?.('button,a,input'))return;
+    event.preventDefault();const y=event.touches[0].clientY,delta=(touchAnchor??y)-y;if(Math.abs(delta)<7)return;const direction=Math.sign(delta);if(direction!==touchDirection){requestGesture(direction);touchDirection=direction;}touchAnchor=y;
+  },{passive:false});
   const finishTouch=event=>{touchScrolling=!!event?.touches?.length;};
   addEventListener('touchend',finishTouch,{passive:true});
   addEventListener('touchcancel',finishTouch,{passive:true});
@@ -207,7 +237,7 @@ if (renderer) {
   addEventListener('keydown', takeControl);
   autoplayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
-    particleScrollOffset=0;particleRebasePending=false;
+    particleScrollOffset=0;particleRebasePending=false;gestureActive=false;
     player.toggle(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding),true);controlled=true;
     scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});
     revealButton();
@@ -215,7 +245,7 @@ if (renderer) {
   replayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
     particleScrollOffset=0;particleRebasePending=false;
-    player.pause();progress=0;auto=0;controlled=true;
+    player.pause();gesturePlayer?.seek(0);gestureActive=false;progress=0;auto=0;controlled=true;
     scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
   });
   attachIntroInput(window,()=>introLocked,()=>{});
@@ -227,10 +257,13 @@ if (renderer) {
     if(particleEnding)memory.warmParticleEnding?.(camera.aspect,reduced.matches);
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
     const memoryReady=memoryPreview&&memory.assetCount===14;
-    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=introState.locked&&!memoryReady;
+    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=(introState.locked&&!memoryReady)||(roadPreview&&(!roads.ready||!people?.ready));
+    if(roadPreview&&!introLocked&&!previewStarted){previewStarted=true;controlled=true;progress=LEGACY_TOTAL_UNITS/28;gestureActive=false;requestGesture(1);}
     if(memoryReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
+    if(gestureMode&&controlled&&!wasPlaying&&!memoryPreview){const time=ensureGesture().advance(dt),duration=autoplayDuration(peopleRoute,particleEnding);progress=scrollToStory(autoplayToScroll(time/duration,peopleRoute,particleEnding),peopleRoute);}
+    if(wasPlaying)gestureActive=false;
     if(wasPlaying){
       progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute,particleEnding),peopleRoute);
       scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
@@ -256,7 +289,7 @@ if (renderer) {
     const manualScroll=scrollProgress(scroll+particleScrollOffset,1);
     const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?manualScroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
-    if(!wasPlaying){
+    if(!wasPlaying&&(!gestureMode||!controlled||memoryPreview)){
       if(reduced.matches)progress=target;
       else if(controlled||initialEnding){
         // Damp the physical distance coordinate, then sample its inverse. Time
@@ -297,7 +330,7 @@ if (renderer) {
     companionship.update(returnProgress,reduced.matches?0:dt,peopleProgress,peopleRoute,closing?{camera:departureCamera}:null);
     const entryKey=closing?JSON.stringify([state.entryPose.position,state.entryPose.target,camera.aspect]):null;
     if(!closing)memory.group.userData.entryCaptured=null;
-    if(closing&&memory.group.userData.entryCaptured!==entryKey){companionship.captureChain(departureCamera);memory.captureEntry?.(companionship.group,departureCamera);memory.group.userData.entryCaptured=entryKey;}
+    if(closing&&memory.group.userData.entryCaptured!==entryKey){companionship.captureChain(departureCamera);memory.captureEntry?.(companionship.group,departureCamera);roads.captureEntry(companionship.group,state.entryPose);memory.group.userData.entryCaptured=entryKey;}
     people?.update(peopleProgress,camera,reduced.matches?0:dt,reduced.matches);
     if(closing&&people){
       people.group.traverse(object=>{
@@ -318,6 +351,7 @@ if (renderer) {
     arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
+    canvas.dataset.playbackSeconds=String(gesturePlayer?.time??0);canvas.dataset.playbackTarget=String(gesturePlayer?.target??0);
     canvas.dataset.camera=JSON.stringify(state.position);
     canvas.dataset.biome=inNext?'next':closing?'history':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
     canvas.dataset.returnProgress=returnProgress.toFixed(3);
@@ -332,7 +366,7 @@ if (renderer) {
     loading.hidden=!introLocked;
     autoplayButton.hidden=introLocked||inNext;
     autoplayButton.setAttribute('aria-pressed',String(player.playing));
-    autoplayButton.textContent=player.playing?'暂停播放':'自动播放';
+    autoplayButton.textContent=player.playing?'暂停播放':gesturePlayer?.playing?'自动播放 · 继续整段':'自动播放';
     if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
     const loadingText=failed?(preparingAll?'正在完成剩余资源，随后可重试':`资源准备失败，可重试${gpuError?' · '+gpuError:''}`):warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14 · 花朵 ${flowers.prepared}/7`;
@@ -345,7 +379,7 @@ if (renderer) {
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
-    const readingReady=inNext?nextView.ready&&(!particleEnding||memory.particleEndingReady):!!history?.ready;
+    const readingReady=inNext?nextView.ready&&(!particleEnding||memory.particleEndingReady):closing&&roads.ready?true:!!history?.ready;
     historyStatus.hidden=introLocked||!closing||readingReady;
     historyStatus.querySelector('span').textContent=historyError?'故事资源准备失败，可重试':inNext?'正在准备结尾，可继续滑动':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
@@ -354,6 +388,9 @@ if (renderer) {
       historyStatus.hidden=!memoryText||!!history?.ready;
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
+    }else if(closing&&roads.ready&&memory.assetCount===14){
+      renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,state,chapter,viewport:view,dt,reducedMotion:reduced.matches,departureGroups:[companionship.group],updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0018;}});
+      canvas.dataset.roadInstances=String(roads.instanceCount);canvas.dataset.roadVisible=String(roads.visibleCount);canvas.dataset.gestureTime=String(gesturePlayer?.time??0);
     }else if(closing&&memory.assetCount===14){
       renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding,nextT:inNext&&(!particleEnding||memory.particleEndingReady)?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
     }else renderer.render(scene, camera);

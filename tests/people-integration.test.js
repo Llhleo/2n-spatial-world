@@ -1,3 +1,5 @@
+import {createGesturePlayback} from '../src/gesture-playback.js';
+import {ROAD_READING_STOPS} from '../src/road-story/path.js';
 import * as manualEntry from '../src/manual-history-entry.js';
 const {limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse}=manualEntry;
 import test from 'node:test';
@@ -97,7 +99,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0}={}){
+function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false}={}){
  const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,history:[],next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
@@ -118,13 +120,13 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
  class Renderer{extensions={has:()=>floatBuffers};setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,get particleEndingReady(){return cacheTicks>=cacheWarmFrames;},warmParticleEnding(){cacheTicks++;},prepareParticleEnding(){},invalidateParticleEnding(){cacheTicks=0;calls.invalidated=(calls.invalidated||0)+1;},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:preview?'?historyPreview=1':''},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={createGesturePlayback,ROAD_READING_STOPS,createGuildRoadStory:()=>({group:new THREE.Group(),ready:false,install(){},captureEntry(){},prepare:async()=>{}}),particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,get particleEndingReady(){return cacheTicks>=cacheWarmFrames;},warmParticleEnding(){cacheTicks++;},prepareParticleEnding(){},invalidateParticleEnding(){cacheTicks=0;calls.invalidated=(calls.invalidated||0)+1;},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:(preview?'?historyPreview=1&':'?')+'playback='+(gestures?'gesture':'legacy')},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createNextView(){const view=resource();view.readingBounds=new THREE.Box3();view.update=state=>calls.next.push(state);return view;},createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.update=state=>{if(Number.isFinite(state.historyT))calls.history.push(state);};h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   preparePeopleDistance(route){calls.distancePrepared.push(route);return ()=>calls.distanceCancelled.push(route);},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
-  document:{body:{append(){}},createElement:tag=>({...element(`preview-${tag}`),append(){},querySelectorAll(){return[];}}),querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){}}},addEventListener(){}},
+  document:{body:{append(){}},createElement:tag=>({...element(`preview-${tag}`),append(){},querySelectorAll(){return[];}}),querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){},add(){}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
@@ -622,4 +624,27 @@ test('forward input during queued reverse history playback cancels the old backw
  const before=app.calls.history.at(-1).historyT;
  app.seek(.801);app.tick();
  assert.ok(app.calls.history.at(-1).historyT>before,'a downward gesture must not wait for queued story reversal');
+});
+
+
+test('gesture entry ignores native scroll distance and always advances by elapsed seconds',async()=>{
+ const a=entry({gestures:true}),b=entry({gestures:true});await a.settle();await b.settle();a.open();b.open();a.tick();b.tick();
+ const wheel=deltaY=>({type:'wheel',deltaY,target:{closest:()=>false},preventDefault(){}});
+ a.events.get('wheel')(wheel(12));b.events.get('wheel')(wheel(18000));
+ for(let i=0;i<100;i++){if(i%3===0)b.events.get('wheel')(wheel(18000));a.tick();b.tick();}
+ assert.equal(a.elements.get('world').dataset.playbackSeconds,b.elements.get('world').dataset.playbackSeconds);
+ assert.equal(a.elements.get('world').dataset.playbackTarget,b.elements.get('world').dataset.playbackTarget);
+ const before=Number(a.elements.get('world').dataset.playbackSeconds);a.seek(1);a.tick();
+ near(Number(a.elements.get('world').dataset.playbackSeconds)-before,.02);
+ a.events.get('wheel')(wheel(-10000));a.tick();
+ near(Number(a.elements.get('world').dataset.playbackSeconds),before);
+});
+
+test('one touch gesture triggers once and a real reversal changes direction immediately',async()=>{
+ const app=entry({gestures:true});await app.settle();app.open();app.tick();const target={closest:()=>false};
+ app.events.get('touchstart')({type:'touchstart',target,touches:[{clientY:500}]});
+ const move=y=>app.events.get('touchmove')({target,touches:[{clientY:y}],preventDefault(){}});
+ move(480);for(let i=0;i<30;i++){move(470-i*9);app.tick();}
+ const first=Number(app.elements.get('world').dataset.playbackSeconds);move(230);app.tick();
+ assert.ok(Number(app.elements.get('world').dataset.playbackSeconds)<first);
 });

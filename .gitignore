@@ -11,3 +11,5 @@ __pycache__/
 /public/release.json
 
 /dist-ending/
+
+/scripts/road-story/cache/

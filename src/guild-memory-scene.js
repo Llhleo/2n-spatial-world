@@ -12,7 +12,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  let ending=createEndingParticles({renderer});
  const dimensions=createEndingFrames();group.add(dimensions.group,ending.occluder);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
- let activeTarget=null,particleLayer=false;
+ let activeTarget=null,particleLayer=false,layerOpacity=1;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null,orbitTime=0,lastEndingT=0;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
@@ -88,9 +88,9 @@ export function createMemoryScene({mobile=true,renderer}={}){
  function updatePetalLayer(pool,reading=pool.reading||false){
   pool.reading=reading;
   pool.material.map=particleLayer?pool.stableMap:pool.displayMap;
-  const transparent=particleLayer||reading||pool.nativeTransparent;
+  const transparent=particleLayer||reading||pool.nativeTransparent||layerOpacity<1;
   if(pool.material.transparent!==transparent){pool.material.transparent=transparent;pool.material.needsUpdate=true;}
-  pool.material.depthWrite=pool.nativeDepthWrite;
+  pool.material.depthWrite=pool.nativeDepthWrite;pool.material.opacity=layerOpacity;
   pool.mesh.renderOrder=particleLayer||reading?3:0;
  }
  function prepareParticleEnding(nextRenderer){
@@ -238,5 +238,5 @@ export function createMemoryScene({mobile=true,renderer}={}){
    }alpha.needsUpdate=true;
   }
  }
- return {group,install,prepare,prepareParticleEnding,warmParticleEnding,invalidateParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return ending.fluidReady;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,prepareParticleEnding,warmParticleEnding,invalidateParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setLayerOpacity(value){layerOpacity=T.MathUtils.clamp(value,0,1);for(const pool of pools.values()){pool.mesh.visible=layerOpacity>0;updatePetalLayer(pool);}},setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return ending.fluidReady;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
 }
