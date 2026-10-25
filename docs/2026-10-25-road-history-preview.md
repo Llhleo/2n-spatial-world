@@ -2,7 +2,7 @@
 
 基于 main `467de098d542353a5f6f61aedd745d394237ab30`，分支 `feat/road-history-gesture-playback`。原 main 和原 Site 保持发布版本。
 
-完整网站默认启用新控制。预览加 `?roadPreview=1`，资源准备好后沿人物链进入第一幕；下滑进入下一处阅读停留，上滑从当前画面倒放。一次手势最多请求一段；松手继续播放至可读停留点。滚动距离、惯性和速度不会改变动画时间倍率。自动播放仍可连续观看完整原站流程。`?playback=legacy` 保留旧控制供对照，`?historyPreview=1` 保留原诊断页面。
+仅新三幕道路章节（含进入与离开运镜，共36秒）启用新控制。首屏、五境、回望、人物和原粒子结尾均恢复原来的滚动映射、惯性目标与限速逻辑。进入道路的正向／反向越界会落到对应入口，离开道路后重新交还原生滚动，清除该段残留滚动目标。预览加 `?roadPreview=1`，资源准备好后沿人物链进入第一幕；下滑进入下一处阅读停留，上滑从当前画面倒放。一次手势最多请求一段；松手继续播放至可读停留点。滚动距离、惯性和速度不会改变动画时间倍率。自动播放仍可连续观看完整原站流程。`?playback=legacy` 保留旧控制供对照，`?historyPreview=1` 保留原诊断页面。
 
 道路花瓣使用原站 14 种高清真实 PETAL，平均间距约为 v11 的三分之一。正反车道分别使用种子随机间距，按实际道路长度移动，在雾外循环；9035 为跨三幕含场外回收池的总实例储备，不是同时显示数量。前景、道路、背景、光珠使用独立环境时钟。背景沿用隔行反向的小 2n 潮汐字线，使用 GPU 变形。三个发光旅行者共用闭合曲线并错相运行，核心、拖尾保留深度测试，点光照亮附近表面。
 
@@ -13,3 +13,5 @@
 远程浏览器无 WebGL 2，不能验收着色器实际画面；真实 iPhone 13 Pro Max Safari 的字形可读性、光晕遮挡及帧率仍需实机确认。构建成功不等同于实机视觉验收。
 
 字体重新生成：依次执行 `python scripts/road-story/make_vector_text.py`、`python scripts/road-story/resolve_font.py`、`node scripts/road-story/triangulate_text.mjs`、`python scripts/road-story/verify_font.py`。需要 fontTools、Shapely、Pillow、NumPy；许可证随字体保存。交通审计执行 `node scripts/road-story/audit-traffic.mjs`。
+
+2026-10-25 范围修正：上一版误将定速手势应用到整站，本次已收窄到道路章节。新增与旧控制逐帧对照、正反边界交接及缩放回归检查。

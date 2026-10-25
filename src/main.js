@@ -10,7 +10,7 @@ import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,NEXT_START_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createNextView} from './guild-next-view.js';
@@ -50,7 +50,6 @@ if (renderer) {
   const particleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
   const roads=createGuildRoadStory({historyRecords:historyRecords.events});scene.add(roads.group);
   const gestureMode=new URLSearchParams(location.search).get('playback')!=='legacy',roadPreview=new URLSearchParams(location.search).get('roadPreview')==='1';
-  if(gestureMode&&!memoryPreview)document.documentElement.classList.add('gesture-playback');
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;
@@ -138,18 +137,28 @@ if (renderer) {
   let introLocked=true;
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
-  let gesturePlayer=null,gestureKey='',gestureActive=false,previewStarted=false,gestureResumeDirection=0;
+  let gesturePlayer=null,gestureActive=false,roadControl=false,previewStarted=false,gestureResumeDirection=0;
+  const roadStart=LEGACY_TOTAL_UNITS/28,roadEnd=NEXT_START_UNITS/28;
   let touchAnchor=null,touchDirection=0,wheelAt=-Infinity,wheelDirection=0;
   function ensureGesture(){
-    const before=150+(peopleRoute?.seconds||0),duration=autoplayDuration(peopleRoute,particleEnding),key=before+':'+duration;
-    if(!gesturePlayer||gestureKey!==key){
-      const stops=[0,...[6,14,20,24,27.2,32,38,44,50,55.2].map(v=>v/STORY_UNITS*150),...(peopleRoute?.windows||[]).map(w=>150+w.readEnd*peopleRoute.seconds),...ROAD_READING_STOPS.map(v=>before+v),...[3.24,6,10,14.4,16.5,18].filter(v=>v<=(particleEnding?18:16)).map(v=>before+36+v),duration];
-      gesturePlayer=createGesturePlayback([...new Set(stops)].sort((a,b)=>a-b));gestureKey=key;gestureActive=false;
-    }
-    if(!gestureActive){gesturePlayer.seek(scrollToAutoplay(storyToScroll(progress,peopleRoute),peopleRoute,particleEnding)*duration);gestureActive=true;if(gestureResumeDirection){gesturePlayer.request(gestureResumeDirection);gestureResumeDirection=0;}}
+    if(!gesturePlayer)gesturePlayer=createGesturePlayback([0,...ROAD_READING_STOPS,36]);
+    if(!gestureActive){gesturePlayer.seek((progress-roadStart)/(roadEnd-roadStart)*36);gestureActive=true;if(gestureResumeDirection){gesturePlayer.request(gestureResumeDirection);gestureResumeDirection=0;}}
     return gesturePlayer;
   }
-  function requestGesture(direction){if(introLocked||!direction)return;player.pause();controlled=true;ensureGesture().request(direction);}
+  function roadInputScope(direction=0){
+    if(!gestureMode||memoryPreview||reduced.matches)return false;
+    return roadControl||(progress>roadStart+1e-9&&progress<roadEnd-1e-9)||(direction>0&&Math.abs(progress-roadStart)<1e-9)||(direction<0&&Math.abs(progress-roadEnd)<1e-9);
+  }
+  function alignRoadScroll(){
+    particleScrollOffset=0;particleRebasePending=false;
+    scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});previousNativeScroll=scrollY;
+  }
+  function beginRoadControl(){
+    if(roadControl)return;
+    roadControl=true;gestureActive=false;gestureResumeDirection=0;player.pause();controlled=true;ensureGesture();alignRoadScroll();
+  }
+  function releaseRoadControl(){roadControl=false;gestureActive=false;gestureResumeDirection=0;alignRoadScroll();}
+  function requestGesture(direction){if(introLocked||!direction||!roadInputScope(direction))return;beginRoadControl();player.pause();controlled=true;ensureGesture().request(direction);}
   let touchScrolling=false,pointerScrolling=false,particleRebasePending=false;
   let previousNativeScroll=0;
   let particleScrollOffset=0,directedInput=0,directedInputAt=-Infinity;
@@ -199,8 +208,11 @@ if (renderer) {
   },memoryPreview?6.4:TOTAL_UNITS);
   const takeControl = event => {
     if(introLocked)return;
-    if(gestureMode&&!memoryPreview){
+    const inputDirection=event?.type==='wheel'?Math.sign(event.deltaY||0):event?.type==='keydown'?(['ArrowUp','PageUp','Home'].includes(event.key)||(event.key===' '&&event.shiftKey)?-1:1):0;
+    if(roadInputScope(inputDirection)){
       if(event?.target?.closest?.('button,a,input,select,textarea'))return;
+      if(event?.type==='keydown'&&!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;
+      beginRoadControl();
       if(event?.type==='wheel'){event.preventDefault();const direction=Math.sign(event.deltaY||0),now=performance.now();if(direction&&(now-wheelAt>220||direction!==wheelDirection))requestGesture(direction);wheelAt=now;wheelDirection=direction;}
       else if(event?.type==='keydown'){if(!['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key))return;event.preventDefault();if(!event.repeat)requestGesture(['ArrowUp','PageUp','Home'].includes(event.key)||(event.key===' '&&event.shiftKey)?-1:1);}
       return;
@@ -224,7 +236,8 @@ if (renderer) {
   addEventListener('touchstart',event=>{touchScrolling=true;touchAnchor=event.touches?.[0]?.clientY??null;touchDirection=0;takeControl(event);},{passive:true});
   addEventListener('touchmove',event=>{
     if(!gestureMode||memoryPreview||introLocked||event.touches.length!==1||event.target.closest?.('button,a,input'))return;
-    event.preventDefault();const y=event.touches[0].clientY,delta=(touchAnchor??y)-y;if(Math.abs(delta)<7)return;const direction=Math.sign(delta);if(direction!==touchDirection){requestGesture(direction);touchDirection=direction;}touchAnchor=y;
+    const y=event.touches[0].clientY,delta=(touchAnchor??y)-y;if(!roadInputScope(Math.sign(delta)))return;
+    event.preventDefault();beginRoadControl();if(Math.abs(delta)<7)return;const direction=Math.sign(delta);if(direction!==touchDirection){requestGesture(direction);touchDirection=direction;}touchAnchor=y;
   },{passive:false});
   const finishTouch=event=>{touchScrolling=!!event?.touches?.length;};
   addEventListener('touchend',finishTouch,{passive:true});
@@ -245,7 +258,7 @@ if (renderer) {
   replayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
     particleScrollOffset=0;particleRebasePending=false;
-    player.pause();gesturePlayer?.seek(0);gestureActive=false;progress=0;auto=0;controlled=true;
+    player.pause();gesturePlayer?.seek(0);gestureActive=false;roadControl=false;progress=0;auto=0;controlled=true;
     scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
   });
   attachIntroInput(window,()=>introLocked,()=>{});
@@ -262,8 +275,14 @@ if (renderer) {
     if(memoryReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
-    if(gestureMode&&controlled&&!wasPlaying&&!memoryPreview){const time=ensureGesture().advance(dt),duration=autoplayDuration(peopleRoute,particleEnding);progress=scrollToStory(autoplayToScroll(time/duration,peopleRoute,particleEnding),peopleRoute);}
-    if(wasPlaying)gestureActive=false;
+    let roadAdvanced=false;const progressBeforeManual=progress;
+    if(roadControl&&reduced.matches)releaseRoadControl();
+    if(roadControl&&controlled&&!wasPlaying&&!memoryPreview){
+      const playback=ensureGesture(),direction=playback.direction,time=playback.advance(dt);roadAdvanced=true;
+      progress=roadStart+(roadEnd-roadStart)*time/36;
+      if(!playback.playing&&((time<=0&&direction<0)||(time>=36&&direction>0)))releaseRoadControl();
+    }
+    if(wasPlaying){gestureActive=false;roadControl=false;}
     if(wasPlaying){
       progress=scrollToStory(autoplayToScroll(player.advance(dt),peopleRoute,particleEnding),peopleRoute);
       scrollTo({top:storyToScroll(progress,peopleRoute)*view.range,behavior:'instant'});
@@ -289,7 +308,7 @@ if (renderer) {
     const manualScroll=scrollProgress(scroll+particleScrollOffset,1);
     const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?manualScroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
-    if(!wasPlaying&&(!gestureMode||!controlled||memoryPreview)){
+    if(!wasPlaying&&!roadAdvanced){
       if(reduced.matches)progress=target;
       else if(controlled||initialEnding){
         // Damp the physical distance coordinate, then sample its inverse. Time
@@ -308,6 +327,13 @@ if (renderer) {
         }
       } else progress += (target-progress)*(1-Math.exp(-dt*5));
     }
+    // Only crossing into this chapter hands control to the time player.
+    // Native targets outside it retain the original damping and particle guards.
+    if(gestureMode&&!memoryPreview&&!reduced.matches&&controlled&&!wasPlaying&&!roadAdvanced&&!roadControl){
+      const direction=progressBeforeManual<=roadStart+1e-9&&progress>roadStart+1e-9?1:progressBeforeManual>=roadEnd-1e-9&&progress<roadEnd-1e-9?-1:0;
+      if(direction){progress=direction>0?roadStart:roadEnd;beginRoadControl();requestGesture(direction);}
+    }
+    document.documentElement.classList.toggle('gesture-playback',roadControl&&!memoryPreview);
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
     const chapter=chapterAt(progress),heroProgress=chapter.heroT,worldProgress=chapter.worldT;
     if(particleScrollOffset!==0)particleRebasePending=true;
@@ -351,7 +377,7 @@ if (renderer) {
     arrival.style.opacity=text;arrival.style.transform=`translateY(calc(-100% + ${(1-text)*18}px))`;
     arrival.setAttribute('aria-hidden',String(text<.5));
     canvas.dataset.progress=progress.toFixed(3);
-    canvas.dataset.playbackSeconds=String(gesturePlayer?.time??0);canvas.dataset.playbackTarget=String(gesturePlayer?.target??0);
+    canvas.dataset.playbackScope=roadControl?'road':'native';canvas.dataset.playbackSeconds=String(gesturePlayer?.time??0);canvas.dataset.playbackTarget=String(gesturePlayer?.target??0);
     canvas.dataset.camera=JSON.stringify(state.position);
     canvas.dataset.biome=inNext?'next':closing?'history':chapter.chapter==='people'?'people':progress>=RETURN_START?'lookback':progress>JUNGLE_END?'hell':progress>OCEAN_END?'jungle':progress>DESERT_END?'ocean':worldProgress<.76?'garden':'desert-threshold';
     canvas.dataset.returnProgress=returnProgress.toFixed(3);
@@ -366,7 +392,7 @@ if (renderer) {
     loading.hidden=!introLocked;
     autoplayButton.hidden=introLocked||inNext;
     autoplayButton.setAttribute('aria-pressed',String(player.playing));
-    autoplayButton.textContent=player.playing?'暂停播放':gesturePlayer?.playing?'自动播放 · 继续整段':'自动播放';
+    autoplayButton.textContent=player.playing?'暂停播放':roadControl&&gesturePlayer?.playing?'自动播放 · 继续整段':'自动播放';
     if(!introLocked&&!buttonShown){buttonShown=true;revealButton();}
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
     const loadingText=failed?(preparingAll?'正在完成剩余资源，随后可重试':`资源准备失败，可重试${gpuError?' · '+gpuError:''}`):warming?'正在预热完整画面，稍候即可滑动':`正在准备五境花瓣 · ${total}/23 · 高清花瓣 ${companionship.displayPrepared}/14 · 花朵 ${flowers.prepared}/7`;

@@ -15,7 +15,7 @@ import {createPeopleGallery} from '../src/people-gallery.js';
 import {normalizeHistory} from '../src/guild-history-data.js';
 const historyData=JSON.parse(readFileSync(new URL('../content/history.json',import.meta.url)));
 import {createAutoplay} from '../src/autoplay.js';
-import {lookbackPose} from '../src/lookback.js';
+import {lookbackPose,STORY_UNITS} from '../src/lookback.js';
 import {pose} from '../src/journey.js';
 import {gardenPose} from '../src/garden-path.js';
 import {oceanPose} from '../src/ocean-production.js';
@@ -100,7 +100,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
 function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false}={}){
- const events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,history:[],next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
+ const classes=new Set(),events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,history:[],next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
   return elements.get(id);
@@ -126,12 +126,12 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
   preparePeopleDistance(route){calls.distancePrepared.push(route);return ()=>calls.distanceCancelled.push(route);},
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
-  document:{body:{append(){}},createElement:tag=>({...element(`preview-${tag}`),append(){},querySelectorAll(){return[];}}),querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(){},add(){}}},addEventListener(){}},
+  document:{body:{append(){}},createElement:tag=>({...element(`preview-${tag}`),append(){},querySelectorAll(){return[];}}),querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);},add(name){classes.add(name);},remove(name){classes.delete(name);}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
- return {calls,gallery,elements,events,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
+ return {calls,gallery,elements,events,classes,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
 }
 
 test('ready memory petals can show preview despite an unrelated opening resource failure',async()=>{
@@ -627,24 +627,72 @@ test('forward input during queued reverse history playback cancels the old backw
 });
 
 
-test('gesture entry ignores native scroll distance and always advances by elapsed seconds',async()=>{
- const a=entry({gestures:true}),b=entry({gestures:true});await a.settle();await b.settle();a.open();b.open();a.tick();b.tick();
- const wheel=deltaY=>({type:'wheel',deltaY,target:{closest:()=>false},preventDefault(){}});
- a.events.get('wheel')(wheel(12));b.events.get('wheel')(wheel(18000));
- for(let i=0;i<100;i++){if(i%3===0)b.events.get('wheel')(wheel(18000));a.tick();b.tick();}
- assert.equal(a.elements.get('world').dataset.playbackSeconds,b.elements.get('world').dataset.playbackSeconds);
- assert.equal(a.elements.get('world').dataset.playbackTarget,b.elements.get('world').dataset.playbackTarget);
- const before=Number(a.elements.get('world').dataset.playbackSeconds);a.seek(1);a.tick();
- near(Number(a.elements.get('world').dataset.playbackSeconds)-before,.02);
- a.events.get('wheel')(wheel(-10000));a.tick();
- near(Number(a.elements.get('world').dataset.playbackSeconds),before);
+const wheelEvent=deltaY=>({type:'wheel',deltaY,target:{closest:()=>false},preventDefault(){this.prevented=true;}});
+async function atNativePosition(app,progress){
+ assert.ok(Number.isFinite(progress));
+ app.setReduced(true);app.events.get('touchstart')({type:'touchstart',target:{closest:()=>false},touches:[{clientY:500}]});
+ app.seek(api.storyToScroll(progress,app.gallery.route));app.tick();app.setReduced(false);
+}
+
+test('default control restores native scrolling throughout hero and five regions',async()=>{
+ const actual=entry({gestures:true}),original=entry();await actual.settle();await original.settle();actual.open();original.open();actual.tick();original.tick();
+ for(const p of [3,10,17,22,25.5,33,49].map(units=>units/api.TOTAL_UNITS)){
+  const a=wheelEvent(8000),b=wheelEvent(8000);actual.events.get('wheel')(a);original.events.get('wheel')(b);
+  assert.equal(a.prevented,undefined,'original sections must retain native wheel scrolling');
+  actual.seek(p);original.seek(p);for(let i=0;i<15;i++){actual.tick();original.tick();assert.equal(actual.elements.get('world').dataset.progress,original.elements.get('world').dataset.progress);}
+  assert.equal(actual.classes.has('gesture-playback'),false);
+ }
 });
 
-test('one touch gesture triggers once and a real reversal changes direction immediately',async()=>{
- const app=entry({gestures:true});await app.settle();app.open();app.tick();const target={closest:()=>false};
- app.events.get('touchstart')({type:'touchstart',target,touches:[{clientY:500}]});
- const move=y=>app.events.get('touchmove')({target,touches:[{clientY:y}],preventDefault(){}});
- move(480);for(let i=0;i<30;i++){move(470-i*9);app.tick();}
- const first=Number(app.elements.get('world').dataset.playbackSeconds);move(230);app.tick();
- assert.ok(Number(app.elements.get('world').dataset.playbackSeconds)<first);
+test('people reading keeps the original distance mapping with scoped controls enabled',async()=>{
+ const actual=entry({gestures:true}),original=entry();await actual.settle();await original.settle();actual.open();original.open();actual.tick();original.tick();
+ const p=(STORY_UNITS+api.PEOPLE_UNITS*.45)/28;await atNativePosition(actual,p);await atNativePosition(original,p);assert.equal(actual.elements.get('world').dataset.biome,'people');
+ for(const [delta,t] of [[2000,.55],[-2000,.38]]){
+  const event=wheelEvent(delta);actual.events.get('wheel')(event);original.events.get('wheel')(wheelEvent(delta));assert.equal(event.prevented,undefined);
+  const target=api.storyToScroll((STORY_UNITS+api.PEOPLE_UNITS*t)/28,actual.gallery.route);actual.seek(target);original.seek(target);
+  for(let n=0;n<80;n++){actual.tick();original.tick();assert.equal(actual.elements.get('world').dataset.progress,original.elements.get('world').dataset.progress);}
+ }
+ assert.equal(actual.classes.has('gesture-playback'),false);
+});
+
+test('road section alone ignores gesture magnitude and native scroll distance',async()=>{
+ const a=entry({gestures:true}),b=entry({gestures:true});await a.settle();await b.settle();a.open();b.open();a.tick();b.tick();
+ const p=(api.LEGACY_TOTAL_UNITS+.4*6.4)/28;await atNativePosition(a,p);await atNativePosition(b,p);
+ const small=wheelEvent(12),large=wheelEvent(18000);a.events.get('wheel')(small);b.events.get('wheel')(large);assert.equal(small.prevented,true);assert.equal(large.prevented,true);
+ for(let i=0;i<100;i++){if(i%3===0)b.events.get('wheel')(wheelEvent(18000));a.tick();b.tick();}
+ assert.equal(a.elements.get('world').dataset.playbackSeconds,b.elements.get('world').dataset.playbackSeconds);assert.equal(a.elements.get('world').dataset.playbackTarget,b.elements.get('world').dataset.playbackTarget);
+ const before=Number(a.elements.get('world').dataset.playbackSeconds);a.seek(1);a.tick();near(Number(a.elements.get('world').dataset.playbackSeconds)-before,.02);
+ a.events.get('wheel')(wheelEvent(-10000));a.tick();near(Number(a.elements.get('world').dataset.playbackSeconds),before);
+ a.resize();a.tick();near(Number(a.elements.get('world').dataset.playbackSeconds),before-.02);
+});
+
+test('road touch reversal is immediate and each gesture selects just one reading stop',async()=>{
+ const app=entry({gestures:true});await app.settle();app.open();app.tick();await atNativePosition(app,(api.LEGACY_TOTAL_UNITS+.4*6.4)/28);const target={closest:()=>false};
+ app.events.get('touchstart')({type:'touchstart',target,touches:[{clientY:500}]});const move=y=>app.events.get('touchmove')({target,touches:[{clientY:y}],preventDefault(){}});
+ move(480);for(let i=0;i<30;i++){move(470-i*9);app.tick();}const first=Number(app.elements.get('world').dataset.playbackSeconds);move(230);app.tick();assert.ok(Number(app.elements.get('world').dataset.playbackSeconds)<first);
+});
+
+test('particle ending retains original native targets and forward/reverse rates',async()=>{
+ const actual=entry({gestures:true}),original=entry();await actual.settle();await original.settle();actual.open();original.open();actual.tick();original.tick();
+ const p=(api.NEXT_START_UNITS+1.2)/28;await atNativePosition(actual,p);await atNativePosition(original,p);
+ for(const [delta,destination] of [[8000,1],[-8000,api.storyToScroll((api.NEXT_START_UNITS+.1)/28,actual.gallery.route)]]){
+  const a=wheelEvent(delta);actual.events.get('wheel')(a);original.events.get('wheel')(wheelEvent(delta));assert.equal(a.prevented,undefined);
+  actual.seek(destination);original.seek(destination);for(let i=0;i<200;i++){actual.tick();original.tick();assert.equal(actual.elements.get('world').dataset.progress,original.elements.get('world').dataset.progress);}
+  assert.equal(actual.classes.has('gesture-playback'),false);
+ }
+});
+
+test('flings enter the road at either boundary and exiting hands native scrolling back',async()=>{
+ const app=entry({gestures:true});await app.settle();app.open();app.tick();
+ await atNativePosition(app,(api.LEGACY_TOTAL_UNITS-.01)/28);app.events.get('wheel')(wheelEvent(20000));app.seek(1);app.tick();
+ near(Number(app.elements.get('world').dataset.playbackSeconds),0);assert.equal(app.classes.has('gesture-playback'),true);
+ for(let i=0;i<480;i++)app.tick();near(Number(app.elements.get('world').dataset.playbackSeconds),9.3);
+ for(const count of [460,530,380]){app.events.get('wheel')(wheelEvent(100));for(let i=0;i<count;i++)app.tick();}
+ assert.equal(app.classes.has('gesture-playback'),false);const down=wheelEvent(1000);app.events.get('wheel')(down);assert.equal(down.prevented,undefined);app.seek(1);for(let i=0;i<100;i++)app.tick();assert.equal(app.elements.get('world').dataset.biome,'next');
+ app.events.get('wheel')(wheelEvent(-20000));app.seek(.1);let entered=false;
+ for(let i=0;i<1000;i++){app.tick();if(app.classes.has('gesture-playback')){entered=true;break;}}assert.equal(entered,true);near(Number(app.elements.get('world').dataset.playbackSeconds),36);
+ // The existing upward fling has already triggered a single reverse road segment.
+ for(let i=0;i<380;i++)app.tick();near(Number(app.elements.get('world').dataset.playbackSeconds),28.6);
+ for(const count of [530,460,480]){app.events.get('wheel')(wheelEvent(-100));for(let i=0;i<count;i++)app.tick();}
+ assert.equal(app.classes.has('gesture-playback'),false);const up=wheelEvent(-1000);app.events.get('wheel')(up);assert.equal(up.prevented,undefined);app.seek(.1);for(let i=0;i<20;i++)app.tick();assert.notEqual(app.elements.get('world').dataset.biome,'history');
 });
