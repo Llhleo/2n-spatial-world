@@ -1,7 +1,7 @@
 import * as T from 'three';
 export const offsets=[[0,0,0],[480,0,-520],[0,0,-1040]];
 const vec=a=>new T.Vector3(...a),ease=x=>Math.max(0,Math.min(1,x*x*x*(x*(x*6-15)+10)));
-const connectionPoints=[[[81,245,-180],[155,105,-45],[245,65,-65],[310,20,-210],[345,-50,-330],[370,-230,-460]],[[425,280,-710],[350,150,-530],[225,30,-740],[80,-40,-850],[-72,-114,-990]]];
+const connectionPoints=[[[81,245,-180],[155,105,-45],[245,65,-65],[380,20,-210],[480,-75,-350],[556,-230,-470]],[[586,-260,-850],[440,-150,-690],[260,-80,-780],[80,-40,-850],[-72,-114,-990]]];
 const connectionCurves=connectionPoints.map(points=>new T.CatmullRomCurve3(points.map(vec),false,'centripetal'));
 const flightCache=[null,null];
 export function journeyTimes(t){return [t,t,t];}
@@ -10,7 +10,7 @@ export function cameraJourney(t,localCamera){
  const world=(i,time)=>{const a=localCamera(i,time),m=new T.Matrix4().fromArray(a);m.setPosition(new T.Vector3().setFromMatrixPosition(m).add(vec(offsets[i])));return m;};
  if(stage>=0)return world(stage,times[stage]);
  const a=stage===-1?0:1,b=a+1,p=ease((t-(a===0?24:54))/6),from=world(a,24),to=world(b,0),start=new T.Vector3().setFromMatrixPosition(from),end=new T.Vector3().setFromMatrixPosition(to);
- const bends=a===0?[[95,35,360],[300,60,330],[460,30,30]]:[[385,35,-160],[180,60,-200],[15,30,-480]];
+ const bends=a===0?[[95,35,360],[300,60,330],[460,30,30]]:[[420,20,-420],[240,30,-550],[60,18,-720]];
  let cached=flightCache[a];
  if(!cached||!cached.start.equals(start)||!cached.end.equals(end)){cached={start:start.clone(),end:end.clone(),path:new T.CatmullRomCurve3([start,...bends.map(vec),end],false,'centripetal')};flightCache[a]=cached;}
  const position=cached.path.getPointAt(p);

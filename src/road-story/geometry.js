@@ -19,14 +19,22 @@ const stageMotion={kind:0,root:null,position:null,quaternion:null,pattern:true};
 function configureStage(root,kind){stageMotion.kind=kind;stageMotion.root=root;stageMotion.position=camera.position.clone();stageMotion.quaternion=camera.quaternion.clone();stageMotion.lineRow=0;}
 function waveMesh(mesh){
  mesh.userData.wave=true;const uniform={value:7.25};mesh.material.userData.waveTime=uniform;
+ if(mesh.isInstancedMesh){mesh.material.transparent=true;mesh.material.depthWrite=false;mesh.material.userData.tidalNearFade={value:new T.Vector2(95,165)};}
  mesh.material.onBeforeCompile=shader=>{
   shader.uniforms.waveTime=uniform;shader.vertexShader='uniform float waveTime;\n'+shader.vertexShader;
   const n=v=>Number(v).toFixed(6),field=mesh.isInstancedMesh?'mvPosition':'transformed',sample=mesh.isInstancedMesh?'waveSource':'position';
   const displace=Object.entries(waveConfig).map(([axis,terms])=>field+'.'+axis+' += '+terms.map(c=>n(c.a)+'*sin('+sample+'.x*'+n(c.x)+'+'+sample+'.y*'+n(c.y)+'+waveTime*'+n(c.t)+')').join('+')+';').join('\n');
-  if(mesh.isInstancedMesh){const project=T.ShaderChunk.project_vertex.replace('mvPosition = modelViewMatrix * mvPosition;','vec3 waveSource = mvPosition.xyz;\n'+displace+'\nmvPosition = modelViewMatrix * mvPosition;');shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',project);}
+  if(mesh.isInstancedMesh){
+   shader.uniforms.tidalNearFade=mesh.material.userData.tidalNearFade;
+   shader.vertexShader='uniform vec2 tidalNearFade;\nvarying float vTidalVisibility;\n'+shader.vertexShader;
+   shader.fragmentShader='varying float vTidalVisibility;\n'+shader.fragmentShader;
+   const project=T.ShaderChunk.project_vertex.replace('mvPosition = modelViewMatrix * mvPosition;','vec3 waveSource = mvPosition.xyz;\n'+displace+'\nmvPosition = modelViewMatrix * mvPosition;\nvTidalVisibility = smoothstep(tidalNearFade.x,tidalNearFade.y,-mvPosition.z);');
+   shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',project);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vTidalVisibility;');
+  }
   else shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+displace);
  };
- mesh.material.customProgramCacheKey=()=>mesh.isInstancedMesh?'2n-tidal-instances-v12':'2n-tidal-v11';return mesh;
+ mesh.material.customProgramCacheKey=()=>mesh.isInstancedMesh?'2n-tidal-instances-v13-near-fade':'2n-tidal-v11';return mesh;
 }
 function bgStroke(parent,points,radius,mat,segments){return waveMesh(stageMotion.pattern?typeContour(parent,points,mat,stageMotion.lineRow++):tube(parent,points,radius,mat,segments));}
 let glyphGeometry=null;
@@ -172,7 +180,7 @@ function spatialLayers(parent,kind){
  blade([[-55,-140,near-7],[-24,-67,near],[-19,-30,near-2],[-25,4,near-8],[-44,67,near-26]],5,0x09121b,true);
  blade([[54,-145,near-6],[24,-80,near],[20,-49,near-3],[30,-12,near-10],[52,59,near-28]],7,0x0b1720);
  // A few distant petals make the far space measurable, with no extra mobs.
- for(let i=0;i<9;i++)petal(parent,names[(i+kind*2)%names.length],V(-72+i*17,-72+Math.sin(i*1.7)*57,-470-(i%3)*28),1.2+(i%3)*.35,.12,i*.4);
+ for(let i=0;i<9;i++)petal(parent,names[(i+kind*2)%names.length],V(kind===1?82+i*9:-72+i*17,(kind===1?-110:-72)+Math.sin(i*1.7)*57,-470-(i%3)*28),1.2+(i%3)*.35,.12,i*.4);
 }
 
 function dust(parent,n=1800){const p=new Float32Array(n*3),colors=new Float32Array(n*3);for(let i=0;i<n;i++){p.set([(rnd()-.5)*260,(rnd()-.5)*390,40-rnd()*300],i*3);const b=.25+rnd()*.45;colors.set([b*.85,b*.95,b],i*3);}const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(p,3));g.setAttribute('color',new T.BufferAttribute(colors,3));const m=new T.PointsMaterial({size:.18,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:.75,depthWrite:false});parent.add(new T.Points(g,m));}
@@ -273,12 +281,12 @@ function convergence(g){
  backgroundDesign(g,1);
  spatialLayers(g,1);
  const center=V(18,31,-90);
- // Complete through-routes: crossings are separated in depth, never capped
- // at the central beacon. Both ends of each route continue out of frame.
+ // A right-hand hairpin and two remote cross-spans contrast with the first
+ // scene's long diagonal S. The whole left reading window stays open in depth.
  const routes=[
-  {points:[[-110,-230,60],[-45,-100,36],[-4,-24,12],[22,24,-15],[50,65,-70],[21,141,-130],[-55,280,-190]],width:13,twist:.20,bow:.12,lines:23},
-  {points:[[125,-245,-35],[55,-90,-65],[14,-5,-88],[-17,38,-106],[26,90,-125],[92,178,-160],[175,300,-205]],width:10.5,twist:-.22,bow:.10,lines:19},
-  {points:[[-150,240,-185],[-75,124,-170],[-28,48,-160],[24,9,-158],[64,-54,-185],[90,-145,-218],[150,-320,-260]],width:8,twist:.12,bow:.10,lines:15,dim:true}
+  {points:[[76,-230,50],[54,-110,30],[24,-55,15],[9,-10,-5],[26,42,-55],[40,84,-95],[70,96,-155],[76,35,-205],[62,-35,-225],[66,-160,-270],[106,-260,-330]],width:13,twist:.20,bow:.12,lines:23},
+  {points:[[-210,-130,-150],[-95,-91,-135],[-20,-80,-125],[70,-88,-140],[160,-130,-180],[230,-230,-230]],width:10.5,twist:-.22,bow:.10,lines:19},
+  {points:[[-250,150,-280],[-110,126,-245],[0,118,-215],[120,134,-245],[250,220,-290]],width:8,twist:.12,bow:.10,lines:15,dim:true}
  ];
  routes.forEach((spec,k)=>{const r=ribbon(g,spec.points,{...spec,detail:true});scatterAlong(g,r,[23,19,14][k],k*2);});
  // Independent large bobbing petals removed; only route riders remain.

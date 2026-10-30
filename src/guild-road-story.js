@@ -4,11 +4,16 @@ import {petalDisplayTexture} from './petal-display-texture.js';
 import {memoryEntryFrame} from './guild-memory-entry.js';
 import {createRoadGeometry} from './road-story/geometry.js';
 import {createLightTravelers} from './road-story/lights.js';
-import {sampleRoadCamera,roadEndingEntry} from './road-story/path.js';
+import {sampleRoadCamera,roadEndingEntry,smooth} from './road-story/path.js';
 
 export function createGuildRoadStory({historyRecords}){
  const group=new T.Group();group.name='guild-road-story';group.visible=false;
  const assets=new Map(),captured=new T.Group(),travelers=createLightTravelers();group.add(travelers.group);
+ // A world-fixed local studio keeps metallic roads and colored petals under
+ // the same palette during reading and camera travel, independent of biomes.
+ const hemi=new T.HemisphereLight(0xaab4c1,0x090908,.35),key=new T.DirectionalLight(0xf4f1e9,3.5),rim=new T.DirectionalLight(0xc5d2df,2),studio=[hemi,key,rim];
+ key.position.set(-40,65,45);rim.position.set(45,20,-25);
+ studio.forEach(light=>{light.userData.studioPower=light.intensity;light.name='road-studio';});group.add(...studio,key.target,rim.target);
  let geometry=null,ready=false,preparing=null,error=null,ambient=0,entry=null,chainTime=0;
  const base=import.meta.env?.BASE_URL||'/';
  function install(source,kind,name){
@@ -38,6 +43,7 @@ export function createGuildRoadStory({historyRecords}){
  function update({historyT=0,entryPose=entry,camera,dt=0,reducedMotion=false,ending=false}){
   ambient+=Math.min(.05,Math.max(0,dt));if(!ready)return;
   const seconds=historyT*36;group.matrixAutoUpdate=false;group.matrix.copy(memoryEntryFrame(entryPose));group.updateMatrixWorld(true);
+  const studioBlend=smooth(seconds/4.3);for(const light of studio)light.intensity=light.userData.studioPower*studioBlend;
   if(!ending){const pose=sampleRoadCamera(seconds,entryPose);camera.position.fromArray(pose.position);camera.quaternion.fromArray(pose.quaternion);camera.up.set(0,1,0);camera.fov=pose.fov;camera.updateProjectionMatrix();camera.updateMatrixWorld();}
   geometry.update(ambient,camera,seconds,reducedMotion);travelers.update(ambient,seconds,camera,reducedMotion);
   captured.visible=!ending&&seconds<5.5;

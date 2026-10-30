@@ -16,7 +16,9 @@ test('real scene geometry survives ten-minute idle, all camera flights, and view
  const fields=[];world.group.traverse(o=>{if(o.userData.typeLine)fields.push(o);});
  assert.ok(fields.length>=3,'default background is repeated 2n text rather than plain contours');
  assert.ok(fields.every(o=>o.isInstancedMesh),'repeated glyphs share small geometry');
- for(const field of fields){const shader={uniforms:{},vertexShader:T.ShaderLib.basic.vertexShader};field.material.onBeforeCompile(shader);assert.ok(shader.vertexShader.includes('mvPosition.z +='),'wave displacement follows instance placement');}
+ for(const field of fields){const shader={uniforms:{},vertexShader:T.ShaderLib.basic.vertexShader,fragmentShader:T.ShaderLib.basic.fragmentShader};field.material.onBeforeCompile(shader);assert.ok(shader.vertexShader.includes('mvPosition.z +='),'wave displacement follows instance placement');
+  const fade=shader.uniforms.tidalNearFade?.value;assert.ok(fade,'near-camera background glyphs need a depth fade');assert.equal(T.MathUtils.smoothstep(21.9225,fade.x,fade.y),0,'the glyph seen at21.64s must disappear before it becomes giant');assert.equal(T.MathUtils.smoothstep(300,fade.x,fade.y),1,'normal distant text keeps its ink');assert.ok(shader.fragmentShader.includes('diffuseColor.a *= vTidalVisibility'));assert.equal(field.material.transparent,true);assert.equal(field.material.depthWrite,false);
+ }
  const entry={position:[-340,-160,-10],target:[-330,-160,-10],up:[0,1,0]},camera=new T.PerspectiveCamera(40,414/896,.2,2400);
  // This entry has the same yaw/frame as production; audit actual far cap vertices.
  world.group.matrixAutoUpdate=false;world.group.matrix.copy(memoryEntryFrame(entry));

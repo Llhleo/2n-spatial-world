@@ -137,7 +137,7 @@ if (renderer) {
   let introLocked=true;
   let lastLoadingText='',lastPeopleText='';
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
-  let gesturePlayer=null,gestureActive=false,roadControl=false,previewStarted=false,gestureResumeDirection=0;
+  let gesturePlayer=null,gestureActive=false,roadControl=false,previewStarted=false,gestureResumeDirection=0,roadExitDirection=0;
   const roadStart=LEGACY_TOTAL_UNITS/28,roadEnd=NEXT_START_UNITS/28;
   let touchAnchor=null,touchDirection=0,wheelAt=-Infinity,wheelDirection=0;
   function ensureGesture(){
@@ -149,15 +149,20 @@ if (renderer) {
     if(!gestureMode||memoryPreview||reduced.matches)return false;
     return roadControl||(progress>roadStart+1e-9&&progress<roadEnd-1e-9)||(direction>0&&Math.abs(progress-roadStart)<1e-9)||(direction<0&&Math.abs(progress-roadEnd)<1e-9);
   }
-  function alignRoadScroll(){
+  function alignRoadScroll(boundaryDirection=0){
     particleScrollOffset=0;particleRebasePending=false;
-    scrollTo({top:storyToScroll(progress,peopleRoute)*viewport().range,behavior:'instant'});previousNativeScroll=scrollY;
+    const top=storyToScroll(progress,peopleRoute)*viewport().range;
+    // Native scroll offsets may round toward the preceding CSS pixel. Land
+    // just outside the completed boundary, so rounding cannot invent a reverse
+    // crossing on the following idle frame. Interior reading seeks stay exact.
+    const landing=boundaryDirection>0?Math.ceil(top)+1:boundaryDirection<0?Math.floor(top)-1:top;
+    scrollTo({top:Math.max(0,landing),behavior:'instant'});previousNativeScroll=scrollY;
   }
   function beginRoadControl(){
     if(roadControl)return;
-    roadControl=true;gestureActive=false;gestureResumeDirection=0;player.pause();controlled=true;ensureGesture();alignRoadScroll();
+    roadControl=true;roadExitDirection=0;gestureActive=false;gestureResumeDirection=0;player.pause();controlled=true;ensureGesture();alignRoadScroll();
   }
-  function releaseRoadControl(){roadControl=false;gestureActive=false;gestureResumeDirection=0;alignRoadScroll();}
+  function releaseRoadControl(direction=0){roadControl=false;roadExitDirection=direction;gestureActive=false;gestureResumeDirection=0;alignRoadScroll(direction);}
   function requestGesture(direction){if(introLocked||!direction||!roadInputScope(direction))return;beginRoadControl();player.pause();controlled=true;ensureGesture().request(direction);}
   let touchScrolling=false,pointerScrolling=false,particleRebasePending=false;
   let previousNativeScroll=0;
@@ -202,7 +207,12 @@ if (renderer) {
       if(people.ready){metricsAdopted=true;measuredRoutePending=false;}
     }
     if(old&&controlled){
-      scrollTo({top:nextScroll*next.range,behavior:'instant'});
+      let top=nextScroll*next.range;
+      // Rescaling the outward pixel can round it inward again. Retain the
+      // completed boundary side until a fresh native movement takes over.
+      if(roadExitDirection>0)top=Math.max(top,Math.ceil(storyToScroll(roadEnd,peopleRoute)*next.range)+1);
+      else if(roadExitDirection<0)top=Math.min(top,Math.floor(storyToScroll(roadStart,peopleRoute)*next.range)-1);
+      scrollTo({top:Math.max(0,top),behavior:'instant'});
       previousNativeScroll=scrollY;
     }
   },memoryPreview?6.4:TOTAL_UNITS);
@@ -258,7 +268,7 @@ if (renderer) {
   replayButton.addEventListener('click',event=>{
     event.stopPropagation();if(introLocked)return;
     particleScrollOffset=0;particleRebasePending=false;
-    player.pause();gesturePlayer?.seek(0);gestureActive=false;roadControl=false;progress=0;auto=0;controlled=true;
+    player.pause();gesturePlayer?.seek(0);gestureActive=false;roadControl=false;roadExitDirection=0;progress=0;auto=0;controlled=true;
     scrollTo({top:0,behavior:'instant'});replayButton.hidden=true;
   });
   attachIntroInput(window,()=>introLocked,()=>{});
@@ -280,7 +290,7 @@ if (renderer) {
     if(roadControl&&controlled&&!wasPlaying&&!memoryPreview){
       const playback=ensureGesture(),direction=playback.direction,time=playback.advance(dt);roadAdvanced=true;
       progress=roadStart+(roadEnd-roadStart)*time/36;
-      if(!playback.playing&&((time<=0&&direction<0)||(time>=36&&direction>0)))releaseRoadControl();
+      if(!playback.playing&&((time<=0&&direction<0)||(time>=36&&direction>0)))releaseRoadControl(direction);
     }
     if(wasPlaying){gestureActive=false;roadControl=false;}
     if(wasPlaying){
@@ -290,6 +300,7 @@ if (renderer) {
     const nativePosition=scrollY,scroll=scrollProgress(nativePosition,view.range);
     const previousScroll=scrollProgress(previousNativeScroll,view.range),nativeDelta=scroll-previousScroll;
     previousNativeScroll=nativePosition;
+    if(!roadControl&&(nativeDelta!==0||wasPlaying||reduced.matches))roadExitDirection=0;
     if(!controlled&&!reduced.matches) auto = Math.min(HERO_END*(introLocked?.92:1),auto+dt*HERO_END/30*introState.speed);
     // Initial reduced-motion landing is not a permanent scroll lock. Preference
     // changes hold the current shot; manual reduced-motion reads sample directly.

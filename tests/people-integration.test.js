@@ -99,7 +99,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false}={}){
+function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false,scrollQuantum=0}={}){
  const classes=new Set(),events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,history:[],next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
@@ -128,10 +128,10 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
   stableViewport(fn){resize=fn;fn(view,null);return()=>view;},
   document:{body:{append(){}},createElement:tag=>({...element(`preview-${tag}`),append(){},querySelectorAll(){return[];}}),querySelector:s=>element(s.slice(1)),documentElement:{classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);},add(name){classes.add(name);},remove(name){classes.delete(name);}}},addEventListener(){}},
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
-  addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=top;calls.scroll.push(top);},get scrollY(){return scrollY;},
+  addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=scrollQuantum?Math.floor(top/scrollQuantum)*scrollQuantum:top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
- return {calls,gallery,elements,events,classes,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(){const old={...view};view.width=896;view.height=414;view.range=api.TOTAL_UNITS*414;resize(view,old);}};
+ return {calls,gallery,elements,events,classes,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(height=414,width=896){const old={...view};view.width=width;view.height=height;view.range=api.TOTAL_UNITS*height;resize(view,old);}};
 }
 
 test('ready memory petals can show preview despite an unrelated opening resource failure',async()=>{
@@ -695,4 +695,31 @@ test('flings enter the road at either boundary and exiting hands native scrollin
  for(let i=0;i<380;i++)app.tick();near(Number(app.elements.get('world').dataset.playbackSeconds),28.6);
  for(const count of [530,460,480]){app.events.get('wheel')(wheelEvent(-100));for(let i=0;i<count;i++)app.tick();}
  assert.equal(app.classes.has('gesture-playback'),false);const up=wheelEvent(-1000);app.events.get('wheel')(up);assert.equal(up.prevented,undefined);app.seek(.1);for(let i=0;i<20;i++)app.tick();assert.notEqual(app.elements.get('world').dataset.biome,'history');
+});
+
+test('rounded native scroll cannot reverse a completed road exit while the finger is resting',async()=>{
+ for(const [quantum,floatBuffers] of [[1,true],[.5,true],[1/3,true],[1,false]]){
+  const app=entry({gestures:true,scrollQuantum:quantum,floatBuffers});await app.settle();app.open();app.tick();
+  await atNativePosition(app,(api.LEGACY_TOTAL_UNITS+6.4*.75)/28);
+  app.events.get('wheel')(wheelEvent(100));for(let i=0;i<100;i++)app.tick();near(Number(app.elements.get('world').dataset.playbackSeconds),28.6);
+  const target={closest:()=>false};app.events.get('touchstart')({type:'touchstart',target,touches:[{clientY:500}]});app.events.get('touchmove')({target,touches:[{clientY:470}],preventDefault(){}});for(let i=0;i<380;i++)app.tick();app.events.get('touchend')({touches:[]});
+  assert.equal(app.classes.has('gesture-playback'),false,'exit remains at the boundary after native rounding');
+  for(let i=0;i<200;i++)app.tick();
+  near(Number(app.elements.get('world').dataset.playbackSeconds),36);
+  assert.equal(app.classes.has('gesture-playback'),false,'idle must not synthesize a reverse road gesture');
+  const down=wheelEvent(1000);app.events.get('wheel')(down);assert.equal(down.prevented,undefined);
+  app.seek(1);for(let i=0;i<100;i++)app.tick();assert.equal(app.elements.get('world').dataset.biome,'next');
+ }
+});
+
+test('viewport remap retains the completed road boundary side after native rounding',async()=>{
+ for(const height of [412,417]){
+  const app=entry({gestures:true,scrollQuantum:1});await app.settle();app.open();app.tick();await atNativePosition(app,(api.LEGACY_TOTAL_UNITS+6.4*.9)/28);
+  app.events.get('wheel')(wheelEvent(100));for(let i=0;i<200;i++)app.tick();
+  assert.equal(app.classes.has('gesture-playback'),false);
+  app.resize(height);for(let i=0;i<120;i++)app.tick();
+  assert.equal(app.classes.has('gesture-playback'),false,'resizing must not move the completed native landing inside the road');
+  near(Number(app.elements.get('world').dataset.playbackSeconds),36);
+  app.events.get('wheel')(wheelEvent(1000));app.seek(1);for(let i=0;i<100;i++)app.tick();assert.equal(app.elements.get('world').dataset.biome,'next');
+ }
 });
