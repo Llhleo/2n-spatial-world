@@ -2,6 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createTraffic,trafficCoordinate,PETAL_NAMES} from '../road-traffic.js';
 import {offsets,makeConnections} from './journey.js';
+import {roadTextParts} from './typography.js';
 
 export function createRoadGeometry({assets,vectorText,waveConfig,historyRecords}){
 const W=864,H=1872,camera=new T.PerspectiveCamera(40,W/H,.1,2400),plates=new T.Group();
@@ -16,7 +17,6 @@ const warm=new T.MeshBasicMaterial({color:0xe9c994});
 function curve(points){return new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)),false,'centripetal');}
 const stageMotion={kind:0,root:null,position:null,quaternion:null,pattern:true};
 function configureStage(root,kind){stageMotion.kind=kind;stageMotion.root=root;stageMotion.position=camera.position.clone();stageMotion.quaternion=camera.quaternion.clone();stageMotion.lineRow=0;}
-function textLayout(kind){return [{x:100,y:640,dateSize:34,titleSize:64,gap:80,depth:235},{x:420,y:1530,dateSize:32,titleSize:48,gap:72,depth:270},{x:195,y:1220,dateSize:82,titleSize:42,gap:80,depth:245}][kind];}
 function waveMesh(mesh){
  mesh.userData.wave=true;const uniform={value:7.25};mesh.material.userData.waveTime=uniform;
  mesh.material.onBeforeCompile=shader=>{
@@ -185,27 +185,27 @@ function petal(parent,name,p,size,tilt=0,roll=0){
 }
 const names=PETAL_NAMES.filter(name=>assets.has(name));
 function scatterAlong(parent,r,n,phase=0){
- const traffic=createTraffic({length:r.curve.getLength(),previousCount:Math.ceil(n*1.25),width:r.width,seed:3349+stageMotion.kind*101+phase*17+r.phase*100|0});r.traffic=traffic;traffic.speed=2.8+r.phase*.1;
+ const traffic=createTraffic({length:r.curve.getLength(),previousCount:Math.ceil(n*1.25),width:r.width,seed:3349+stageMotion.kind*101+phase*17+r.phase*100|0});r.traffic=traffic;traffic.speed=6.4+r.phase*.1;
  const N=4096;r.cache=[];
  for(let lane=0;lane<2;lane++){
-  const v=lane===0?.18:.82,pos=new Float32Array((N+1)*3),normal=new Float32Array((N+1)*3);
-  for(let i=0;i<=N;i++){const u=(-traffic.margin+traffic.period*i/N)/traffic.length,p=r.sample(u,v),n=r.sample(u,v,-1).sub(p);pos.set(p.toArray(),i*3);normal.set(n.toArray(),i*3);}
+  const v=lane===0?.18:.82,pos=new Float32Array((N+1)*3),normal=new Float32Array((N+1)*3),side=new Float32Array((N+1)*3);
+  for(let i=0;i<=N;i++){const u=(-traffic.margin+traffic.period*i/N)/traffic.length,p=r.sample(u,v),n=r.sample(u,v,-1).sub(p),s=r.sample(u,v+.001).sub(p).multiplyScalar(1000);pos.set(p.toArray(),i*3);normal.set(n.toArray(),i*3);side.set(s.toArray(),i*3);}
   // Parameter speed compresses near the fog bend. Re-sample by actual lane
   // distance so random gaps cannot collapse while entering/leaving the frame.
   const distance=new Float64Array(N+1);for(let i=1;i<=N;i++)distance[i]=distance[i-1]+Math.hypot(pos[i*3]-pos[(i-1)*3],pos[i*3+1]-pos[(i-1)*3+1],pos[i*3+2]-pos[(i-1)*3+2]);
-  const uniformPos=new Float32Array(pos.length),uniformNormal=new Float32Array(normal.length);let j=0;
-  for(let i=0;i<=N;i++){const target=distance[N]*i/N;while(j<N-1&&distance[j+1]<target)j++;const f=(target-distance[j])/(distance[j+1]-distance[j]||1);for(let axis=0;axis<3;axis++){uniformPos[i*3+axis]=T.MathUtils.lerp(pos[j*3+axis],pos[(j+1)*3+axis],f);uniformNormal[i*3+axis]=T.MathUtils.lerp(normal[j*3+axis],normal[(j+1)*3+axis],f);}}
-  r.cache.push({pos:uniformPos,normal:uniformNormal});
+  const uniformPos=new Float32Array(pos.length),uniformNormal=new Float32Array(normal.length),uniformSide=new Float32Array(side.length);let j=0;
+  for(let i=0;i<=N;i++){const target=distance[N]*i/N;while(j<N-1&&distance[j+1]<target)j++;const f=(target-distance[j])/(distance[j+1]-distance[j]||1);for(let axis=0;axis<3;axis++){uniformPos[i*3+axis]=T.MathUtils.lerp(pos[j*3+axis],pos[(j+1)*3+axis],f);uniformNormal[i*3+axis]=T.MathUtils.lerp(normal[j*3+axis],normal[(j+1)*3+axis],f);uniformSide[i*3+axis]=T.MathUtils.lerp(side[j*3+axis],side[(j+1)*3+axis],f);}}
+  r.cache.push({pos:uniformPos,normal:uniformNormal,side:uniformSide});
   for(const record of traffic.lanes[lane]){
    const name=assets.has(record.name)?record.name:names[phase%names.length],m=petal(r.root,name,V(0,0,0),record.size,(rnd()-.5)*.35,(rnd()-.5)*.7);
-   m.userData.route={road:r,record,lane,height:3.8+record.size*.35};
+   m.userData.route={road:r,record,lane,height:3.8+lane*4.2+record.size*.35};
   }
  }
 }
 function trafficPoint(route,clock,out){
- const {road,record,lane,height}=route,traffic=road.traffic,s=trafficCoordinate(record,clock,traffic),f=(s+traffic.margin)/traffic.period*4096,i=Math.min(4095,Math.floor(f)),k=f-i,{pos,normal}=road.cache[lane];
- const h=height+.5*Math.sin(clock*.55+record.phase);
- out.set(0,0,0);for(let axis=0;axis<3;axis++){const a=i*3+axis,b=a+3;out.setComponent(axis,pos[a]+(pos[b]-pos[a])*k+(normal[a]+(normal[b]-normal[a])*k)*h);}return out;
+ const {road,record,lane,height}=route,traffic=road.traffic,s=trafficCoordinate(record,clock,traffic),f=(s+traffic.margin)/traffic.period*4096,i=Math.min(4095,Math.floor(f)),k=f-i,{pos,normal,side}=road.cache[lane];
+ const h=height+.35*Math.sin(clock*.55+record.phase),wander=.018*Math.sin(clock*.46+record.phase)+.007*Math.sin(clock*.23+record.phase*1.7);
+ out.set(0,0,0);for(let axis=0;axis<3;axis++){const a=i*3+axis,b=a+3;out.setComponent(axis,pos[a]+(pos[b]-pos[a])*k+(normal[a]+(normal[b]-normal[a])*k)*h+(side[a]+(side[b]-side[a])*k)*wander);}return out;
 }
 
 // Shared pure-time movement. Scrubbing backwards reconstructs the same pose.
@@ -223,7 +223,7 @@ function applyMotion(t=7.25){
   for(let j=0;j<r.spark.children.length;j++)r.spark.children[j].position.copy(r.sample(.14+clock*(kind===1?.034:kind===2?.016:.026)-j*.005,.07,-.18));
  });
  backgrounds.forEach((g,i)=>{const near=g.name.startsWith('near-');g.rotation.y=(near?.012:.009)*Math.sin(d*(kind===1?.13:.08)+i);g.rotation.z=.005*Math.sin(d*.13+i);g.position.x=(g.userData.parallax||.25)*Math.sin(d*.16);g.position.z=(near?1.2:.4)*Math.sin(d*.11+i);});
- stageMotion.root.traverse(o=>{
+ for(const o of stageMotion.motionNodes){
   const ink=o.userData.inkMotion;
   if(o.userData.wave)o.material.userData.waveTime.value=clock;
   if(ink){const wave=Math.exp(-(((Math.sin(clock*(kind===1?.45:.28)-ink.phase))/.40)**2));o.material.color.copy(ink.base).multiplyScalar(.70+ink.strength*wave);}
@@ -236,11 +236,11 @@ function applyMotion(t=7.25){
   }
   if(o.isRectAreaLight){o.position.set(-40+75*(.5-.5*Math.cos(clock*Math.PI/24)),22,55);o.lookAt(0,22,0);}
   if(o.name==='finale-mark-pivot'){o.rotation.y=-.40+settle*.08*Math.sin(d*.10);o.rotation.x=.10+settle*.025*Math.sin(d*.13);}
- });
+ }
  for(const p of petals){
   const route=p.mesh.userData.route;
   if(route){trafficPoint(route,clock,p.mesh.position);}
-  else{const phase=clock*.32+p.phase,radius=3.2+.7*Math.sin(p.phase);p.mesh.position.copy(p.base).add(V(radius*Math.sin(phase),2.8*Math.cos(phase),2.2*Math.sin(phase*.83+p.phase)));}
+  else{const phase=clock*.58+p.phase,radius=4.8+.7*Math.sin(p.phase);p.mesh.position.copy(p.base).add(V(radius*Math.sin(phase),4.1*Math.cos(phase),3.2*Math.sin(phase*.83+p.phase)));}
  }
 }
 
@@ -249,13 +249,8 @@ function textPlane(text,pixels,color){
  return new T.Mesh(geometry,new T.MeshBasicMaterial({color,depthTest:true,side:T.DoubleSide,toneMapped:false}));
 }
 function labels(kind=0){
- plates.clear();const record=historyRecords[kind],layout=textLayout(kind),d=layout.depth,unit=2*d*Math.tan(T.MathUtils.degToRad(20))/H;
- const titleLines=kind===2?['2n工会首个','unique等级花瓣']:[record.title],bodyLines=Array.from({length:Math.ceil(record.body.length/18)},(_,i)=>record.body.slice(i*18,(i+1)*18));
- const x=kind===0?100:kind===1?260:120,y=kind===0?640:kind===1?1400:940,titleSize=kind===1?49:kind===2?55:64;
- const parts=[[record.date.replaceAll('-','.'),32,y,0xe7ece8]];
- titleLines.forEach((line,i)=>parts.push([line,titleSize,y+76+i*78,0xd5ded7]));
- bodyLines.forEach((line,i)=>parts.push([line,30,y+76+titleLines.length*78+16+i*44,0xa5b3b2]));
- for(const [text,px,top,color] of parts){const m=textPlane(text,px,color);m.material.transparent=true;m.material.depthWrite=false;m.scale.setScalar(unit);m.position.set((-W*.5+x)*unit,(H*.5-top-px*.9)*unit,-d);plates.add(m);}
+ plates.clear();const record=historyRecords[kind],d=[235,270,245][kind],unit=2*d*Math.tan(T.MathUtils.degToRad(20))/H;
+ for(const {text,size:px,x,y:top,color,role} of roadTextParts(record,kind)){const m=textPlane(text,px,color);m.userData.text=text;m.userData.textRole=role;m.material.transparent=true;m.material.depthWrite=false;m.scale.setScalar(unit);m.position.set((-W*.5+x)*unit,(H*.5-top-px*.9)*unit,-d);plates.add(m);}
 }
 
 function founding(g){
@@ -268,7 +263,7 @@ function founding(g){
  const c=ribbon(g,[[-135,-225,-235],[-70,-107,-215],[-28,-67,-220],[9,-67,-224],[39,-103,-265],[72,-181,-280],[98,-285,-315]],{width:12,lines:15,dim:true});
  scatterAlong(g,a,25);scatterAlong(g,b,16,3);scatterAlong(g,c,9,1);
  // Strongly separated foreground, middle-distance and far petals.
- petal(g,'rose',V(-21,-53,66),6.4,.18,-.5);petal(g,'shell',V(19,-41,45),4.0,-.12,.4);petal(g,'iris',V(-14,-82,70),5.8,.2,-.7);
+ petal(g,'rose',V(-21,-53,100),6.4,.18,-.5);petal(g,'shell',V(19,-41,90),4.0,-.12,.4);petal(g,'iris',V(-14,-82,108),5.8,.2,-.7);
  glow(g,V(18,0,-16),0xf1d6a3,2400);dust(g);
  preparePetalClearance();
 }
@@ -299,7 +294,7 @@ function finale(g){
  const a=ribbon(g,[[-72,-114,50],[-28,-60,24],[6,-35,6],[41,-3,-30],[48,49,-76],[7,118,-125],[-22,173,-164],[-53,238,-211]],{width:11,twist:.18,lines:19});
  const b=ribbon(g,[[60,-117,-98],[7,-79,-80],[-39,-32,-68],[-48,20,-96],[-24,92,-140],[5,159,-180],[40,236,-222]],{width:8,twist:-.25,lines:13,dim:true});
  scatterAlong(g,a,24,1);scatterAlong(g,b,13,3);
- petal(g,'shell',V(-26,-70,58),7,-.12,-.3);petal(g,'rose',V(-19,-46,35),4.7,.2,-.35);petal(g,'compass',V(17,-37,28),4.3,-.1,.35);petal(g,'iris',V(25,-71,47),4.9,.1,.3);petal(g,'darkmark',V(0,-68,45),3.8,.2,-.4);
+ petal(g,'shell',V(-26,-70,98),7,-.12,-.3);petal(g,'rose',V(-19,-46,85),4.7,.2,-.35);petal(g,'compass',V(17,-37,85),4.3,-.1,.35);petal(g,'iris',V(25,-71,100),4.9,.1,.3);petal(g,'darkmark',V(0,-68,95),3.8,.2,-.4);
  dust(g,1800);
  preparePetalClearance();
 }
@@ -341,6 +336,11 @@ for(const c of contexts){
  c.labels.traverse(o=>o.userData.isLabel=true);
  for(const r of c.roads){r.spark.traverse(o=>o.userData.isLabel=true);mergeStatic(r.root,false);}
  for(const bg of c.backgrounds){mergeTypeLines(bg);mergeStatic(bg,true);}
+ c.state.motionNodes=[];
+ c.root.traverse(o=>{
+  if(o.userData.inkMotion||o.userData.wave||o.isPoints||o.isPointLight||o.isRectAreaLight||o.name==='finale-mark-pivot')c.state.motionNodes.push(o);
+  if(o.isMesh){o.updateMatrix();o.matrixAutoUpdate=false;}
+ });
 }
 const object=new T.Object3D(),point=new T.Vector3(),world=new T.Vector3(),frustum=new T.Frustum(),viewProjection=new T.Matrix4(),sphere=new T.Sphere(),rotationScratch=new T.Quaternion(),eulerScratch=new T.Euler();
 function update(clock,view,seconds,reduced=false){
@@ -359,7 +359,9 @@ function update(clock,view,seconds,reduced=false){
     const t=reduced?clock*.18:clock;
     object.position.copy(point);object.quaternion.copy(p.baseQuaternion).multiply(rotationScratch.setFromEuler(eulerScratch.set(.07*Math.sin(t*.36+p.phase),.10*Math.sin(t*.29+p.phase),.045*Math.sin(t*.31+p.phase))));if(p.mesh.userData.route)object.quaternion.premultiply(p.parent.quaternion);object.scale.copy(p.mesh.scale);object.updateMatrix();pool.mesh.setMatrixAt(count++,object.matrix);
    }
-   pool.mesh.count=count;pool.mesh.visible=count>0;pool.mesh.instanceMatrix.needsUpdate=true;
+   pool.mesh.count=count;pool.mesh.visible=count>0;
+   pool.mesh.instanceMatrix.clearUpdateRanges();
+   if(count){pool.mesh.instanceMatrix.addUpdateRange(0,count*16);pool.mesh.instanceMatrix.needsUpdate=true;}
   }
  }
 }

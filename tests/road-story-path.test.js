@@ -15,7 +15,7 @@ test('road camera is continuous at every scene boundary in either direction',()=
 });
 test('ending frame is a fixed forward translation from the road frame',()=>{
  const frame=memoryEntryFrame(entry),shift=roadEndingEntry(entry),out=memoryEntryFrame(shift);
- const expected=frame.clone().multiply(new T.Matrix4().makeTranslation(0,0,-1650));
+ const expected=frame.clone().multiply(new T.Matrix4().makeTranslation(-620,80,-1650));
  assert.ok(Math.max(...out.elements.map((v,i)=>Math.abs(v-expected.elements[i])))<1e-8);
 });
 test('all three lights sample the same closed smooth track without stopping',()=>{

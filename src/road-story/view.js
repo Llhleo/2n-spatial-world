@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {renderMemoryPreview} from '../guild-memory-preview.js';
-import {smooth} from './path.js';
+import {smooth,sampleRoadCamera} from './path.js';
 
 export function renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,state,chapter,viewport,dt,reducedMotion,departureGroups,updateEnvironment}){
  const visibility=scene.children.map(o=>[o,o.visible]),position=camera.position.clone(),quaternion=camera.quaternion.clone(),up=camera.up.clone(),fov=camera.fov;
@@ -12,13 +12,14 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
   if(chapter.chapter==='next'&&endingReady){
    memory.setLayerOpacity?.(1);
    // The original ending runs in its own fixed space beyond the third road.
-   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:chapter.nextT,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,updateEnvironment:renderCamera=>{roads.update({historyT:1,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion,ending:true});roadEnvironment(renderCamera);}});
+   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:chapter.nextT,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,roadArrival:{},updateEnvironment:renderCamera=>{roads.update({historyT:1,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion,ending:true});roadEnvironment(renderCamera);}});
    return;
   }
   if(chapter.historyT*36>=23.1){
-   // Introduce the actual ending followers in their distant fixed space while
-   // the camera is still in the third road, before it approaches them.
-   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:undefined,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,updateEnvironment:renderCamera=>{memory.setLayerOpacity?.(smooth((chapter.historyT*36-23.1)/7.5));roads.update({historyT:chapter.historyT,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion});roadEnvironment(renderCamera);}});
+   // The real followers form a moving depth stream in the side clearing. Their
+   // fronts use this travelling camera, rather than a hidden shell's camera.
+   memory.setLayerOpacity?.(1);
+   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:undefined,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,roadArrival:{cameraPose:sampleRoadCamera(chapter.historyT*36,state.entryPose)},updateEnvironment:renderCamera=>{roads.update({historyT:chapter.historyT,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion});roadEnvironment(renderCamera);}});
    return;
   }
   for(const o of scene.children)if(o===memory.group||o===history?.group||o===nextView.group||o.name==='opening-monument'||departureGroups.includes(o))o.visible=false;

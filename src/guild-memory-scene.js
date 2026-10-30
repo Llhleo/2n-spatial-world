@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {applyMemoryEntry,memoryEntryFrame} from './guild-memory-entry.js';
-import {sampleNext,nextSmooth,PARTICLE_PETALS_ARRIVED} from './guild-next-route.js';
+import {sampleNext,nextSmooth,PARTICLE_PETALS_ARRIVED,PARTICLE_MARK_FORMED} from './guild-next-route.js';
+import {roadArrivalPoint} from './road-story/arrival.js';
 import {endingCamera,endingPetalPose,endingPetalPoint,endingFrame,createEndingParticles,endingPetalFrame} from './guild-ending-particles.js';
 import {createEndingFrames} from './guild-ending-frames.js';
 import {createMemoryLayout,memoryPoint} from './guild-memory-layout.js';
@@ -12,7 +13,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  let ending=createEndingParticles({renderer});
  const dimensions=createEndingFrames();group.add(dimensions.group,ending.occluder);
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
- let activeTarget=null,particleLayer=false,layerOpacity=1;
+ let activeTarget=null,particleLayer=false,layerOpacity=1,arrivalTime=0;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null,orbitTime=0,lastEndingT=0;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
@@ -56,7 +57,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   }
  }
  function captureEntry(sourceGroup,entryCamera){
-  endingOrigin=null;orbitTime=0;lastEndingT=0;
+  endingOrigin=null;orbitTime=0;lastEndingT=0;arrivalTime=0;
   prepare();entrySources.clear();sourceGroup.updateMatrixWorld(true);entryCamera.updateMatrixWorld();entryView=entryCamera.clone();
   const entry={position:entryCamera.position.toArray(),target:entryCamera.position.clone().add(new T.Vector3(0,0,-1).applyQuaternion(entryCamera.quaternion)).toArray()};
   const frame=memoryEntryFrame(entry).invert(),records=[];
@@ -110,6 +111,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   const from=Math.min(1,Math.floor(phase)),blend=phase-from;
   const eased=v=>{const u=Math.max(0,Math.min(1,v));return u*u*(3-2*u);};
   const elapsed=Math.min(.05,Math.max(0,dt));
+  if(state?.roadArrival)arrivalTime+=elapsed;
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   const particleEnding=state?.particleEnding??!!ending.fluidHits,inEnding=particleEnding&&Number.isFinite(state?.nextT);
   particleLayer=inEnding;
@@ -119,7 +121,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   if(!inEnding&&endingOrigin){time=endingOrigin.time+elapsed;endingOrigin=null;orbitTime=0;}
   if(inEnding){
    if(state.nextT<.1&&lastEndingT>.1)orbitTime=0;
-   if(!state?.reducedMotion)orbitTime+=elapsed*nextSmooth((state.nextT-PARTICLE_PETALS_ARRIVED)/(1-PARTICLE_PETALS_ARRIVED));
+   if(!state?.reducedMotion)orbitTime+=elapsed*(state?.roadArrival?nextSmooth((state.nextT-PARTICLE_MARK_FORMED)/(PARTICLE_PETALS_ARRIVED-PARTICLE_MARK_FORMED)):nextSmooth((state.nextT-PARTICLE_PETALS_ARRIVED)/(1-PARTICLE_PETALS_ARRIVED)));
    lastEndingT=state.nextT;
   }
   const motionTime=inEnding?endingOrigin.time+state.nextT*18:time,motionSpin=inEnding?endingOrigin.spin:spin;
@@ -132,6 +134,12 @@ export function createMemoryScene({mobile=true,renderer}={}){
   dimensions.update(state?.nextT,camera.aspect,state?.reducedMotion,ending.fluidHits);
   const nextOpening=nextPose?sampleNext(state.nextT).opening:0;
   activeTarget=nextPose?.target||shot.target;if(nextPose)camera.position.fromArray(nextPose.position);camera.lookAt(...activeTarget);camera.updateMatrixWorld();
+  const arrivalPose=state?.roadArrival?.cameraPose;
+  if(arrivalPose){
+   const local=new T.Matrix4().compose(new T.Vector3(...arrivalPose.position),new T.Quaternion(...arrivalPose.quaternion),new T.Vector3(1,1,1)).premultiply(memoryEntryFrame(state.entryPose).invert());
+   local.decompose(camera.position,camera.quaternion,new T.Vector3());camera.updateMatrixWorld();
+   activeTarget=camera.getWorldDirection(new T.Vector3()).multiplyScalar(216).add(camera.position).toArray();
+  }
   const color=new T.Color(palette[from]).lerp(new T.Color(palette[from+1]),blend);
   dustMaterial.uniforms.color.value.copy(color);
   for(const child of group.children)if(child.material?.uniforms?.color)child.material.uniforms.color.value.copy(color);
@@ -142,7 +150,9 @@ export function createMemoryScene({mobile=true,renderer}={}){
   // Different periods and phases, centered so the shell itself never bobs.
   const bob=a=>(1.8+1.4*a.u)*Math.sin(motionTime*(.72+a.u*.36+a.branch*.07)+a.u*17+a.branch*2.3);
   const meanBob=layout.anchors.length?layout.anchors.reduce((sum,a)=>sum+bob(a),0)/layout.anchors.length:0;
-  for(const a of layout.anchors){point.fromArray(memoryPoint(a,phase,motionSpin));
+  for(const a of layout.anchors){
+   if(state?.roadArrival)point.fromArray(roadArrivalPoint(a,camera.aspect,arrivalTime,state?.reducedMotion));
+   else{point.fromArray(memoryPoint(a,phase,motionSpin));
     // Chains adapt to wide viewports; the spherical shell retains real 3D depth.
     point.x*=1+(Math.max(.8,Math.min(2.8,camera.aspect/.6))-1)*(1-eased(phase));
     const chainWeight=1-eased(phase),motion=state?.reducedMotion?.2:1;
@@ -153,7 +163,8 @@ export function createMemoryScene({mobile=true,renderer}={}){
     const radial=point.clone().sub(new T.Vector3(0,0,-14));
     if(radial.lengthSq()>0)point.addScaledVector(radial.normalize(),motion*eased(phase)*(1-expand)*.35*Math.sin(motionTime*(.78+a.u*.3)+a.u*6+a.branch*1.7));
     point.y+=motion*expand*(bob(a)-meanBob);
-    if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,particleEnding?orbitTime:motionTime, state?.reducedMotion,endingCache?.frame,particleEnding));
+   }
+    if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,particleEnding?orbitTime:motionTime, state?.reducedMotion,endingCache?.frame,particleEnding,state?.roadArrival?arrivalTime:0));
     locations.set(a.id,point.clone());
   }
   // Bounded, deterministic separation prevents petals crossing during the morph.
@@ -210,7 +221,8 @@ export function createMemoryScene({mobile=true,renderer}={}){
    pool.mesh.count=count;pool.mesh.instanceMatrix.needsUpdate=true;
   }
   applyMemoryEntry(camera,group,state?.entryPose,state?.entryBlend??1);
-  if(nextPose){camera.lookAt(new T.Vector3(...activeTarget).applyMatrix4(group.matrix));camera.updateMatrixWorld();}
+  if(arrivalPose){camera.position.fromArray(arrivalPose.position);camera.quaternion.fromArray(arrivalPose.quaternion);camera.fov=arrivalPose.fov;camera.updateProjectionMatrix();camera.updateMatrixWorld();}
+  else if(nextPose){camera.lookAt(new T.Vector3(...activeTarget).applyMatrix4(group.matrix));camera.updateMatrixWorld();}
   // Dust is a view-volume layer during both flight and reading, so the camera
   // never leaves it behind in the destination space. Petal and beam roots stay fixed.
   dust.matrix.copy(group.matrix).invert().multiply(camera.matrixWorld).multiply(new T.Matrix4().makeScale(camera.aspect,1,1));

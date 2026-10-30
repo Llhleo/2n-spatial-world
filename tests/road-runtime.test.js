@@ -4,7 +4,8 @@ import * as T from 'three';
 import fs from 'node:fs';
 import {createRoadGeometry} from '../src/road-story/geometry.js';
 import {PETAL_NAMES} from '../src/road-traffic.js';
-import {sampleRoadCamera} from '../src/road-story/path.js';
+import {sampleRoadCamera,roadEndingEntry} from '../src/road-story/path.js';
+import {endingCamera} from '../src/guild-ending-particles.js';
 import {memoryEntryFrame} from '../src/guild-memory-entry.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
 
@@ -41,6 +42,9 @@ test('real scene geometry survives ten-minute idle, all camera flights, and view
  const c=world.contexts[1],r=c.roads[0],positions=[];
  for(const time of [0,60,300,600]){world.update(time,camera,18.1);positions.push(c.petals.find(p=>p.mesh.userData.route?.road===r).mesh.position.clone());}
  assert.ok(positions.every((p,i)=>!i||p.distanceTo(positions[i-1])>1));
+ const ending=memoryEntryFrame(roadEndingEntry(entry));
+ camera.fov=48;camera.aspect=414/896;camera.updateProjectionMatrix();
+ for(const t of [0,.1,.35,.65,.95,1]){const pose=endingCamera({position:[-4,7,198],target:[0,0,-14]},t);camera.position.fromArray(pose.position).applyMatrix4(ending);camera.lookAt(new T.Vector3(...pose.target).applyMatrix4(ending));camera.updateMatrixWorld();world.update(60,camera,36);assert.equal(world.visibleCount,0,'old road riders must not remain as stationary edge petals in the particle clearing');}
 });
 test('only three luminous travelers exist and halo plus tail retain depth testing',()=>{
  const rig=createLightTravelers(),cam=new T.PerspectiveCamera();rig.group.updateMatrixWorld(true);

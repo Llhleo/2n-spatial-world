@@ -42,7 +42,7 @@ export function createGuildRoadStory({historyRecords}){
   geometry.update(ambient,camera,seconds,reducedMotion);travelers.update(ambient,seconds,camera,reducedMotion);
   captured.visible=!ending&&seconds<5.5;
   // Every captured member continues a small drift while the camera leaves it.
-  const matrix=new T.Matrix4();for(const mesh of captured.children){for(let i=0;i<mesh.count;i++){matrix.fromArray(mesh.userData.original,i*16);matrix.elements[13]+=.6*Math.sin((ambient-chainTime)*.8+i*.41)-.6*Math.sin(i*.41);mesh.setMatrixAt(i,matrix);}mesh.instanceMatrix.needsUpdate=true;}
+  if(captured.visible){const matrix=new T.Matrix4();for(const mesh of captured.children){for(let i=0;i<mesh.count;i++){matrix.fromArray(mesh.userData.original,i*16);matrix.elements[13]+=.6*Math.sin((ambient-chainTime)*.8+i*.41)-.6*Math.sin(i*.41);mesh.setMatrixAt(i,matrix);}mesh.instanceMatrix.needsUpdate=true;}}
  }
  return {group,install,prepare,captureEntry,update,endingEntry:roadEndingEntry,get ready(){return ready;},get error(){return error;},get instanceCount(){return geometry?.instanceCount||0;},get visibleCount(){return geometry?.visibleCount||0;},get geometry(){return geometry;},dispose(){travelers.dispose();captured.traverse(o=>{if(o.isInstancedMesh)o.dispose();});group.traverse(o=>{if(o.geometry&&!assets.has(o.userData.assetName))o.geometry.dispose();});for(const a of assets.values()){a.geometry.dispose();a.material.dispose();}group.clear();}};
 }

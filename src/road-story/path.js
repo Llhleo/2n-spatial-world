@@ -7,6 +7,8 @@ export const ROAD_READING_STOPS=[9.3,18.1,28.6];
 export const smooth=v=>{const u=T.MathUtils.clamp(v,0,1);return T.MathUtils.clamp(u*u*u*(10+u*(-15+6*u)),0,1);};
 const V=a=>new T.Vector3(...a);
 const basePositions=[[0,0,170],[-3,0,174],[0,5,208]],baseTargets=[[0,0,-12],[1,0,-20],[0,6,-8]];
+export const ROAD_ENDING_OFFSET=[-620,80,-1650];
+const exitPath=new T.CatmullRomCurve3([[0,5,-832],[-100,40,-900],[-530,100,-1235],[-624,87,-1452]].map(V),false,'centripetal');
 export function roadJourneyTime(seconds){
  const a=[5.5,11.5,14.3,20.3,23.1,30.6],b=[0,24,30,54,60,84];
  if(seconds<=a[0])return 0;if(seconds>=a.at(-1))return 84;
@@ -19,7 +21,7 @@ function localCamera(i,time){
  const m=new T.Matrix4().lookAt(p,V(baseTargets[i]),new T.Vector3(0,1,0));m.setPosition(p);return m.toArray();
 }
 export function roadEndingEntry(entry){
- const delta=new T.Vector3(0,0,-1650).transformDirection(memoryEntryFrame(entry)).multiplyScalar(1650);
+ const delta=V(ROAD_ENDING_OFFSET).applyQuaternion(new T.Quaternion().setFromRotationMatrix(memoryEntryFrame(entry)));
  return {...entry,position:V(entry.position).add(delta).toArray(),target:V(entry.target).add(delta).toArray()};
 }
 export function sampleRoadCamera(seconds,entry){
@@ -34,10 +36,9 @@ export function sampleRoadCamera(seconds,entry){
   motionPath(shots,{p:[0,0,0],target:[0,0,0]},{p:[0,0,0],target:[0,0,0]})(u,camera);
   fov=T.MathUtils.lerp(48,40,smooth(u));
  }else if(seconds>30.6){
-  const endingFrame=memoryEntryFrame(roadEndingEntry(entry)),end=V([-4,7,198]).applyMatrix4(endingFrame),target=V([0,0,-14]).applyMatrix4(endingFrame);
-  const start=camera.position.clone(),focus=camera.getWorldDirection(new T.Vector3()).multiplyScalar(216).add(start),u=smooth((seconds-30.6)/5.4);
-  const path=new T.CatmullRomCurve3([start,start.clone().add(new T.Vector3(0,18,0).transformDirection(frame).multiplyScalar(80)),end.clone().lerp(start,.25).add(new T.Vector3(25,35,0)),end],false,'centripetal');
-  camera.position.copy(path.getPointAt(u));camera.lookAt(focus.lerp(target,u));fov=T.MathUtils.lerp(40,48,u);
+  const endingFrame=memoryEntryFrame(roadEndingEntry(entry)),target=V([0,0,-14]).applyMatrix4(endingFrame),u=smooth((seconds-30.6)/5.4);
+  const focus=V([0,6,-1048]).applyMatrix4(frame);
+  camera.position.copy(exitPath.getPointAt(u).applyMatrix4(frame));camera.lookAt(focus.lerp(target,u));fov=T.MathUtils.lerp(40,48,u);
  }
  return {position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),fov};
 }

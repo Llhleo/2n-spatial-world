@@ -1,7 +1,7 @@
 from pathlib import Path
 from fontTools.ttLib import TTFont
 from fontTools.pens.basePen import BasePen
-import json
+import json,subprocess
 root=Path(__file__).resolve().parents[2]
 font=None;glyphs=None;cmap=None;units=None
 class Flatten(BasePen):
@@ -21,12 +21,8 @@ class Flatten(BasePen):
         self.points=[]
     def _endPath(self):self._closePath()
 texts={}
-records=json.loads((root/'content/history.json').read_text())['events']
-strings=[]
-for record in records:
-    strings.extend([record['date'].replace('-','.'),record['title']])
-    strings.extend([record['body'][i:i+18] for i in range(0,len(record['body']),18)])
-strings.extend(['2n工会首个','unique等级花瓣'])
+requested=subprocess.check_output(['node','--input-type=module','-e',"import fs from 'node:fs';import {roadTextParts} from './src/road-story/typography.js';console.log(JSON.stringify(JSON.parse(fs.readFileSync('content/history.json')).events.flatMap((r,i)=>roadTextParts(r,i).map(p=>p.text))))"],cwd=root,text=True)
+strings=list(dict.fromkeys(json.loads(requested)))
 (root/'scripts/road-story/cache').mkdir(exist_ok=True)
 for text in strings:
     font=TTFont(root/'public/assets/road-story'/ ('date-mono.ttf' if text.isascii() else 'title.woff'));glyphs=font.getGlyphSet();cmap=font.getBestCmap();units=font['head'].unitsPerEm

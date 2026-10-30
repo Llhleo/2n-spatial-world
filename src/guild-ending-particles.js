@@ -61,14 +61,14 @@ export function endingPetalPose(a,t,reduced=false){
  const phase=a.longitude+t*12+a.branch*.7;
  return reduced?[0,0,0]:[.07*Math.sin(phase)*escort,.08*Math.cos(phase*.8)*escort,.22*Math.sin(phase*.6)*escort];
 }
-export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,particleEnding=true){
+export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,particleEnding=true,ambientTime=0){
  const slot=slots?.get(a.id),aspect=slot?.aspect||.6,fit=Math.min(1,aspect/.6),motion=reduced?0:1;
  // Original 158c2fb entry: petals begin rotating while they move outwards.
- const spiral=nextSmooth((t-.12)/.35),theta=a.longitude+spiral*1.6+t*18*.09*spiral*motion;
+ const spiral=nextSmooth((t-.12)/.35),theta=a.longitude+spiral*1.6+(t*18*.09*spiral+ambientTime*.10)*motion;
  const radius=54+(a.branch||0)*18+12*a.u;
  const early=new T.Vector3(Math.cos(theta)*radius*fit,30+Math.sin(theta)*radius*.46,-14+Math.sin(theta)*radius*.62+(a.u-.5)*48);
  const route=endingFlowCenter(endingGateProgress(Math.max(0,t-(a.u-.5)*.035)),fit);
- const angle=a.longitude+(t-.22)*(3.2+.8*a.u)*motion+a.branch*.6;
+ const angle=a.longitude+((t-.22)*(3.2+.8*a.u)+ambientTime*.18)*motion+a.branch*.6;
  const spread=52+18*a.u+14*nextSmooth((t-.46)/.10)+12*nextSmooth((t-.55)/.15)*(1-nextSmooth((t-.80)/.10));
  const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
