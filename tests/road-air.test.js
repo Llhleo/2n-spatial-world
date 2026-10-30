@@ -10,6 +10,20 @@ test('history uses deep neutral air while preserving the departing world fog',()
  assert.ok(scene.fog.color.equals(original));
 });
 
+test('the wide ending clearing extinguishes distant road remnants without changing reading air',()=>{
+ const scene=new T.Scene();scene.fog=new T.FogExp2(0x63282e,.0036);const original=scene.fog.density,camera=new T.PerspectiveCamera(48,896/414);
+ const roads={group:new T.Group(),endingEntry:p=>p,update(){}},memory={group:new T.Group(),setPreview(){},update(){},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};
+ scene.add(roads.group,memory.group,history.group,nextView.group);
+ const densities=[];
+ for(const seconds of [28.6,30.6,33,36,36,33,30.6,28.6]){
+  renderRoadStory({scene,camera,roads,memory,history,nextView,state:{entryPose:{position:[0,0,0],target:[0,0,-1],up:[0,1,0]},particleEnding:false},chapter:{chapter:seconds===36?'next':'history',historyT:seconds/36,nextT:1},viewport:{},dt:0,reducedMotion:false,departureGroups:[],renderer:{render(){densities.push(scene.fog.density);}}});
+  assert.equal(scene.fog.density,original,'outside chapter fog is restored');
+ }
+ assert.equal(densities[0],.0018);assert.equal(densities[1],.0018);
+ assert.ok(Math.exp(-Math.pow(693.83*densities[3],2))<.01,'nearest projected landscape road has less than 1% remaining contrast');
+ assert.deepEqual(densities.slice(4),densities.slice(0,4).reverse(),'reverse exits reconstruct the same atmosphere');
+});
+
 test('road reading and flights keep world and ending lighting from changing the palette',()=>{
  const scene=new T.Scene();scene.fog=new T.FogExp2(0x63282e,.0036);const camera=new T.PerspectiveCamera();
  const sun=new T.DirectionalLight(0xff6644,1.4),roads={group:new T.Group(),endingEntry:p=>p,update(){}},memory={group:new T.Group(),setPreview(){},update(){},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};

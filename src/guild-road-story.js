@@ -5,6 +5,7 @@ import {memoryEntryFrame} from './guild-memory-entry.js';
 import {createRoadGeometry} from './road-story/geometry.js';
 import {createLightTravelers} from './road-story/lights.js';
 import {sampleRoadCamera,roadEndingEntry,smooth} from './road-story/path.js';
+import {prepareRoadPetalMaterial} from './road-story/petal-material.js';
 
 export function createGuildRoadStory({historyRecords}){
  const group=new T.Group();group.name='guild-road-story';group.visible=false;
@@ -20,7 +21,7 @@ export function createGuildRoadStory({historyRecords}){
   if(assets.has(name)||!source?.geometry||!source?.material)return;
   source.geometry.computeBoundingBox();source.geometry.computeBoundingSphere();
   const sphere=source.geometry.boundingSphere,dims=source.geometry.boundingBox.getSize(new T.Vector3()),g=source.geometry.clone();g.translate(-sphere.center.x,-sphere.center.y,-sphere.center.z);g.scale(1/sphere.radius,1/sphere.radius,1/sphere.radius);g.computeBoundingSphere();
-  const material=source.material.clone();if(material.map)material.map=petalDisplayTexture(material.map,{mipmaps:name==='rose'});material.metalness=0;material.roughness=Math.max(.35,material.roughness);material.side=T.FrontSide;
+  const material=prepareRoadPetalMaterial(source.material.clone());if(material.map)material.map=petalDisplayTexture(material.map,{mipmaps:name==='rose'});material.metalness=0;material.roughness=Math.max(.35,material.roughness);material.side=T.FrontSide;
   assets.set(name,{geometry:g,material,face:petalFrontQuaternion(name,dims)});
  }
  async function prepare(){

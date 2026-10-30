@@ -12,12 +12,13 @@ let petalFrames=0;
 function inspectPetals(context,t,clock){
  petalFrames++;
  const bounds=context.labels.children.map(label=>{const box=label.geometry.boundingBox,lo=box.min.clone().applyMatrix4(label.matrixWorld).project(camera),hi=box.max.clone().applyMatrix4(label.matrixWorld).project(camera);return {text:label.userData.text,left:lo.x,right:hi.x,bottom:lo.y,top:hi.y};});
- const p=new T.Vector3(),local=new T.Vector3();
- for(const petal of context.petals){
-  p.copy(petal.mesh.position);if(petal.mesh.userData.route)p.applyMatrix4(petal.parent.matrix);p.applyMatrix4(context.root.matrixWorld);
+ const p=new T.Vector3(),local=new T.Vector3(),frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse)),sphere=new T.Sphere();
+ for(const owner of world.contexts)for(const petal of owner.petals){
+  p.copy(petal.mesh.position);if(petal.mesh.userData.route)p.applyMatrix4(petal.parent.matrix);p.applyMatrix4(owner.root.matrixWorld);
+  sphere.center.copy(p);sphere.radius=petal.mesh.scale.x*1.1;if(!frustum.intersectsSphere(sphere))continue;
   const depth=-local.copy(p).applyMatrix4(camera.matrixWorldInverse).z;if(depth<=petal.mesh.scale.x||depth>1100)continue;
   p.project(camera);const ry=petal.mesh.scale.x/((depth-petal.mesh.scale.x)*Math.tan(T.MathUtils.degToRad(camera.fov/2))),rx=ry/camera.aspect;
-  for(const b of bounds)if(p.x+rx>b.left&&p.x-rx<b.right&&p.y+ry>b.bottom&&p.y-ry<b.top&&blocked.length<64)blocked.push({index:1,t,clock,text:b.text,reason:'petal silhouette',name:petal.mesh.userData.assetName});
+  for(const b of bounds)if(p.x+rx>b.left&&p.x-rx<b.right&&p.y+ry>b.bottom&&p.y-ry<b.top&&blocked.length<64)blocked.push({index:world.contexts.indexOf(context),t,clock,text:b.text,reason:'petal silhouette',name:petal.mesh.userData.assetName,owner:world.contexts.indexOf(owner),depth,screen:p.toArray(),radius:[rx,ry]});
  }
 }
 for(const [index,times]of [[8.6,9.3,10.4],[17.1,18.1,19.4],[25,28.6,30]].entries())for(const [clock,t]of times.entries()){
@@ -29,13 +30,15 @@ for(const [index,times]of [[8.6,9.3,10.4],[17.1,18.1,19.4],[25,28.6,30]].entries
    const target=point.clone(),screen=point.clone().project(camera);samples++;
    if(Math.abs(screen.x)>.97||Math.abs(screen.y)>.97)blocked.push({index,t,text:label.userData.text,reason:'outside safe viewport'});
    ray.setFromCamera(screen,camera);
-   if(ray.intersectObjects(context.roads.map(r=>r.root),true).some(hit=>index===1?hit.distance<1100:hit.distance<camera.position.distanceTo(target)-.1))blocked.push({index,t,text:label.userData.text,reason:index===1?'road silhouette':'foreground road'});
+   if(ray.intersectObjects(world.contexts.flatMap(c=>c.roads.map(r=>r.root)),true).some(hit=>label.userData.textRole==='body'||index===1?hit.distance<1100:hit.distance<camera.position.distanceTo(target)-.1))blocked.push({index,t,text:label.userData.text,reason:index===1?'road silhouette':'foreground road'});
   }
  }
- if(index===1)inspectPetals(context,t,clock*15);
+ inspectPetals(context,t,clock*15);
 }
-const pose=sampleRoadCamera(18.1,entry);camera.position.fromArray(pose.position);camera.quaternion.fromArray(pose.quaternion);camera.fov=pose.fov;camera.updateProjectionMatrix();camera.updateMatrixWorld();
-for(let clock=0;clock<=600;clock++){world.update(clock,camera,18.1);inspectPetals(world.contexts[1],18.1,clock);}
+for(const [index,stop]of [9.3,18.1,28.6].entries()){
+const pose=sampleRoadCamera(stop,entry);camera.position.fromArray(pose.position);camera.quaternion.fromArray(pose.quaternion);camera.fov=pose.fov;camera.updateProjectionMatrix();camera.updateMatrixWorld();
+for(let clock=0;clock<=600;clock++){world.update(clock,camera,stop);inspectPetals(world.contexts[index],stop,clock);}
+}
 const result={viewport:[414,896],cameraSamples:9,textSamples:samples,petalFrames,idleSeconds:600,blocked};
 fs.mkdirSync('scripts/road-story/cache',{recursive:true});fs.writeFileSync('scripts/road-story/cache/layout-audit.json',JSON.stringify(result,null,2));console.log(result);
 if(blocked.length)throw new Error('Road text loses its reading area');

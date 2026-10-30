@@ -8,7 +8,11 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
  const ownedLights=new Set(),externalLights=[];roads.group.traverse(o=>{if(o.isLight)ownedLights.add(o);});
  scene.traverse(o=>{if(o.isLight&&!ownedLights.has(o))externalLights.push({light:o,visible:o.visible,intensity:o.intensity,color:o.color.clone()});});
  const studioBlend=smooth(chapter.historyT*36/4.3);
- const roadEnvironment=cam=>{updateEnvironment?.(cam);for(const saved of externalLights){saved.light.visible=saved.visible&&studioBlend<1;saved.light.intensity=saved.intensity*(1-studioBlend);}if(scene.fog){scene.fog.color.lerp(new T.Color(0x06090d),smooth((chapter.historyT*36-.8)/3.5));scene.fog.density=.0018;}};
+ const roadEnvironment=cam=>{updateEnvironment?.(cam);for(const saved of externalLights){saved.light.visible=saved.visible&&studioBlend<1;saved.light.intensity=saved.intensity*(1-studioBlend);}if(scene.fog){scene.fog.color.lerp(new T.Color(0x06090d),smooth((chapter.historyT*36-.8)/3.5));
+  // The camera enters deeper air in the side clearing. Even a wide viewport
+  // loses the remote silver engravings while nearby ending petals stay clear.
+  scene.fog.density=T.MathUtils.lerp(.0018,.0032,smooth((chapter.historyT*36-30.6)/5.4));
+ }};
  try{
   roads.group.visible=true;
   const endingReady=nextView.ready&&(!state.particleEnding||memory.particleEndingReady);

@@ -180,7 +180,7 @@ function spatialLayers(parent,kind){
  blade([[-55,-140,near-7],[-24,-67,near],[-19,-30,near-2],[-25,4,near-8],[-44,67,near-26]],5,0x09121b,true);
  blade([[54,-145,near-6],[24,-80,near],[20,-49,near-3],[30,-12,near-10],[52,59,near-28]],7,0x0b1720);
  // A few distant petals make the far space measurable, with no extra mobs.
- for(let i=0;i<9;i++)petal(parent,names[(i+kind*2)%names.length],V(kind===1?82+i*9:-72+i*17,(kind===1?-110:-72)+Math.sin(i*1.7)*57,-470-(i%3)*28),1.2+(i%3)*.35,.12,i*.4);
+ for(let i=0;i<9;i++)petal(parent,names[(i+kind*2)%names.length],V(kind===1?82+i*9:kind===2?-150+i*38:-72+i*17,kind===2?180+Math.sin(i*1.7)*25:(kind===1?-110:-72)+Math.sin(i*1.7)*57,-470-(i%3)*28),1.2+(i%3)*.35,.12,i*.4);
 }
 
 function dust(parent,n=1800){const p=new Float32Array(n*3),colors=new Float32Array(n*3);for(let i=0;i<n;i++){p.set([(rnd()-.5)*260,(rnd()-.5)*390,40-rnd()*300],i*3);const b=.25+rnd()*.45;colors.set([b*.85,b*.95,b],i*3);}const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(p,3));g.setAttribute('color',new T.BufferAttribute(colors,3));const m=new T.PointsMaterial({size:.18,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:.75,depthWrite:false});parent.add(new T.Points(g,m));}
