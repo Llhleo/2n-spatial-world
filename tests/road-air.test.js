@@ -28,8 +28,27 @@ test('road reading and flights keep world and ending lighting from changing the 
  const scene=new T.Scene();scene.fog=new T.FogExp2(0x63282e,.0036);const camera=new T.PerspectiveCamera();
  const sun=new T.DirectionalLight(0xff6644,1.4),roads={group:new T.Group(),endingEntry:p=>p,update(){}},memory={group:new T.Group(),setPreview(){},update(){},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};
  const memoryKey=new T.DirectionalLight(0xffffff,2.8),studio=new T.AmbientLight(0xffffff,.65);memory.group.add(memoryKey);roads.group.add(studio);scene.add(sun,roads.group,memory.group,history.group,nextView.group);
- for(const seconds of [9.3,18.1,20.5,22.9,23.2,28.6,33]){
+ for(const seconds of [9.3,18.1,20.5,22.9,23.2,28.6,30.6]){
   renderRoadStory({scene,camera,roads,memory,history,nextView,state:{entryPose:{position:[0,0,0],target:[0,0,-1],up:[0,1,0]},particleEnding:false},chapter:{chapter:'history',historyT:seconds/36},viewport:{},dt:0,reducedMotion:false,departureGroups:[],updateEnvironment(){sun.color.set(seconds>20?0x00ff00:0xff0000);sun.intensity=7;},renderer:{render(){assert.ok(!sun.visible||sun.intensity===0,'moving over old biome coordinates must not recolor the road');assert.ok(!memory.group.visible||!memoryKey.visible||memoryKey.intensity===0,'preparing ending followers must not add a second studio');assert.equal(studio.intensity,.65);}}});
   assert.equal(sun.visible,true);assert.equal(sun.intensity,1.4);assert.equal(memoryKey.visible,true);assert.equal(memoryKey.intensity,2.8);
  }
+});
+
+test('the particle clearing receives its own neutral studio instead of the distant road rig',()=>{
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(),sun=new T.DirectionalLight(0x00ff00,7);
+ const roadKey=new T.DirectionalLight(0xffaa66,3.5),memoryKey=new T.DirectionalLight(0xffffff,2.8);
+ const roads={group:new T.Group(),endingEntry:p=>p,update(){roadKey.intensity=3.5;}},memory={group:new T.Group(),particleEndingReady:true,setPreview(){},update(){memoryKey.intensity=2.8;},setTerrainVisible(){memoryKey.intensity=2.8;},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};
+ const terrain=new T.Group();terrain.name='florr-hell-ground';terrain.userData.departureBounds=new T.Box3(new T.Vector3(1e4,1e4,1e4),new T.Vector3(1e4+1,1e4+1,1e4+1));scene.add(terrain);
+ roads.group.add(roadKey);memory.group.add(memoryKey);scene.add(sun,roads.group,memory.group,history.group,nextView.group);
+ const endingPower=[];
+ for(const seconds of [28.6,30.6,33,36,36,33,30.6,28.6]){
+  renderRoadStory({scene,camera,roads,memory,history,nextView,state:{entryPose:{position:[0,0,0],target:[0,0,-1],up:[0,1,0]},particleEnding:true},chapter:{chapter:seconds===36?'next':'history',historyT:seconds/36,nextT:.5},viewport:{},dt:0,reducedMotion:false,departureGroups:[],renderer:{render(){
+   endingPower.push(memoryKey.visible?memoryKey.intensity:0);
+   assert.ok(!sun.visible||sun.intensity===0,'biome tint must never illuminate the ending');
+   if(seconds===36){assert.ok(memoryKey.visible&&memoryKey.intensity===2.8,'ending keeps its live white key light');assert.ok(!roadKey.visible||roadKey.intensity===0,'road lights do not bleed into the clearing');}
+  }}});
+  assert.equal(memoryKey.visible,true);assert.equal(roadKey.intensity,3.5);assert.equal(sun.intensity,7);
+ }
+ assert.deepEqual(endingPower.slice(4),endingPower.slice(0,4).reverse());
+ assert.ok(endingPower[2]>0&&endingPower[2]<2.8,'lighting blends during the exit');
 });

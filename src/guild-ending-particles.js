@@ -1,11 +1,12 @@
 import * as T from 'three';
-import {nextSmooth,PARTICLE_MARK_FORMED,PARTICLE_PETALS_ARRIVED} from './guild-next-route.js';
+import {nextSmooth,PARTICLE_MARK_FORMED} from './guild-next-route.js';
 import {createMonument} from './monument.js';
 import {MeshSurfaceSampler} from 'three/addons/math/MeshSurfaceSampler.js';
 import {ENDING_FLOW_GLSL,endingGlyphProgress,endingGateProgress,endingFlowCenter} from './guild-ending-flow.js';
 import {createEndingFluid} from './guild-ending-fluid.js';
 import {materialRouteTime,MATERIAL_RENDER_GLSL} from './guild-ending-material.js';
 import {endingDimensionTransforms,endingDimensionFrame,ENDING_GATE_COUNT} from './guild-ending-frames.js';
+import {particlePetalPoint} from './guild-ending-petal-route.js';
 
 // Reference study: FrostNovaOrg/world-execute-web engine/swarm.js,
 // engine/rig.js, ch/title/galaxy.js and 02_title.js drawGatherR. Independently authored:
@@ -52,7 +53,7 @@ export function endingPetalFrame(pose,aspect,anchors){
    const radius=5.9/(depth*half),gap=placed.length?Math.min(...placed.map(p=>Math.hypot((x-p.x)*aspect,y-p.y)/(radius+p.radius))):2;
    if(gap>score){score=gap;best={x,y,radius};}
   }
-  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,ring:index%3,aspect,flight:petalFlight(a)});
+  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,escortPhase:index*2.39996-1.1,ring:index%3,aspect,flight:petalFlight(a)});
  }
  return slots;
 }
@@ -62,6 +63,7 @@ export function endingPetalPose(a,t,reduced=false){
  return reduced?[0,0,0]:[.07*Math.sin(phase)*escort,.08*Math.cos(phase*.8)*escort,.22*Math.sin(phase*.6)*escort];
 }
 export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,particleEnding=true,ambientTime=0){
+ if(particleEnding)return particlePetalPoint(a,start,t,time,reduced,slots?.get(a.id),ambientTime,slots?.get(a.id)?.flight||petalFlight(a));
  const slot=slots?.get(a.id),aspect=slot?.aspect||.6,fit=Math.min(1,aspect/.6),motion=reduced?0:1;
  // Original 158c2fb entry: petals begin rotating while they move outwards.
  const spiral=nextSmooth((t-.12)/.35),theta=a.longitude+spiral*1.6+(t*18*.09*spiral+ambientTime*.10)*motion;
@@ -72,33 +74,10 @@ export function endingPetalPoint(a,start,t,time=0,reduced=false,slots=null,parti
  const spread=52+18*a.u+14*nextSmooth((t-.46)/.10)+12*nextSmooth((t-.55)/.15)*(1-nextSmooth((t-.80)/.10));
  const escort=new T.Vector3(route[0]+Math.cos(angle)*spread*fit,route[1]+Math.sin(angle)*spread*.65,route[2]+Math.sin(angle*1.4+a.branch)*45+(a.u-.5)*42);
  const cloud=early.lerp(escort,nextSmooth((t-.20)/.12));
- let destination;
- if(particleEnding){
-  // Arrive directly in one loose lower XZ band. The old scattered landing
-  // points belong only to the legacy ending, never to this transition.
-  const phase=slot?.phase??a.longitude,r=60+6*Math.sin(phase*.73+a.u*4)+4*Math.cos(phase*1.21),orbitFit=Math.min(1,aspect/.75);
-  const height=21+4*Math.sin(phase*1.7+a.u*4);
-  // One angular phase throughout arrival and idle: blending opposite points
-  // in Cartesian space would collapse the ring on a long-idle rewind.
-  const angle=phase-(reduced?0:time*.14);
-  destination=new T.Vector3(Math.cos(angle)*r*orbitFit,height+1.6*Math.sin(angle*2+a.branch),-14-Math.sin(angle)*r*.9);
- }else{
-  destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
-  if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
- }
- if(particleEnding){
-  const flight=slot?.flight||petalFlight(a),stage=(t-PARTICLE_MARK_FORMED)/(PARTICLE_PETALS_ARRIVED-PARTICLE_MARK_FORMED);
-  const u=Math.max(0,Math.min(1,(stage-flight.delay)/(flight.finish-flight.delay)));
-  cloud.lerp(destination,nextSmooth(u));
-  // Each identity follows its own 3D arc. The bump and its first two
-  // derivatives vanish at either end, retaining the escort/orbit velocity.
-  const arc=64*u*u*u*(1-u)*(1-u)*(1-u)*motion;
-  cloud.add(new T.Vector3(flight.bend[0]*fit,flight.bend[1],flight.bend[2]).multiplyScalar(arc));
- }else cloud.lerp(destination,nextSmooth((t-.68)/.22));
- const flight=slot?.flight||petalFlight(a),departure=.006+.018*flight.delay/.22;
- // Preserve each live story point and its velocity at the boundary, then
- // carry it into the star field over the existing first 3.24 seconds.
- const enter=particleEnding?nextSmooth((t-departure)/(.18-departure)):(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12));
+ const destination=slot?.position.clone()||new T.Vector3(Math.cos(a.longitude)*radius*fit,30+Math.sin(a.longitude)*radius*.46,-14+Math.sin(a.longitude)*radius*.62);
+ if(slot&&!reduced)destination.add(new T.Vector3(Math.sin(time*.12+slot.phase)*.8,Math.cos(time*.13+slot.phase)*.8,Math.sin(time*.11+slot.phase)*1.8));
+ cloud.lerp(destination,nextSmooth((t-.68)/.22));
+ const enter=(nextSmooth((t-.10-(a.u%.2)*.12)/.58)+(1-nextSmooth((t-.10-(a.u%.2)*.12)/.58))*nextSmooth((t-.18)/.12));
  return start.map((v,i)=>T.MathUtils.lerp(v,cloud.getComponent(i),enter));
 }
 // Sample the exact opening sculpture, retaining its separate superscript n,

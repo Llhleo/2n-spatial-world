@@ -10,7 +10,7 @@ test('new petals form one loose lower band instead of three stacked rings',()=>{
  for(const time of [0,9,23,45]){
   const points=layout.anchors.map(a=>endingPetalPoint(a,memoryPoint(a,2),1,time,false,slots));
   const heights=points.map(p=>p[1]),radii=points.map(p=>Math.hypot(p[0]/(.46/.75),p[2]+14));
-  assert.ok(Math.min(...heights)>12&&Math.max(...heights)<30,'all petals stay in the former bottom band');
+  assert.ok(Math.min(...heights)>22&&Math.max(...heights)<45,'the repaired band sits around the lower half of the mark');
   assert.ok(Math.max(...heights)-Math.min(...heights)>5,'a loose band has small height variation');
   assert.ok(Math.max(...radii)-Math.min(...radii)>8,'radii vary rather than forming a rigid circle');
  }

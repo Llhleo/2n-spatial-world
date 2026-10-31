@@ -18,13 +18,14 @@ export function renderMemoryPreview({scene,renderer,camera,memory,history,nextVi
   const state=Number.isFinite(progress)?sampleMemoryStory(progress):{eventIndex:index,eventOpacity:1};
   if(Number.isFinite(nextT)){Object.assign(state,sampleNext(nextT,{particleEnding}));state.eventOpacity*=state.historyOpacity;}
   memory.setPreview(state.eventIndex);memory.update({...state,entryPose,entryBlend,showText,reducedMotion,roadArrival},camera,dt);
-  // Environment uses the camera that is actually rendered, not the member pose.
-  updateEnvironment?.(camera);
   const terrain=scene.getObjectByName('florr-hell-ground');
   if(terrain){terrain.updateWorldMatrix(true,true);camera.updateMatrixWorld();
    const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
    memory.setTerrainVisible?.(frustum.intersectsBox(terrain.userData.departureBounds||(terrain.userData.departureBounds=new T.Box3().setFromObject(terrain))));
   }
+  // Apply the final environment after terrain has selected its studio power,
+  // so a scoped road-to-ending blend cannot be overwritten before rendering.
+  updateEnvironment?.(camera);
   // Leaving terrain is produced solely by camera motion, never by map fading.
   scene.fog=original.fog;scene.background=original.background;
   if(showText&&history)history.update({...state,target:memory.shot.target},camera,viewport);
