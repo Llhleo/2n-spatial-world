@@ -51,8 +51,8 @@ export function createMemoryScene({mobile=true,renderer}={}){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
    const material=(entrySources.get(anchors[0].id)?.material||asset.source.material).clone();material.fog=entrySources.size?entrySources.get(anchors[0].id)?.material.fog!==false:false;const geometry=asset.source.geometry.clone(),alpha=new T.InstancedBufferAttribute(new Float32Array(anchors.length).fill(1),1);alpha.setUsage(T.DynamicDrawUsage);geometry.setAttribute('memoryAlpha',alpha);
    const sourceMap=material.map,displayMap=petalDisplayTexture(sourceMap),stableMap=asset.name==='rose'?petalDisplayTexture(sourceMap,{mipmaps:true}):displayMap;
-   material.map=displayMap;
-   material.onBeforeCompile=shader=>{shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float memoryAlpha; varying float vMemoryAlpha;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMemoryAlpha=memoryAlpha;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vMemoryAlpha;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vMemoryAlpha;');};material.customProgramCacheKey=()=> 'memory-instance-alpha-v1';
+   material.map=displayMap;material.userData.endingClarity={value:0};
+   material.onBeforeCompile=shader=>{shader.uniforms.memoryEndingClarity=material.userData.endingClarity;shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float memoryAlpha; varying float vMemoryAlpha;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMemoryAlpha=memoryAlpha;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying float vMemoryAlpha; uniform float memoryEndingClarity;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vMemoryAlpha;').replace('#include <fog_fragment>',T.ShaderChunk.fog_fragment.replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );','fogFactor = min(fogFactor,mix(1.0,0.22,memoryEndingClarity));\n gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );'));};material.customProgramCacheKey=()=> 'memory-instance-alpha-v2-ending-air';
    const mesh=new T.InstancedMesh(geometry,material,anchors.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.name=`memory-${id}`;mesh.userData.anchorIds=anchors.map(a=>a.id);group.add(mesh);pools.set(id,{...asset,mesh,material,anchors,displayMap,stableMap,nativeTransparent:material.transparent,nativeDepthWrite:material.depthWrite});
   }
  }
@@ -115,6 +115,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   spin+=elapsed*.28*eased(phase)*(1-eased(phase-1))*(state?.reducedMotion?0:1);
   const particleEnding=state?.particleEnding??!!ending.fluidHits,inEnding=particleEnding&&Number.isFinite(state?.nextT);
   particleLayer=inEnding;
+  for(const pool of pools.values())pool.material.userData.endingClarity.value=state?.roadArrival&&inEnding?nextSmooth(state.nextT/.07):0;
   if(inEnding&&!endingOrigin)endingOrigin={time:time-state.nextT*18,spin};
   // Idle time in the ending must not advance the hidden story's breathing.
   // Rewinding across the boundary resumes the phase actually being rendered.

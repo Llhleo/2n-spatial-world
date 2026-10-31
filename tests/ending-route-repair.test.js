@@ -16,6 +16,13 @@ test('petal escorts surround the current material-particle transport rather than
   assert.ok(center.distanceTo(expected)<14,`escort must follow the actual moving cloud at ${t}: gap ${center.distanceTo(expected)}`);
  }
 });
+test('restored loose escorts interleave with the cloud instead of drawing an outside necklace',()=>{
+ for(const t of [.65,.7]){
+  const distances=layout.anchors.map(a=>endingPetalPoint(a,memoryPoint(a,2),t,0,false,slots)).map(p=>Math.hypot(p[0]/(aspect/.6),p[1]-43,p[2]+14));
+  assert.ok(distances.filter(r=>r<45).length>distances.length*.25,'petals must occupy the particle cloud volume');
+  assert.ok(Math.max(...distances)-Math.min(...distances)>25,'the loose depth distribution must not reduce to a constant-radius ring');
+ }
+});
 test('final ring stays spatially outside the mark and gently rises around its lower half',()=>{
  for(const clock of [0,12,90]){
   const points=layout.anchors.map(a=>new T.Vector3(...endingPetalPoint(a,memoryPoint(a,2),1,clock,false,slots)));
@@ -24,7 +31,7 @@ test('final ring stays spatially outside the mark and gently rises around its lo
   for(const p of points)assert.ok(Math.hypot(p.x/(aspect/.75),(p.z+14)/.92)>62,'wide, open band keeps the petal models off the glyph');
  }
 });
-test('authored orbit slots preserve angular order instead of making a rushed half-turn at arrival',()=>{
+test('the restored individual arrival paths stay continuous at 50ms sampling',()=>{
  for(let tick=331;tick<=356;tick++)for(const a of layout.anchors){
   const t=tick/360,p=new T.Vector3(...endingPetalPoint(a,memoryPoint(a,2),t,0,false,slots)),q=new T.Vector3(...endingPetalPoint(a,memoryPoint(a,2),t+1/360,0,false,slots));
   assert.ok(p.distanceTo(q)<8,'a 50ms arrival step must not whip petals around the mark');

@@ -37,8 +37,8 @@ test('road reading and flights keep world and ending lighting from changing the 
 test('the particle clearing receives its own neutral studio instead of the distant road rig',()=>{
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(),sun=new T.DirectionalLight(0x00ff00,7);
  const roadKey=new T.DirectionalLight(0xffaa66,3.5),memoryKey=new T.DirectionalLight(0xffffff,2.8);
- const roads={group:new T.Group(),endingEntry:p=>p,update(){roadKey.intensity=3.5;}},memory={group:new T.Group(),particleEndingReady:true,setPreview(){},update(){memoryKey.intensity=2.8;},setTerrainVisible(){memoryKey.intensity=2.8;},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};
- const terrain=new T.Group();terrain.name='florr-hell-ground';terrain.userData.departureBounds=new T.Box3(new T.Vector3(1e4,1e4,1e4),new T.Vector3(1e4+1,1e4+1,1e4+1));scene.add(terrain);
+ const roads={group:new T.Group(),endingEntry:p=>p,update(){roadKey.intensity=3.5;}},memory={group:new T.Group(),particleEndingReady:true,setPreview(){},update(){memoryKey.intensity=2.8;},setTerrainVisible(visible){memoryKey.intensity=visible?0:2.8;},shot:{target:[0,0,-14]}},history={group:new T.Group()},nextView={group:new T.Group(),ready:true,update(){}};
+ const terrain=new T.Group();terrain.name='florr-hell-ground';terrain.userData.departureBounds=new T.Box3(new T.Vector3(-1e5,-1e5,-1e5),new T.Vector3(1e5,1e5,1e5));scene.add(terrain);
  roads.group.add(roadKey);memory.group.add(memoryKey);scene.add(sun,roads.group,memory.group,history.group,nextView.group);
  const endingPower=[];
  for(const seconds of [28.6,30.6,33,36,36,33,30.6,28.6]){

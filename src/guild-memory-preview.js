@@ -21,7 +21,9 @@ export function renderMemoryPreview({scene,renderer,camera,memory,history,nextVi
   const terrain=scene.getObjectByName('florr-hell-ground');
   if(terrain){terrain.updateWorldMatrix(true,true);camera.updateMatrixWorld();
    const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
-   memory.setTerrainVisible?.(frustum.intersectsBox(terrain.userData.departureBounds||(terrain.userData.departureBounds=new T.Box3().setFromObject(terrain))));
+   // The road route isolates world lighting. A remote, fog-hidden map inside
+   // the frustum cannot supply replacement light for the ending studio.
+   memory.setTerrainVisible?.(!roadArrival&&frustum.intersectsBox(terrain.userData.departureBounds||(terrain.userData.departureBounds=new T.Box3().setFromObject(terrain))));
   }
   // Apply the final environment after terrain has selected its studio power,
   // so a scoped road-to-ending blend cannot be overwritten before rendering.

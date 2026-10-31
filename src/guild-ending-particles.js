@@ -53,7 +53,7 @@ export function endingPetalFrame(pose,aspect,anchors){
    const radius=5.9/(depth*half),gap=placed.length?Math.min(...placed.map(p=>Math.hypot((x-p.x)*aspect,y-p.y)/(radius+p.radius))):2;
    if(gap>score){score=gap;best={x,y,radius};}
   }
-  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,escortPhase:index*2.39996-1.1,ring:index%3,aspect,flight:petalFlight(a)});
+  placed.push(best);slots.set(a.id,{position:new T.Vector3(best.x*depth*half*aspect,best.y*depth*half,-depth).applyMatrix4(camera.matrixWorld),phase:index*2.39996,stagingPhase:index*2.39996,ring:index%3,aspect,flight:petalFlight(a)});
  }
  return slots;
 }
