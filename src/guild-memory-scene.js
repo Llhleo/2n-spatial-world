@@ -15,6 +15,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
  const entrySources=new Map();let entryView=null,terrainVisible=false,lightBlend=1;
  let activeTarget=null,particleLayer=false,layerOpacity=1,arrivalTime=0;
  const pools=new Map(),owned=[],sources=new Map();let layout=null,preview=0,time=0,spin=0,disposed=false,endingCache=null,endingOrigin=null,orbitTime=0,lastEndingT=0;
+ const arrivalFollowers=new Map();let followerT=null;
  const matrix=new T.Matrix4(),rotation=new T.Quaternion(),scale=new T.Vector3(),point=new T.Vector3(),center=new T.Vector3();
  const palette=[0xe8e4cb,0xb43b48,0xe4d1a0];
  const ambient=new T.AmbientLight(0xffffff,1.15);group.add(ambient);
@@ -46,6 +47,7 @@ export function createMemoryScene({mobile=true,renderer}={}){
   rebuildPools();
  }
  function rebuildPools(){
+  arrivalFollowers.clear();followerT=null;
   for(const pool of pools.values()){group.remove(pool.mesh);pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}pools.clear();
   for(const [id,asset] of sources){
    const anchors=layout.anchors.filter(a=>a.key===id);if(!anchors.length)continue;
@@ -168,13 +170,43 @@ export function createMemoryScene({mobile=true,renderer}={}){
     if(Number.isFinite(state?.nextT))point.fromArray(endingPetalPoint(a,point.toArray(),state.nextT,particleEnding?orbitTime:motionTime, state?.reducedMotion,endingCache?.frame,particleEnding,state?.roadArrival?arrivalTime:0));
     locations.set(a.id,point.clone());
   }
-  // Bounded, deterministic separation prevents petals crossing during the morph.
-  const delta=new T.Vector3();
-  for(let pass=0;pass<8;pass++)for(let i=0;i<layout.anchors.length;i++)for(let j=0;j<i;j++){
+  // Separate targets only for seeks and the original route. During playback,
+  // follow each continuous curve directly: per-frame target projection adds kinks.
+  const delta=new T.Vector3(),arrivalSeek=!elapsed||followerT===null||Math.abs(state.nextT-followerT)>.08;
+  for(let pass=0;pass<8&&(!(inEnding&&state?.roadArrival)||arrivalSeek);pass++)for(let i=0;i<layout.anchors.length;i++)for(let j=0;j<i;j++){
    const a=layout.anchors[i],b=layout.anchors[j],p=locations.get(a.id),q=locations.get(b.id);
-   delta.copy(p).sub(q);const distance=delta.length(),clearance=a.radius+b.radius+.65;
+   delta.copy(p).sub(q);const distance=delta.length(),clearance=inEnding&&state?.roadArrival?(a.radius+b.radius)*1.2+3.2:a.radius+b.radius+.65;
    if(distance<clearance){if(distance<1e-8)delta.set(1,.1,.1).normalize();else delta.divideScalar(distance);const correction=(clearance-distance)*.5;p.addScaledVector(delta,correction);q.addScaledVector(delta,-correction);}
   }
+  // Integrate path following and avoidance together. Smoothing collision-free
+  // targets afterwards can cut through them; continuous forces keep velocity
+  // continuous and start turning before physical silhouettes can meet.
+  if(inEnding&&state?.roadArrival){
+   const seek=arrivalSeek;
+   const followers=layout.anchors.map(a=>{
+    let f=arrivalFollowers.get(a.id);if(!f||seek){f={position:locations.get(a.id).clone(),velocity:new T.Vector3(),force:new T.Vector3()};arrivalFollowers.set(a.id,f);}return f;
+   });
+   if(!seek){
+    const steps=Math.ceil(elapsed/.002),step=elapsed/steps,omega=14,maxAcceleration=900;
+    for(let tick=0;tick<steps;tick++){
+     followers.forEach((f,i)=>f.force.copy(locations.get(layout.anchors[i].id)).sub(f.position).multiplyScalar(omega*omega).addScaledVector(f.velocity,-2*omega));
+     for(let i=0;i<followers.length;i++)for(let j=0;j<i;j++){
+      const a=followers[i],b=followers[j],reach=(layout.anchors[i].radius+layout.anchors[j].radius)*1.2+3.2;
+      delta.copy(a.position).sub(b.position);const distance=delta.length();if(distance>=reach)continue;
+      if(distance<1e-8)delta.set(1,.1,.1).normalize();else delta.divideScalar(distance);
+      const deficit=reach-distance,closing=Math.max(0,-((a.velocity.x-b.velocity.x)*delta.x+(a.velocity.y-b.velocity.y)*delta.y+(a.velocity.z-b.velocity.z)*delta.z));
+      const force=1600*deficit*deficit*deficit+120*closing*nextSmooth(deficit/3.2);
+      a.force.addScaledVector(delta,force);b.force.addScaledVector(delta,-force);
+     }
+     for(const f of followers){
+      // Smooth saturation bounds turns without a hard acceleration clamp.
+      f.force.multiplyScalar(1/Math.sqrt(1+f.force.lengthSq()/(maxAcceleration*maxAcceleration)));
+      f.velocity.addScaledVector(f.force,step);f.position.addScaledVector(f.velocity,step);
+     }
+    }
+   }
+   followers.forEach((f,i)=>locations.set(layout.anchors[i].id,f.position.clone()));followerT=state.nextT;
+  }else{arrivalFollowers.clear();followerT=null;}
   const flightCamera=camera.clone(),flightFrame=new T.Group();
   if(state?.entryPose)applyMemoryEntry(flightCamera,flightFrame,state.entryPose,state.entryBlend??1);
   const storyInverse=flightFrame.matrix.clone().invert();
@@ -251,5 +283,5 @@ export function createMemoryScene({mobile=true,renderer}={}){
    }alpha.needsUpdate=true;
   }
  }
- return {group,install,prepare,prepareParticleEnding,warmParticleEnding,invalidateParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setLayerOpacity(value){layerOpacity=T.MathUtils.clamp(value,0,1);for(const pool of pools.values()){pool.mesh.visible=layerOpacity>0;updatePetalLayer(pool);}},setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return ending.fluidReady;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();}};
+ return {group,install,prepare,prepareParticleEnding,warmParticleEnding,invalidateParticleEnding,captureEntry,setPreview,update,updateTextOcclusion,setLayerOpacity(value){layerOpacity=T.MathUtils.clamp(value,0,1);for(const pool of pools.values()){pool.mesh.visible=layerOpacity>0;updatePetalLayer(pool);}},setTerrainVisible(visible){terrainVisible=visible;ambient.intensity=1.15*lightBlend*(visible?0:1);key.intensity=2.8*lightBlend*(visible?0:1);fill.intensity=1.2*lightBlend*(visible?0:1);},get particleEndingReady(){return ending.fluidReady;},get assetCount(){return sources.size;},get instanceCount(){return layout?.anchors.length||0;},dustCount,get shot(){const shot=layout?.shots[preview];return shot?{...shot,target:new T.Vector3(...(activeTarget||shot.target)).applyMatrix4(group.matrix).toArray()}:null;},dispose(){if(disposed)return;disposed=true;for(const pool of pools.values()){pool.mesh.dispose();pool.mesh.geometry.dispose();pool.material.dispose();}for(const item of owned)item.dispose();ending.dispose();dimensions.dispose();group.clear();sources.clear();pools.clear();arrivalFollowers.clear();followerT=null;}};
 }

@@ -6,7 +6,7 @@ import {endingPetalFrame,endingPetalPoint} from '../src/guild-ending-particles.j
 import {createMemoryLayout,memoryPoint} from '../src/guild-memory-layout.js';
 import {createMemoryScene} from '../src/guild-memory-scene.js';
 
-test('new petals wait for the fully formed mark before entering their final orbit',()=>{
+test('the final orbit phase does not alter the loose escort before the mark forms',()=>{
  const layout=createMemoryLayout({assets:[{key:'rose',radius:2.2}]}),slots=endingPetalFrame({position:[-4,7,198],target:[0,0,-14]},.46,layout.anchors);
  const shifted=new Map([...slots].map(([id,s])=>[id,{...s,phase:s.phase+Math.PI}]));
  for(const t of [.7,.85,16.5/18])for(const a of layout.anchors){
@@ -20,8 +20,8 @@ test('new petals wait for the fully formed mark before entering their final orbi
 test('each petal identity owns a different arrival path even with the same start and destination',()=>{
  const start=[20,60,-20],a={id:'petal-1',u:.35,longitude:1.1,branch:0},b={...a,id:'petal-2'};
  const slots=new Map([a,b].map(p=>[p.id,{phase:1.4,aspect:.46,position:new T.Vector3()}]));
- for(const t of [16.5/18,1])assert.deepEqual(endingPetalPoint(a,start,t,0,false,slots),endingPetalPoint(b,start,t,0,false,slots));
- const p=endingPetalPoint(a,start,17.1/18,0,false,slots),q=endingPetalPoint(b,start,17.1/18,0,false,slots);
+ for(const t of [.6,1])assert.deepEqual(endingPetalPoint(a,start,t,0,false,slots),endingPetalPoint(b,start,t,0,false,slots));
+ const p=endingPetalPoint(a,start,.82,0,false,slots),q=endingPetalPoint(b,start,.82,0,false,slots);
  assert.ok(Math.hypot(...p.map((x,k)=>x-q[k]))>5,'independent timing and arcs cannot reduce to a shared ring transform');
  assert.ok(Math.abs(p[2]-q[2])>2,'individual paths use front/back depth');
 });
