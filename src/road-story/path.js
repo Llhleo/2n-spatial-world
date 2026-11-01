@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {memoryEntryFrame} from '../guild-memory-entry.js';
-import {motionPath} from '../motion-path.js';
+import {cameraCurve,cameraEntryPath} from './camera-curve.js';
 import {cameraJourney,offsets} from './journey.js';
 export const ROAD_STOPS=[0,5.5,11.5,14.3,20.3,23.1,30.6,36];
 export const ROAD_READING_STOPS=[9.3,18.1,28.6];
@@ -8,7 +8,7 @@ export const smooth=v=>{const u=T.MathUtils.clamp(v,0,1);return T.MathUtils.clam
 const V=a=>new T.Vector3(...a);
 const basePositions=[[0,0,170],[-3,0,174],[0,5,208]],baseTargets=[[0,0,-12],[1,0,-20],[0,6,-8]];
 export const ROAD_ENDING_OFFSET=[-620,80,-1650];
-const exitPath=new T.CatmullRomCurve3([[0,5,-832],[-100,40,-900],[-530,100,-1235],[-624,87,-1452]].map(V),false,'centripetal');
+const exitPath=cameraCurve([[0,5,-832],[-100,40,-900],[-530,100,-1235],[-624,87,-1452]]);
 export function roadJourneyTime(seconds){
  const a=[5.5,11.5,14.3,20.3,23.1,30.6],b=[0,24,30,54,60,84];
  if(seconds<=a[0])return 0;if(seconds>=a.at(-1))return 84;
@@ -33,7 +33,7 @@ export function sampleRoadCamera(seconds,entry){
   const u=T.MathUtils.clamp(seconds/5.5,0,1);
   const shots=[{t:0,p:start.toArray(),target:focus.toArray()},{t:.35,p:start.clone().add(new T.Vector3(105,16,-35)).toArray(),target:focus.clone().add(new T.Vector3(130,-12,-28)).toArray()},{t:.72,p:end.clone().add(new T.Vector3(-65,-42,-18)).toArray(),target:target.clone().add(new T.Vector3(-75,-28,-12)).toArray()},{t:1,p:end.toArray(),target:target.toArray()}];
   camera.up.fromArray(entry.up||[0,1,0]).lerp(new T.Vector3(0,1,0),smooth(u)).normalize();
-  motionPath(shots,{p:[0,0,0],target:[0,0,0]},{p:[0,0,0],target:[0,0,0]})(u,camera);
+  cameraEntryPath(shots)(u,camera);
   fov=T.MathUtils.lerp(48,40,smooth(u));
  }else if(seconds>30.6){
   const endingFrame=memoryEntryFrame(roadEndingEntry(entry)),target=V([0,0,-14]).applyMatrix4(endingFrame),u=smooth((seconds-30.6)/5.4);
