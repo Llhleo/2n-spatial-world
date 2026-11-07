@@ -202,7 +202,10 @@ export function createLightFlight() {
     if (traveling) {
      const direction = Math.sign(delta);
      readingDirection = direction;
-     goal = direction * T.MathUtils.clamp(direction * (delta / elapsed + 1.65 * error), cruise, 2.7);
+     // This step already advances the clock by delta. Measure correction
+     // against the previous shot to avoid leading the camera by one frame.
+     const previousError = lastShot - clock;
+     goal = direction * T.MathUtils.clamp(direction * (delta / elapsed + 1.65 * previousError), cruise, 2.7);
     } else {
      if (error < -.18) readingDirection = -1;
      else if (error > .18) readingDirection = 1;

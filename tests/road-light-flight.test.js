@@ -103,3 +103,26 @@ test('the close-up and exit keep a continuous heading through their avoidance be
   }
  }
 });
+
+test('the center light enters the portrait close-up while its tail is long in both directions', () => {
+ const camera = new T.PerspectiveCamera(40, 414 / 896, .2, 2400);
+ for (const rate of [1, -1.35]) {
+  const flight = createLightFlight();
+  let closeUp = false;
+  for (let frame = 0; frame <= 1000; frame++) {
+   const shot = (rate > 0 ? 17 : 26) + frame * rate / 60;
+   if (rate > 0 ? shot > 23.1 : shot < 20.3) break;
+   const clock = flight.update(frame / 60, shot);
+   if (shot < 20.3 || shot > 23.1 || roadLightTailSeconds(shot) < .5) continue;
+   const pose = sampleRoadCamera(shot, null);
+   camera.position.fromArray(pose.position);
+   camera.quaternion.fromArray(pose.quaternion);
+   camera.updateMatrixWorld(true);
+   const head = roadLightPoint(clock);
+   const depth = -head.clone().applyMatrix4(camera.matrixWorldInverse).z;
+   const screen = head.project(camera);
+   closeUp ||= depth > 38 && depth < 80 && Math.abs(screen.x) < .9 && Math.abs(screen.y) < .9;
+  }
+  assert.ok(closeUp, `the light misses the long-tail portrait close-up at playback rate ${rate}`);
+ }
+});
