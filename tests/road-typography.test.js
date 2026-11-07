@@ -34,11 +34,11 @@ test('traveling light cores and their tails stay outside the active reading line
    const points=[Math.min(...xs),Math.max(...xs)].flatMap(x=>[Math.min(...ys),Math.max(...ys)].map(y=>new T.Vector3((-432+p.x+x*p.size)*unit,(936-p.y-p.size*.9+y*p.size)*unit,-depths[kind]).applyMatrix4(frame).project(camera)));
    return {text:p.text,left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),bottom:Math.min(...points.map(p=>p.y)),top:Math.max(...points.map(p=>p.y))};
   });
-  for(let clock=0;clock<LIGHT_LAP;clock+=.025){
-   const point=roadLightPoint(clock),depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
+  for(let lane=0;lane<3;lane++)for(let clock=0;clock<LIGHT_LAP;clock+=.025){
+   const point=roadLightPoint(clock,new T.Vector3(),lane),depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
    if(depth<14||depth>700)continue;
    const p=point.project(camera),mx=32/864*2,my=32/1872*2;
-   for(const b of boxes)assert.ok(p.x+mx<b.left||p.x-mx>b.right||p.y+my<b.bottom||p.y-my>b.top,`light crosses ${b.text} at scene ${kind}, clock ${clock}`);
+   for(const b of boxes)assert.ok(p.x+mx<b.left||p.x-mx>b.right||p.y+my<b.bottom||p.y-my>b.top,`light crosses ${b.text} at scene ${kind}, lane ${lane}, clock ${clock}`);
   }
  }
 });

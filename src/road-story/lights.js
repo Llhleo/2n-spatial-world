@@ -63,7 +63,7 @@ export function createLightTravelers() {
   }
   beads.forEach(({core, halo, tail, light, position, trail}, i) => {
    const offset = LIGHT_PHASES[i];
-   roadLightPoint(clock + offset, core.position);
+   roadLightPoint(clock + offset, core.position, i);
    const alpha = visibility(core.position), depth = -viewPoint.z;
    core.visible = halo.visible = alpha > .002;
    core.material.opacity = alpha;
@@ -78,8 +78,8 @@ export function createLightTravelers() {
    for (let k = 0; k <= segments; k++) {
     const life = k / segments, sampleTime = time - (1 - life) * tailSeconds;
     const phase = flight.trail(sampleTime) + offset;
-    roadLightPoint(phase, point);
-    roadLightPoint(phase + .001, next);
+    roadLightPoint(phase, point, i);
+    roadLightPoint(phase + .001, next, i);
     tangent.copy(next).sub(point).normalize();
     side.crossVectors(tangent, Math.abs(tangent.y) > .94 ? right : up).normalize();
     normal.crossVectors(tangent, side).normalize();

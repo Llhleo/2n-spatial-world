@@ -6,11 +6,14 @@ import {makeConnections} from '../src/road-story/journey.js';
 import {createLightFlight, LIGHT_HANDOFF, LIGHT_LAP, LIGHT_PHASES, roadLightPoint, roadLightTailSeconds} from '../src/road-story/light-flight.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
 
-test('the closed shared light rail has no stop at its return seam', () => {
- assert.ok(roadLightPoint(0).distanceTo(roadLightPoint(LIGHT_LAP)) < 1e-7);
- for (let i = 0; i < LIGHT_LAP; i += .02) {
-  const gap = roadLightPoint(i).distanceTo(roadLightPoint(i + .01));
-  assert.ok(gap > .02 && gap < 9, `continuous travel at ${i}: ${gap}`);
+test('the closed light lanes have no stop at their return seam', () => {
+ for (let lane = 0; lane < 3; lane++) {
+  const point = time => roadLightPoint(time, new T.Vector3(), lane);
+  assert.ok(point(0).distanceTo(point(LIGHT_LAP)) < 1e-7);
+  for (let i = 0; i < LIGHT_LAP; i += .02) {
+   const gap = point(i).distanceTo(point(i + .01));
+   assert.ok(gap > .02 && gap < 9, `continuous travel on lane ${lane} at ${i}: ${gap}`);
+  }
  }
 });
 
@@ -54,7 +57,7 @@ test('the authored flight hides behind the actual bridge and passes near the nex
  bridge.traverse(mesh => {mesh.geometry?.dispose();mesh.material?.dispose();});
 });
 
-test('three heads follow their shared rail and trails preserve real motion during reversal', () => {
+test('three heads follow their own lanes and trails preserve real motion during reversal', () => {
  const rig = createLightTravelers(), camera = new T.PerspectiveCamera(40, .46, .2, 2400);
  const cores = rig.group.children.filter(child => child.name === 'road-light-core');
  const tails = rig.group.children.filter(child => child.name === 'road-light-trail');
@@ -70,7 +73,7 @@ test('three heads follow their shared rail and trails preserve real motion durin
    camera.updateMatrixWorld(true);
    rig.update(time, shot, camera);
    cores.forEach((core, index) => {
-    assert.ok(core.position.distanceTo(roadLightPoint(clock + LIGHT_PHASES[index])) < 1e-7);
+    assert.ok(core.position.distanceTo(roadLightPoint(clock + LIGHT_PHASES[index],new T.Vector3(),index)) < 1e-7);
     if (previous) assert.ok(core.position.distanceTo(previous[index]) < 14, 'no phase jump on reverse');
     const attr = tails[index].geometry.attributes.position;
     const tailEnd = new T.Vector3();

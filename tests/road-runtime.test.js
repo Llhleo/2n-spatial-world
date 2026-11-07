@@ -8,6 +8,8 @@ import {sampleRoadCamera,roadEndingEntry} from '../src/road-story/path.js';
 import {endingCamera} from '../src/guild-ending-particles.js';
 import {memoryEntryFrame} from '../src/guild-memory-entry.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
+import {roadSurfaces} from './support/road-surface-clearance.js';
+import {roadLightPoint,LIGHT_LAP} from '../src/road-story/light-flight.js';
 
 const data=p=>JSON.parse(fs.readFileSync(new URL('../'+p,import.meta.url)));
 const source=new T.SphereGeometry(1,6,4),material=new T.MeshBasicMaterial(),assets=new Map(PETAL_NAMES.map(n=>[n,{geometry:source,material,face:new T.Quaternion()}]));
@@ -79,12 +81,12 @@ test('three distinct light cores stay in portrait reading shots during forward a
      rig.update(now+=1/60,shot,camera);
      if(frame%60)continue;
      world.update(now,camera,shot);
-     const projected=cores.map(core=>{
+     const projected=cores.map((core,lane)=>{
       const p=core.position.clone().project(camera);
       const direction=core.position.clone().sub(camera.position);
       ray.set(camera.position,direction.clone().normalize());
       ray.far=direction.length()-1.1;
-      const moment=`at ${shot}s, after ${frame/60}s of reading, playback ${speed}×`;
+      const moment=`for lane ${lane} at ${shot}s, after ${frame/60}s of reading, playback ${speed}×, NDC ${p.x.toFixed(2)},${p.y.toFixed(2)}`;
       assert.ok(core.visible&&core.material.opacity>.3&&Math.abs(p.x)<.96&&Math.abs(p.y)<.95&&Math.abs(p.z)<1,
        `a light is out of the portrait shot ${moment}`);
       assert.equal(ray.intersectObjects(solids,false).length,0,`a reading light is hidden by a road ${moment}`);
@@ -100,6 +102,33 @@ test('three distinct light cores stay in portrait reading shots during forward a
   }
  }finally{
   rig.dispose();
+  const geometries=new Set(),materials=new Set();
+  world.group.traverse(o=>{if(o.geometry&&o.geometry!==source)geometries.add(o.geometry);if(o.material&&o.material!==material)materials.add(o.material);});
+  for(const geometry of geometries)geometry.dispose();
+  for(const material of materials)material.dispose();
+ }
+});
+
+test('all three distinct flight lanes clear the real road surfaces and their sway',()=>{
+ const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
+ const camera=new T.PerspectiveCamera(40,.46,.2,2400),position=new T.Vector3();
+ const surfaces=roadSurfaces(world.group,8);
+ try{
+  for(const ambient of [7.25,23,41,74,103]){
+   world.update(ambient,camera,18.1);
+   surfaces.update();
+   for(let lane=0;lane<3;lane++)for(let t=0;t<LIGHT_LAP;t+=.005){
+    roadLightPoint(t,position,lane);
+    assert.equal(surfaces.near(position),null,`lane ${lane} approaches a solid road at ${t.toFixed(3)}s (sway ${ambient})`);
+   }
+  }
+  for(const t of [9.3,13,18.1,21.65,28.6,35.5]){
+   const points=[0,1,2].map(lane=>roadLightPoint(t,new T.Vector3(),lane));
+   for(let i=1;i<3;i++)for(let j=0;j<i;j++){
+    assert.ok(points[i].distanceTo(points[j])>8,`lanes share the same position at ${t}s`);
+   }
+  }
+ }finally{
   const geometries=new Set(),materials=new Set();
   world.group.traverse(o=>{if(o.geometry&&o.geometry!==source)geometries.add(o.geometry);if(o.material&&o.material!==material)materials.add(o.material);});
   for(const geometry of geometries)geometry.dispose();
