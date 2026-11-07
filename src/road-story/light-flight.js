@@ -180,53 +180,52 @@ export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
  return roundedLanes[lane].getPoint(T.MathUtils.euclideanModulo(clock, LIGHT_LAP) / LIGHT_LAP, target);
 }
 
-// Three nearby phases move through the same shot. At a reading stop, move
-// gently within the visible part of the rail, then rejoin the traveling cue
-// with bounded acceleration on forward or reverse departure.
+// The cue clock keeps the cinematic passes aligned with the camera. Around a
+// held shot, a small world-space orbit carries the lights through low speeds
+// and direction changes. Both the head and the tail sample the same flight.
 export function createLightFlight() {
- let clock = 0, velocity = 0, lastTime = null, lastShot = 0, readingDirection = 1;
+ let clock = 0, velocity = 0, lastTime = null, lastShot = 0;
  const history = [];
+ const orbitRadius = 3.2;
  return {
   update(time, shot, reduced = false) {
    const elapsed = time - lastTime, delta = shot - lastShot;
    if (lastTime === null || elapsed < 0 || Math.abs(delta) > .32) {
     clock = shot;
     velocity = 0;
-    readingDirection = 1;
     history.length = 0;
    } else if (elapsed > 0) {
-    const cruise = reduced ? .06 : .12;
     const traveling = Math.abs(delta) > 1e-5;
-    const error = shot - clock;
-    let goal;
-    if (traveling) {
-     const direction = Math.sign(delta);
-     readingDirection = direction;
-     // This step already advances the clock by delta. Measure correction
-     // against the previous shot to avoid leading the camera by one frame.
-     const previousError = lastShot - clock;
-     goal = direction * T.MathUtils.clamp(direction * (delta / elapsed + 1.65 * previousError), cruise, 2.7);
-    } else {
-     if (error < -.18) readingDirection = -1;
-     else if (error > .18) readingDirection = 1;
-     goal = readingDirection * cruise;
-    }
-    const acceleration = traveling || Math.abs(velocity) > cruise ? 6 : .85;
+    // The next step already includes delta. Correct against the previous
+    // camera phase so neither playback direction gets a one-frame lead.
+    const goal = T.MathUtils.clamp((traveling ? delta / elapsed : 0) + 1.65 * (lastShot - clock), -2.7, 2.7);
+    const acceleration = traveling ? 6 : 4;
     velocity += T.MathUtils.clamp(goal - velocity, -elapsed * acceleration, elapsed * acceleration);
     clock += elapsed * velocity;
    }
-   if (!history.length || time > history.at(-1).time) history.push({time, clock});
-   while (history.length > 1 && (time - history[1].time > .75 || history.length > 256)) history.shift();
+   const radius = (reduced ? 1 : orbitRadius) * Math.exp(-((velocity / .6) ** 2));
+   if (!history.length || time > history.at(-1).time) history.push({time, clock, radius});
+   while (history.length > 1 && (time - history[1].time > 1.05 || history.length > 256)) history.shift();
    lastTime = time;
    lastShot = shot;
    return clock;
   },
-  trail(time) {
+  point(time, target, lane) {
    let i = history.length - 1;
    while (i > 0 && history[i - 1].time >= time) i--;
    const a = history[Math.max(0, i - 1)], b = history[i];
-   return a === b ? a.clock : T.MathUtils.lerp(a.clock, b.clock, T.MathUtils.clamp((time - a.time) / (b.time - a.time), 0, 1));
+   const mix = a === b ? 0 : T.MathUtils.clamp((time - a.time) / (b.time - a.time), 0, 1);
+   const phase = T.MathUtils.lerp(a.clock, b.clock, mix);
+   const radius = T.MathUtils.lerp(a.radius, b.radius, mix);
+   const angle = Math.max(history[0].time, Math.min(time, lastTime)) * (1.45 + lane * .13) + lane * 2.4;
+   roadLightPoint(phase + LIGHT_PHASES[lane], target, lane);
+   const x = radius * Math.cos(angle), y = radius * Math.sin(angle);
+   target.x += x;
+   target.y += .88 * y;
+   target.z += .35 * x + .4 * y;
+   return target;
   },
+  get orbitMix() { return (history.at(-1)?.radius ?? 0) / orbitRadius; },
   get oldestTime() { return history[0]?.time ?? 0; },
   reset() { lastTime = null; history.length = 0; }
  };

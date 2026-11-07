@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {smooth} from './path.js';
-import {createLightFlight, LIGHT_HANDOFF, LIGHT_PHASES, roadLightPoint, roadLightTailSeconds} from './light-flight.js';
+import {createLightFlight, LIGHT_HANDOFF, LIGHT_PHASES, roadLightTailSeconds} from './light-flight.js';
 
 export function createLightTravelers() {
  const group = new T.Group();
@@ -44,7 +44,8 @@ export function createLightTravelers() {
  }
  haloMaterial.dispose();
 
- const point = new T.Vector3(), next = new T.Vector3(), tangent = new T.Vector3(), side = new T.Vector3(), normal = new T.Vector3();
+ let before = new T.Vector3(), point = new T.Vector3(), after = new T.Vector3();
+ const tangent = new T.Vector3(), side = new T.Vector3(), normal = new T.Vector3();
  const up = new T.Vector3(0, 1, 0), right = new T.Vector3(1, 0, 0);
  const rootRotation = new T.Quaternion(), localView = new T.Matrix4(), viewPoint = new T.Vector3();
  let handoff = 0, cueOffset = 0;
@@ -52,7 +53,7 @@ export function createLightTravelers() {
   const shot = seconds + Math.min(4, Math.max(0, nextT) * 18);
   const clock = flight.update(time, shot, reduced);
   cueOffset = Math.abs(shot - clock);
-  const tailSeconds = roadLightTailSeconds(shot, reduced);
+  const tailSeconds = roadLightTailSeconds(shot, reduced) + (reduced ? 0 : .47 * flight.orbitMix);
   const sceneStrength = smooth((seconds - .8) / 2) * (1 - smooth(nextT / .09));
   localView.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld);
   group.getWorldQuaternion(rootRotation).invert();
@@ -61,9 +62,8 @@ export function createLightTravelers() {
    const depth = -viewPoint.copy(position).applyMatrix4(localView).z;
    return sceneStrength * smooth((depth - 14) / 24) * (1 - smooth((depth - 440) / 340));
   }
-  beads.forEach(({core, halo, tail, light, position, trail}, i) => {
-   const offset = LIGHT_PHASES[i];
-   roadLightPoint(clock + offset, core.position, i);
+  beads.forEach(({core, halo, tail, light, position, trail}, lane) => {
+   flight.point(time, core.position, lane);
    const alpha = visibility(core.position), depth = -viewPoint.z;
    core.visible = halo.visible = alpha > .002;
    core.material.opacity = alpha;
@@ -75,12 +75,13 @@ export function createLightTravelers() {
    handoff = Math.max(handoff, 1 - smooth(core.position.distanceTo(LIGHT_HANDOFF) / 82));
    tail.visible = sceneStrength > .002;
    if (!tail.visible) return;
+   const step = tailSeconds / segments, start = time - tailSeconds;
+   flight.point(start, before, lane);
+   point.copy(before);
    for (let k = 0; k <= segments; k++) {
-    const life = k / segments, sampleTime = time - (1 - life) * tailSeconds;
-    const phase = flight.trail(sampleTime) + offset;
-    roadLightPoint(phase, point, i);
-    roadLightPoint(phase + .001, next, i);
-    tangent.copy(next).sub(point).normalize();
+    const life = k / segments, sampleTime = start + k * step;
+    flight.point(Math.min(time, sampleTime + step), after, lane);
+    tangent.copy(after).sub(before).normalize();
     side.crossVectors(tangent, Math.abs(tangent.y) > .94 ? right : up).normalize();
     normal.crossVectors(tangent, side).normalize();
     const radius = .06 + .43 * life;
@@ -90,6 +91,10 @@ export function createLightTravelers() {
      position.setXYZ(k * sides + j, point.x + side.x * a + normal.x * b, point.y + side.y * a + normal.y * b, point.z + side.z * a + normal.z * b);
      trail.setXY(k * sides + j, life, strength);
     }
+    const reusable = before;
+    before = point;
+    point = after;
+    after = reusable;
    }
    position.needsUpdate = true;
    trail.needsUpdate = true;
