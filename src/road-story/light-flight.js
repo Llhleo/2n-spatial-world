@@ -107,7 +107,7 @@ const clearanceBends = [
  ]
 ];
 
-export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
+function authoredLightPoint(clock, target, lane) {
  const {curve, distances, tangents, times, totalLength} = lanes[lane];
  const time = T.MathUtils.euclideanModulo(clock, LIGHT_LAP);
  let i = 0;
@@ -128,6 +128,56 @@ export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
   target.z += z * mix;
  }
  return target;
+}
+
+// Bake the rounded lanes once, so sampling the heads and tails stays cheap.
+const flightSampleRate = 120;
+const flightSampleCount = LIGHT_LAP * flightSampleRate;
+const roundingWeights = [1, 4, 6, 4, 1];
+
+function roundingWindow(time, start, end) {
+ return smooth((time - start) / .28) * smooth((end - time) / .28);
+}
+
+// Bridge overlapping avoidance bends with an arc that inherits the tangent
+// and speed at both joins.
+function roundSection(points, start, end) {
+ const first = Math.round(start * flightSampleRate);
+ const last = Math.round(end * flightSampleRate);
+ const a = points[first], b = points[last];
+ const handle = (last - first) / 6;
+ const out = points[first + 1].clone().sub(points[first - 1]).multiplyScalar(handle).add(a);
+ const into = points[last - 1].clone().sub(points[last + 1]).multiplyScalar(handle).add(b);
+ const arc = new T.CubicBezierCurve3(a, out, into, b);
+ for (let i = first + 1; i < last; i++) arc.getPoint((i - first) / (last - first), points[i]);
+}
+
+const roundedLanes = lanes.map((_, lane) => {
+ const original = Array.from({length: flightSampleCount}, (_, i) =>
+  authoredLightPoint(i / flightSampleRate, new T.Vector3(), lane));
+ const points = original.map((_, i) => {
+  const time = i / flightSampleRate;
+  const span = Math.max(roundingWindow(time, 19.5, 21.15), roundingWindow(time, 25.65, 28.05));
+  const stride = 9 + 10 * span;
+  const point = new T.Vector3();
+  for (let j = 0; j < roundingWeights.length; j++) {
+   const sample = i + (j - 2) * stride;
+   const lower = Math.floor(sample);
+   const index = T.MathUtils.euclideanModulo(lower, flightSampleCount);
+   const weight = roundingWeights[j] / 16;
+   const fraction = sample - lower;
+   point.addScaledVector(original[index], weight * (1 - fraction));
+   point.addScaledVector(original[(index + 1) % flightSampleCount], weight * fraction);
+  }
+  return point;
+ });
+ roundSection(points, 19.68, 21.03);
+ if (lane < 2) roundSection(points, 25.87, 27.35);
+ return new T.CatmullRomCurve3(points, true, 'catmullrom');
+});
+
+export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
+ return roundedLanes[lane].getPoint(T.MathUtils.euclideanModulo(clock, LIGHT_LAP) / LIGHT_LAP, target);
 }
 
 // Three nearby phases move through the same shot. At a reading stop, move

@@ -85,3 +85,21 @@ test('three heads follow their own lanes and trails preserve real motion during 
   assert.ok(control.trail(1.35) > control.trail(1.6), 'past samples preserve the reversed travel direction');
  } finally {rig.dispose();}
 });
+
+test('the close-up and exit keep a continuous heading through their avoidance bends', () => {
+ for (const speed of [1, 1.35]) {
+  const step = speed / 60;
+  for (let lane = 0; lane < 3; lane++) {
+   const point = t => roadLightPoint(t, new T.Vector3(), lane);
+   for (const [start, end, limit] of [[11.5, 14.3, 15], [20.3, 23.1, 16], [25.85, 27.35, 24], [30.6, 37.45, 14]]) {
+    for (let t = start; t <= end; t += step) {
+     const before = point(t).sub(point(t - step));
+     const after = point(t + step).sub(point(t));
+     if (Math.min(before.length(), after.length()) < .15 * speed) continue;
+     const degrees = before.angleTo(after) * 180 / Math.PI;
+     assert.ok(degrees < limit, `lane ${lane} turns ${degrees.toFixed(1)}° at ${t.toFixed(3)}s (${speed}×)`);
+    }
+   }
+  }
+ }
+});
