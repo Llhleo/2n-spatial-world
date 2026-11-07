@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import {sampleRoadCamera} from '../src/road-story/path.js';
 import {makeConnections} from '../src/road-story/journey.js';
-import {createLightFlight, LIGHT_HANDOFF, LIGHT_LAP, LIGHT_SPACING, roadLightPoint, roadLightTailSeconds} from '../src/road-story/light-flight.js';
+import {createLightFlight, LIGHT_HANDOFF, LIGHT_LAP, LIGHT_PHASES, roadLightPoint, roadLightTailSeconds} from '../src/road-story/light-flight.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
 
 test('the closed shared light rail has no stop at its return seam', () => {
@@ -70,7 +70,7 @@ test('three heads follow their shared rail and trails preserve real motion durin
    camera.updateMatrixWorld(true);
    rig.update(time, shot, camera);
    cores.forEach((core, index) => {
-    assert.ok(core.position.distanceTo(roadLightPoint(clock + index * LIGHT_SPACING)) < 1e-7);
+    assert.ok(core.position.distanceTo(roadLightPoint(clock + LIGHT_PHASES[index])) < 1e-7);
     if (previous) assert.ok(core.position.distanceTo(previous[index]) < 14, 'no phase jump on reverse');
     const attr = tails[index].geometry.attributes.position;
     const tailEnd = new T.Vector3();

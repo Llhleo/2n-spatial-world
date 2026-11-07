@@ -54,3 +54,55 @@ test('only three luminous travelers exist and halo plus tail retain depth testin
  assert.equal(lights.length,3);rig.update(4,18.1,cam);const first=lights.map(l=>l.position.clone());rig.update(5,18.1,cam);
  lights.forEach((l,i)=>assert.ok(l.position.distanceTo(first[i])>1));rig.dispose();
 });
+
+test('three distinct light cores stay in portrait reading shots during forward and reverse holds',()=>{
+ const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
+ const rig=createLightTravelers(),camera=new T.PerspectiveCamera(40,414/896,.2,2400),ray=new T.Raycaster();
+ const solids=[];
+ world.group.traverse(object=>{if(object.material?.isMeshStandardMaterial&&!object.isInstancedMesh)solids.push(object);});
+ const cores=rig.group.children.filter(object=>object.name==='road-light-core');
+ try{
+  for(const speed of [1,-1.35]){
+   let now=0,previous=speed>0?0:30.6;
+   const stops=speed>0?[9.3,18.1,28.6]:[28.6,18.1,9.3];
+   camera.aspect=speed>0?414/896:.42;
+   camera.updateProjectionMatrix();
+   rig.reset();
+   rig.update(now,previous,camera);
+   for(const shot of stops){
+    const pose=sampleRoadCamera(shot,null);
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.quaternion);
+    camera.updateMatrixWorld();
+    for(let t=previous+speed/60;(shot-t)*speed>1e-6;t+=speed/60)rig.update(now+=1/60,t,camera);
+    for(let frame=0;frame<=12*60;frame++){
+     rig.update(now+=1/60,shot,camera);
+     if(frame%60)continue;
+     world.update(now,camera,shot);
+     const projected=cores.map(core=>{
+      const p=core.position.clone().project(camera);
+      const direction=core.position.clone().sub(camera.position);
+      ray.set(camera.position,direction.clone().normalize());
+      ray.far=direction.length()-1.1;
+      const moment=`at ${shot}s, after ${frame/60}s of reading, playback ${speed}×`;
+      assert.ok(core.visible&&core.material.opacity>.3&&Math.abs(p.x)<.96&&Math.abs(p.y)<.95&&Math.abs(p.z)<1,
+       `a light is out of the portrait shot ${moment}`);
+      assert.equal(ray.intersectObjects(solids,false).length,0,`a reading light is hidden by a road ${moment}`);
+      return p;
+     });
+     for(let i=1;i<projected.length;i++)for(let j=0;j<i;j++){
+      const a=projected[i],b=projected[j];
+      assert.ok(Math.hypot((a.x-b.x)*camera.aspect,a.y-b.y)>.045,'the three cores can be counted separately');
+     }
+    }
+    previous=shot;
+   }
+  }
+ }finally{
+  rig.dispose();
+  const geometries=new Set(),materials=new Set();
+  world.group.traverse(o=>{if(o.geometry&&o.geometry!==source)geometries.add(o.geometry);if(o.material&&o.material!==material)materials.add(o.material);});
+  for(const geometry of geometries)geometry.dispose();
+  for(const material of materials)material.dispose();
+ }
+});

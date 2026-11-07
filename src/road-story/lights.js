@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {smooth} from './path.js';
-import {createLightFlight, LIGHT_HANDOFF, LIGHT_SPACING, roadLightPoint, roadLightTailSeconds} from './light-flight.js';
+import {createLightFlight, LIGHT_HANDOFF, LIGHT_PHASES, roadLightPoint, roadLightTailSeconds} from './light-flight.js';
 
 export function createLightTravelers() {
  const group = new T.Group();
@@ -20,7 +20,7 @@ export function createLightTravelers() {
   vertexShader: 'attribute vec2 trail;varying vec2 vTrail;void main(){vTrail=trail;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader: 'varying vec2 vTrail;void main(){float age=vTrail.x;gl_FragColor=vec4(1.,.61+.27*age,.19+.65*age,pow(age,1.7)*.65*vTrail.y);}'
  });
- for (let i = 0; i < 3; i++) {
+ for (let i = 0; i < LIGHT_PHASES.length; i++) {
   const core = new T.Mesh(coreGeometry, new T.MeshBasicMaterial({color: 0xfff2d8, transparent: true, depthWrite: false, toneMapped: false}));
   core.name = 'road-light-core';
   const halo = new T.Mesh(haloGeometry, haloMaterial.clone());
@@ -51,7 +51,7 @@ export function createLightTravelers() {
  function update(time, seconds, camera, reduced = false, nextT = 0) {
   const shot = seconds + Math.min(4, Math.max(0, nextT) * 18);
   const clock = flight.update(time, shot, reduced);
-  cueOffset = Math.abs(T.MathUtils.euclideanModulo(shot - clock + LIGHT_SPACING / 2, LIGHT_SPACING) - LIGHT_SPACING / 2);
+  cueOffset = Math.abs(shot - clock);
   const tailSeconds = roadLightTailSeconds(shot, reduced);
   const sceneStrength = smooth((seconds - .8) / 2) * (1 - smooth(nextT / .09));
   localView.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld);
@@ -62,7 +62,7 @@ export function createLightTravelers() {
    return sceneStrength * smooth((depth - 14) / 24) * (1 - smooth((depth - 440) / 340));
   }
   beads.forEach(({core, halo, tail, light, position, trail}, i) => {
-   const offset = i * LIGHT_SPACING;
+   const offset = LIGHT_PHASES[i];
    roadLightPoint(clock + offset, core.position);
    const alpha = visibility(core.position), depth = -viewPoint.z;
    core.visible = halo.visible = alpha > .002;
