@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {memoryEntryFrame} from '../guild-memory-entry.js';
 import {cameraCurve,cameraEntryPath} from './camera-curve.js';
-import {cameraJourney,offsets} from './journey.js';
+import {cameraJourney} from './journey.js';
 export const ROAD_STOPS=[0,5.5,11.5,14.3,20.3,23.1,30.6,36];
 export const ROAD_READING_STOPS=[9.3,18.1,28.6];
 export const smooth=v=>{const u=T.MathUtils.clamp(v,0,1);return T.MathUtils.clamp(u*u*u*(10+u*(-15+6*u)),0,1);};
@@ -42,20 +42,3 @@ export function sampleRoadCamera(seconds,entry){
  }
  return {position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),fov};
 }
-// Author a clear orbit around each reading window, then lift its points into
-// real camera depth. All three travelers share this track, at different phases;
-// depth variation still takes the light behind the raised metallic roads.
-const orbitPixels=[
- [[70,220,210],[630,230,245],[800,650,210],[710,1200,330],[450,1500,260],[80,1320,225],[-20,880,260],[-15,400,280]],
- [[65,170,300],[600,200,255],[810,550,230],[750,1220,340],[390,1480,250],[60,1330,270],[-25,850,250],[-20,330,280]],
- [[250,300,320],[700,450,300],[840,850,245],[730,1340,300],[380,1550,285],[110,1260,240],[35,880,260],[80,500,300]]
-];
-const tracks=orbitPixels.map((points,i)=>{
- const frame=new T.Matrix4().lookAt(V(basePositions[i]),V(baseTargets[i]),V([0,1,0]));frame.setPosition(V(basePositions[i]));
- return new T.CatmullRomCurve3(points.map(([x,y,depth])=>{
-  const unit=2*depth*Math.tan(T.MathUtils.degToRad(20))/1872;
-  return V([(x-432)*unit,(936-y)*unit,-depth]).applyMatrix4(frame);
- }),true,'centripetal');
-});
-export function lightTrackPoint(scene,u){return tracks[scene].getPointAt(((u%1)+1)%1).add(V(offsets[scene]));}
-export function lightStage(seconds){const t=roadJourneyTime(seconds);return t<=24?0:t<30?smooth((t-24)/6):t<=54?1:t<60?1+smooth((t-54)/6):2;}

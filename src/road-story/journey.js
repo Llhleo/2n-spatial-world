@@ -31,6 +31,6 @@ export function makeConnections(){
   for(let i=0;i<=N;i++)for(let j=0;j<=M;j++)positions.push(...sample(i/N,j/M).toArray());
   for(let i=0;i<N;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+M+1;indices.push(a,b,a+1,b,b+1,a+1);}
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();group.add(new T.Mesh(geometry,new T.MeshStandardMaterial({color:0x28323b,metalness:.55,roughness:.38,side:T.DoubleSide})));
-  for(let j=0;j<=18;j++){const points=[];for(let i=0;i<=N;i++)points.push(sample(i/N,j/18).add(vec([0,0,.05])));group.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),180,j===0||j===18?.10:.025,4,false),new T.MeshBasicMaterial({color:j===0||j===18?0xd9dfd9:0x7f9097})));}
+  for(let j=0;j<=18;j++){const points=[];for(let i=0;i<=N;i++)points.push(sample(i/N,j/18).add(vec([0,0,.05])));const rail=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),180,j===0||j===18?.10:.025,4,false),new T.MeshBasicMaterial({color:j===0||j===18?0xd9dfd9:0x7f9097}));if(j===18)rail.name='road-connection-edge';group.add(rail);}
  }return group;
 }

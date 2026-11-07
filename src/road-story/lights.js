@@ -1,35 +1,114 @@
 import * as T from 'three';
-import {lightStage,lightTrackPoint} from './path.js';
+import {smooth} from './path.js';
+import {createLightFlight, LIGHT_HANDOFF, LIGHT_SPACING, roadLightPoint, roadLightTailSeconds} from './light-flight.js';
 
-// One closed centerline, three time offsets. Every visible layer depth-tests.
-export function createLightTravelers(){
- const group=new T.Group();group.name='three-light-travelers';
- const flares=[],tails=[],lights=[],N=36,SIDES=6;
- const flareMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.AdditiveBlending,toneMapped:false,uniforms:{color:{value:new T.Color(1,.66,.26)}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 v;uniform vec3 color;void main(){vec2 p=(v-.5)*2.;float r=length(p);float core=exp(-r*r*70.);float glow=exp(-r*r*6.)*.4;float rays=exp(-abs(p.x)*38.)*exp(-abs(p.y)*3.)*.16+exp(-abs(p.y)*38.)*exp(-abs(p.x)*3.)*.16;gl_FragColor=vec4(mix(color,vec3(1.),core),min(1.,core+glow+rays));}'});
- const tailMaterial=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,side:T.DoubleSide,blending:T.AdditiveBlending,toneMapped:false,vertexShader:'attribute float life;varying float age;void main(){age=life;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying float age;void main(){float a=pow(age,1.7)*.65;gl_FragColor=vec4(1.,.61+.27*age,.19+.65*age,a);}'});
- for(let i=0;i<3;i++){
-  const flare=new T.Mesh(new T.PlaneGeometry(8,8),flareMaterial);flare.frustumCulled=false;group.add(flare);flares.push(flare);
-  const geometry=new T.BufferGeometry(),positions=new Float32Array((N+1)*SIDES*3),life=new Float32Array((N+1)*SIDES),indices=[];
-  for(let k=0;k<=N;k++)for(let j=0;j<SIDES;j++){life[k*SIDES+j]=k/N;if(k<N){const a=k*SIDES+j,b=k*SIDES+(j+1)%SIDES;indices.push(a,b,a+SIDES,b,b+SIDES,a+SIDES);}}
-  geometry.setAttribute('position',new T.BufferAttribute(positions,3).setUsage(T.DynamicDrawUsage));geometry.setAttribute('life',new T.BufferAttribute(life,1));geometry.setIndex(indices);
-  const tail=new T.Mesh(geometry,tailMaterial);tail.frustumCulled=false;group.add(tail);tails.push(tail);
-  const light=new T.PointLight(0xffd19a,950,80,2);group.add(light);lights.push(light);
- }
- const point=new T.Vector3(),next=new T.Vector3(),tangent=new T.Vector3(),side=new T.Vector3(),normal=new T.Vector3(),z=new T.Vector3(0,0,1);
- function update(time,seconds,camera,reduced=false){
-  const stage=lightStage(seconds),a=Math.min(1,Math.floor(stage)),b=a+1,mix=stage-a;
-  const at=(u,out)=>out.copy(lightTrackPoint(a,u)).lerp(lightTrackPoint(b,u),mix);
-  const rootRotation=new T.Quaternion();group.getWorldQuaternion(rootRotation);rootRotation.invert();
-  for(let i=0;i<3;i++){
-   const u=time*(reduced?.012:.025)+i/3;
-   at(u,point);flares[i].position.copy(point);flares[i].quaternion.copy(rootRotation).multiply(camera.quaternion);lights[i].position.copy(point);
-   const pos=tails[i].geometry.attributes.position;
-   for(let k=0;k<=N;k++){
-    const life=k/N,phase=u-(1-life)*.055;at(phase,point);at(phase+.0006,next);tangent.copy(next).sub(point).normalize();side.crossVectors(tangent,z).normalize();if(side.lengthSq()<.01)side.set(1,0,0);normal.crossVectors(tangent,side).normalize();
-    const radius=.06+.43*life;
-    for(let j=0;j<SIDES;j++){const angle=j/SIDES*Math.PI*2;pos.setXYZ(k*SIDES+j,point.x+side.x*Math.cos(angle)*radius+normal.x*Math.sin(angle)*radius,point.y+side.y*Math.cos(angle)*radius+normal.y*Math.sin(angle)*radius,point.z+side.z*Math.cos(angle)*radius+normal.z*Math.sin(angle)*radius);}
-   }pos.needsUpdate=true;
+export function createLightTravelers() {
+ const group = new T.Group();
+ group.name = 'three-light-travelers';
+ const flight = createLightFlight(), beads = [];
+ const segments = 36, sides = 6;
+ const coreGeometry = new T.SphereGeometry(1.1, 12, 8);
+ const haloGeometry = new T.PlaneGeometry(8, 8);
+ const haloMaterial = new T.ShaderMaterial({
+  transparent: true, depthWrite: false, depthTest: true, blending: T.AdditiveBlending, toneMapped: false,
+  uniforms: {strength: {value: 1}},
+  vertexShader: 'varying vec2 v; void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader: 'uniform float strength; varying vec2 v; void main(){float r=length((v-.5)*2.);float glow=exp(-r*r*7.)*.52*(1.-smoothstep(.7,1.,r));gl_FragColor=vec4(1.,.66,.26,glow*strength);}'
+ });
+ const tailMaterial = new T.ShaderMaterial({
+  transparent: true, depthWrite: false, depthTest: true, side: T.DoubleSide, blending: T.AdditiveBlending, toneMapped: false,
+  vertexShader: 'attribute vec2 trail;varying vec2 vTrail;void main(){vTrail=trail;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader: 'varying vec2 vTrail;void main(){float age=vTrail.x;gl_FragColor=vec4(1.,.61+.27*age,.19+.65*age,pow(age,1.7)*.65*vTrail.y);}'
+ });
+ for (let i = 0; i < 3; i++) {
+  const core = new T.Mesh(coreGeometry, new T.MeshBasicMaterial({color: 0xfff2d8, transparent: true, depthWrite: false, toneMapped: false}));
+  core.name = 'road-light-core';
+  const halo = new T.Mesh(haloGeometry, haloMaterial.clone());
+  const geometry = new T.BufferGeometry(), indices = [];
+  const position = new T.BufferAttribute(new Float32Array((segments + 1) * sides * 3), 3).setUsage(T.DynamicDrawUsage);
+  const trail = new T.BufferAttribute(new Float32Array((segments + 1) * sides * 2), 2).setUsage(T.DynamicDrawUsage);
+  for (let k = 0; k < segments; k++) for (let j = 0; j < sides; j++) {
+   const a = k * sides + j, b = k * sides + (j + 1) % sides;
+   indices.push(a, b, a + sides, b, b + sides, a + sides);
   }
+  geometry.setAttribute('position', position);
+  geometry.setAttribute('trail', trail);
+  geometry.setIndex(indices);
+  const tail = new T.Mesh(geometry, tailMaterial);
+  tail.name = 'road-light-trail';
+  tail.frustumCulled = false;
+  const light = new T.PointLight(0xffd19a, 950, 80, 2);
+  light.name = 'road-light-reflection';
+  group.add(core, halo, tail, light);
+  beads.push({core, halo, tail, light, position, trail});
  }
- return {group,update,dispose(){flares.forEach(m=>m.geometry.dispose());tails.forEach(m=>m.geometry.dispose());flareMaterial.dispose();tailMaterial.dispose();group.clear();}};
+ haloMaterial.dispose();
+
+ const point = new T.Vector3(), next = new T.Vector3(), tangent = new T.Vector3(), side = new T.Vector3(), normal = new T.Vector3();
+ const up = new T.Vector3(0, 1, 0), right = new T.Vector3(1, 0, 0);
+ const rootRotation = new T.Quaternion(), localView = new T.Matrix4(), viewPoint = new T.Vector3();
+ let handoff = 0, cueOffset = 0;
+ function update(time, seconds, camera, reduced = false, nextT = 0) {
+  const shot = seconds + Math.min(4, Math.max(0, nextT) * 18);
+  const clock = flight.update(time, shot, reduced);
+  cueOffset = Math.abs(T.MathUtils.euclideanModulo(shot - clock + LIGHT_SPACING / 2, LIGHT_SPACING) - LIGHT_SPACING / 2);
+  const tailSeconds = roadLightTailSeconds(shot, reduced);
+  const sceneStrength = smooth((seconds - .8) / 2) * (1 - smooth(nextT / .09));
+  localView.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld);
+  group.getWorldQuaternion(rootRotation).invert();
+  handoff = 0;
+  function visibility(position) {
+   const depth = -viewPoint.copy(position).applyMatrix4(localView).z;
+   return sceneStrength * smooth((depth - 14) / 24) * (1 - smooth((depth - 440) / 340));
+  }
+  beads.forEach(({core, halo, tail, light, position, trail}, i) => {
+   const offset = i * LIGHT_SPACING;
+   roadLightPoint(clock + offset, core.position);
+   const alpha = visibility(core.position), depth = -viewPoint.z;
+   core.visible = halo.visible = alpha > .002;
+   core.material.opacity = alpha;
+   halo.position.copy(core.position);
+   halo.quaternion.copy(rootRotation).multiply(camera.quaternion);
+   halo.material.uniforms.strength.value = alpha * (.32 + .68 * smooth((depth - 38) / 130));
+   light.position.copy(core.position);
+   light.intensity = 950 * alpha;
+   handoff = Math.max(handoff, 1 - smooth(core.position.distanceTo(LIGHT_HANDOFF) / 82));
+   tail.visible = sceneStrength > .002;
+   if (!tail.visible) return;
+   for (let k = 0; k <= segments; k++) {
+    const life = k / segments, sampleTime = time - (1 - life) * tailSeconds;
+    const phase = flight.trail(sampleTime) + offset;
+    roadLightPoint(phase, point);
+    roadLightPoint(phase + .001, next);
+    tangent.copy(next).sub(point).normalize();
+    side.crossVectors(tangent, Math.abs(tangent.y) > .94 ? right : up).normalize();
+    normal.crossVectors(tangent, side).normalize();
+    const radius = .06 + .43 * life;
+    const strength = visibility(point) * smooth((sampleTime - flight.oldestTime) / .05);
+    for (let j = 0; j < sides; j++) {
+     const angle = j / sides * Math.PI * 2, a = Math.cos(angle) * radius, b = Math.sin(angle) * radius;
+     position.setXYZ(k * sides + j, point.x + side.x * a + normal.x * b, point.y + side.y * a + normal.y * b, point.z + side.z * a + normal.z * b);
+     trail.setXY(k * sides + j, life, strength);
+    }
+   }
+   position.needsUpdate = true;
+   trail.needsUpdate = true;
+  });
+ }
+ return {
+  group, update, reset: flight.reset,
+  get handoff() { return handoff; },
+  get glintStrength() { return .17 + .32 * smooth((cueOffset - .12) / .42); },
+  dispose() {
+   coreGeometry.dispose();
+   haloGeometry.dispose();
+   tailMaterial.dispose();
+   for (const {core, halo, tail} of beads) {
+    core.material.dispose();
+    halo.material.dispose();
+    tail.geometry.dispose();
+   }
+   group.clear();
+  }
+ };
 }

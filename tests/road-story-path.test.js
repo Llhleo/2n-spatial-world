@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {sampleRoadCamera,roadEndingEntry,lightTrackPoint,ROAD_STOPS} from '../src/road-story/path.js';
+import {sampleRoadCamera,roadEndingEntry,ROAD_STOPS} from '../src/road-story/path.js';
 import {memoryEntryFrame} from '../src/guild-memory-entry.js';
 const entry={position:[100,20,-700],target:[120,20,-720],up:[0,1,0]};
 test('road camera is continuous at every scene boundary in either direction',()=>{
@@ -17,10 +17,4 @@ test('ending frame is a fixed forward translation from the road frame',()=>{
  const frame=memoryEntryFrame(entry),shift=roadEndingEntry(entry),out=memoryEntryFrame(shift);
  const expected=frame.clone().multiply(new T.Matrix4().makeTranslation(-620,80,-1650));
  assert.ok(Math.max(...out.elements.map((v,i)=>Math.abs(v-expected.elements[i])))<1e-8);
-});
-test('all three lights sample the same closed smooth track without stopping',()=>{
- for(let scene=0;scene<3;scene++){
-  assert.ok(lightTrackPoint(scene,0).distanceTo(lightTrackPoint(scene,1))<1e-6);
-  for(let i=0;i<400;i++)assert.ok(lightTrackPoint(scene,i/400).distanceTo(lightTrackPoint(scene,(i+1)/400))>.1);
- }
 });

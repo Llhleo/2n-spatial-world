@@ -117,8 +117,8 @@ export function createEndingParticles({renderer}={}){
  catch(error){geometry.dispose();occluder.traverse(o=>o.geometry?.dispose());depthMaterial.dispose();throw error;}
  // Ordinary alpha blending bounds dense crossings to the palette; visibility
  // comes from wider bright cores, not unbounded additive accumulation.
- const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
- vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidA,uFluidB,uFluidC,uFluidD;uniform vec4 uFluidWeights;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
+ const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,blending:T.NormalBlending,toneMapped:false,uniforms:{uT:{value:0},uTime:{value:0},uPixels:{value:896},uAspect:{value:.6},uReduced:{value:0},uRoadLight:{value:0},uFrameInverse:{value:Array.from({length:ENDING_GATE_COUNT},()=>new T.Matrix4())},uFramePulse:{value:new Float32Array(ENDING_GATE_COUNT)}},
+ vertexShader:`attribute vec4 aSeed; attribute vec3 aNormal,aCloud;attribute vec2 aFluidUV;uniform sampler2D uFluidA,uFluidB,uFluidC,uFluidD;uniform vec4 uFluidWeights;uniform float uFluidEnabled; uniform float uT,uTime,uPixels,uAspect,uReduced,uRoadLight; uniform float uFramePulse[${ENDING_GATE_COUNT}]; uniform mat4 uFrameInverse[${ENDING_GATE_COUNT}]; varying vec3 vColor; varying float vEnergy; varying float vMorph; varying float vMetal;varying float vBlur;
  float ease(float x){x=clamp(x,0.,1.);return x*x*x*(10.+x*(-15.+6.*x));}
  ${ENDING_FLOW_GLSL}
  ${MATERIAL_RENDER_GLSL}
@@ -169,6 +169,15 @@ export function createEndingParticles({renderer}={}){
  float shade=mix(.55+.22*nearSide+.13*pockets+.10*aSeed.z,1.,frontStage);
  vec3 colour=mix(biome(group),vec3(.75,.82,.9),star*.25*(1.-frontStage))*shade;
  vMorph=gather;vColor=mix(colour,vec3(.72,.80,.89)*vMetal,gather);
+ // A local highlight receives the road light before the existing flow unfolds.
+ if(uRoadLight>.001&&uT<.13){
+  float handoffTime=ease(uT/.035)*(1.-ease((uT-.025)/.105));
+  vec3 handoffCenter=mix(vec3(25.,45.,8.),vec3(0.,35.,-14.),ease(uT/.105));
+  vec3 handoffDelta=(p-handoffCenter)/24.;
+  float handoff=uRoadLight*handoffTime*exp(-dot(handoffDelta,handoffDelta));
+  vEnergy+=handoff*.24;
+  vColor=mix(vColor,vec3(1.,.76,.43),handoff*.58);
+ }
  }`,
  fragmentShader:`varying vec3 vColor;varying float vEnergy;varying float vMorph;varying float vMetal;varying float vBlur;void main(){float r=length(gl_PointCoord-.5)*2.;float core=exp(-r*r*13.);float halo=exp(-r*r*5.)*(1.-smoothstep(.75,1.,r));float coverage=mix(core*.85+halo*.15,halo,vBlur);float alpha=coverage*min(.58,vEnergy*1.6);gl_FragColor=vec4(vColor,alpha);
  #include <colorspace_fragment>
@@ -177,7 +186,7 @@ export function createEndingParticles({renderer}={}){
  material.uniforms.uFluidWeights={value:new T.Vector4(0,1,0,0)};material.uniforms.uFluidEnabled={value:fluid?1:0};
  const points=new T.Points(geometry,material);points.name='ending-shape-swarm';points.frustumCulled=false;points.visible=false;
  let disposed=false;
- return {points,occluder,update(t,time,camera,reduced=false,particleEnding=!!fluid){if(disposed)return;points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
+ return {points,occluder,setRoadLightHandoff(value){material.uniforms.uRoadLight.value=T.MathUtils.clamp(value||0,0,1);},update(t,time,camera,reduced=false,particleEnding=!!fluid){if(disposed)return;points.visible=Number.isFinite(t)&&t>0;material.uniforms.uT.value=Number.isFinite(t)?t:0;material.uniforms.uRoadLight.value=0;material.uniforms.uTime.value=time;material.uniforms.uAspect.value=camera.aspect;material.uniforms.uPixels.value=(globalThis.devicePixelRatio||1)*896;material.uniforms.uReduced.value=reduced?1:0;
   occluder.visible=particleEnding&&Number.isFinite(t)&&t>=PARTICLE_MARK_FORMED;occluder.position.set(0,43,-14);occluder.scale.setScalar(Math.min(1.12,camera.aspect*1.75));
   const sample=fluid?.update(t);
   if(sample){['uFluidA','uFluidB','uFluidC','uFluidD'].forEach((name,i)=>material.uniforms[name].value=sample.frames[i]);material.uniforms.uFluidWeights.value.fromArray(sample.weights);}

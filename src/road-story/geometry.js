@@ -3,6 +3,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createTraffic,trafficCoordinate,PETAL_NAMES} from '../road-traffic.js';
 import {offsets,makeConnections} from './journey.js';
 import {roadTextParts} from './typography.js';
+import {createRoadGlint} from './road-glint.js';
 
 export function createRoadGeometry({assets,vectorText,waveConfig,historyRecords}){
 const W=864,H=1872,camera=new T.PerspectiveCamera(40,W/H,.1,2400),plates=new T.Group();
@@ -319,7 +320,8 @@ for(let i=0;i<3;i++){
  for(const [name,items]of ctx.pools){const asset=assets.get(name),mesh=new T.InstancedMesh(asset.geometry,asset.material,items.length);mesh.name='road-petal-'+name;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.count=0;root.add(mesh);ctx.pools.set(name,{mesh,items});}
  root.position.fromArray(offsets[i]);group.add(root);contexts.push(ctx);
 }
-group.add(makeConnections());
+const connections=makeConnections();
+group.add(connections);
 // Merge repeated contours and all static road strips once, retaining real depth.
 function mergeStatic(parent,waves=false){
  const groups=new Map();parent.updateMatrixWorld(true);
@@ -350,6 +352,16 @@ for(const c of contexts){
   if(o.isMesh){o.updateMatrix();o.matrixAutoUpdate=false;}
  });
 }
+const glints=connections.children.filter(child=>child.name==='road-connection-edge').map((edge,i)=>{
+ const cue=createRoadGlint(edge.geometry,[11.7,20.5][i],[14.15,22.95][i]);
+ connections.add(cue.mesh);
+ return cue;
+});
+const lastRoad=contexts[2].roads[0];
+const exitEdge=new T.CatmullRomCurve3(Array.from({length:49},(_,i)=>lastRoad.sample(.26+i/48*.45,1,-.06)));
+const exitGlint=createRoadGlint(new T.TubeGeometry(exitEdge,48,.14,5,false),30.65,32.35);
+lastRoad.root.add(exitGlint.mesh);
+glints.push(exitGlint);
 const object=new T.Object3D(),point=new T.Vector3(),world=new T.Vector3(),frustum=new T.Frustum(),viewProjection=new T.Matrix4(),sphere=new T.Sphere(),rotationScratch=new T.Quaternion(),eulerScratch=new T.Euler();
 function update(clock,view,seconds,reduced=false){
  view.updateMatrixWorld();frustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(view.projectionMatrix,view.matrixWorldInverse));
@@ -373,5 +385,5 @@ function update(clock,view,seconds,reduced=false){
   }
  }
 }
-return {group,contexts,update,get instanceCount(){return contexts.reduce((n,c)=>n+c.petals.length,0);},get visibleCount(){return contexts.reduce((n,c)=>n+[...c.pools.values()].reduce((a,p)=>a+p.mesh.count,0),0);}};
+return {group,contexts,update,updateLightGlints(seconds,strength){for(const cue of glints)cue.update(seconds,strength);},disposeLightGlints(){for(const cue of glints)cue.mesh.material.dispose();},get instanceCount(){return contexts.reduce((n,c)=>n+c.petals.length,0);},get visibleCount(){return contexts.reduce((n,c)=>n+[...c.pools.values()].reduce((a,p)=>a+p.mesh.count,0),0);}};
 }

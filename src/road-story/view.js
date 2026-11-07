@@ -24,7 +24,7 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
   if(chapter.chapter==='next'&&endingReady){
    memory.setLayerOpacity?.(1);
    // The original ending runs in its own fixed space beyond the third road.
-   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:chapter.nextT,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,roadArrival:{},updateEnvironment:renderCamera=>{roads.update({historyT:1,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion,ending:true});roadEnvironment(renderCamera);}});
+   renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:chapter.nextT,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,roadArrival:{},updateEnvironment:renderCamera=>{roads.update({historyT:1,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion,ending:true,nextT:chapter.nextT});memory.setRoadLightHandoff?.(roads.lightHandoff);roadEnvironment(renderCamera);}});
    return;
   }
   if(chapter.historyT*36>=23.1){
