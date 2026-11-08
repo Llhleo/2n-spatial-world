@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {roadTextParts} from '../src/road-story/typography.js';
 import * as T from 'three';
 import {sampleRoadCamera} from '../src/road-story/path.js';
+import {readingLightPoint} from '../src/road-story/reading-light-paths.js';
 import {LIGHT_LAP,roadLightPoint} from '../src/road-story/light-flight.js';
 
 const records=JSON.parse(fs.readFileSync(new URL('../content/history.json',import.meta.url))).events;
@@ -34,11 +35,15 @@ test('traveling light cores and their tails stay outside the active reading line
    const points=[Math.min(...xs),Math.max(...xs)].flatMap(x=>[Math.min(...ys),Math.max(...ys)].map(y=>new T.Vector3((-432+p.x+x*p.size)*unit,(936-p.y-p.size*.9+y*p.size)*unit,-depths[kind]).applyMatrix4(frame).project(camera)));
    return {text:p.text,left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),bottom:Math.min(...points.map(p=>p.y)),top:Math.max(...points.map(p=>p.y))};
   });
-  for(let lane=0;lane<3;lane++)for(let clock=0;clock<LIGHT_LAP;clock+=.025){
-   const point=roadLightPoint(clock,new T.Vector3(),lane),depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
-   if(depth<14||depth>700)continue;
+  function checkPoint(point, lane, clock) {
+   const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
+   if(depth<14||depth>700)return;
    const p=point.project(camera),mx=32/864*2,my=32/1872*2;
    for(const b of boxes)assert.ok(p.x+mx<b.left||p.x-mx>b.right||p.y+my<b.bottom||p.y-my>b.top,`light crosses ${b.text} at scene ${kind}, lane ${lane}, clock ${clock}`);
+  }
+  for(let lane=0;lane<3;lane++){
+   for(let clock=0;clock<LIGHT_LAP;clock+=.025)checkPoint(roadLightPoint(clock,new T.Vector3(),lane),lane,clock);
+   for(let clock=0;clock<26;clock+=.05)checkPoint(readingLightPoint(clock,new T.Vector3(),kind,lane),lane,clock);
   }
  }
 });

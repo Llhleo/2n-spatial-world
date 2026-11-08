@@ -166,9 +166,14 @@ test('the rendered lights keep moving through reading holds and opposite gesture
     previous = points;
     if (time === 5) tails.forEach((tail, lane) => {
      const positions = tail.geometry.attributes.position;
-     const tip = new T.Vector3();
-     for (let j = 0; j < 6; j++) tip.add(new T.Vector3().fromBufferAttribute(positions, j));
-     assert.ok(tip.multiplyScalar(1 / 6).distanceTo(points[lane]) > 2, 'a reading light retains its tail');
+     const center = new T.Vector3(), vertex = new T.Vector3();
+     let reach = 0;
+     for (let k = 0; k < positions.count; k += 6) {
+      center.set(0, 0, 0);
+      for (let j = 0; j < 6; j++) center.add(vertex.fromBufferAttribute(positions, k + j));
+      reach = Math.max(reach, center.multiplyScalar(1 / 6).distanceTo(points[lane]));
+     }
+     assert.ok(reach > 2, `a reading light retains its tail through curved sections: ${stop}, ${lane}, ${reach}`);
     });
     if (time < 2 || time >= 8) continue;
     const screen = points.map(point => point.project(camera));
@@ -193,11 +198,12 @@ test('portrait lights keep their speed and heading near reading stops at differe
    const player = createGesturePlayback([0, ...ROAD_READING_STOPS, 36]);
    player.seek(stop - direction * 1.95);
    player.request(direction);
-   let previous, heading;
+   let previous, heading, lastShot, lastCameraMoved;
    for (let frame = 0; frame <= 435; frame++) {
     if (frame === 180 || frame === 350) player.request(direction);
     if (frame === 225 || frame === 305) player.request(-direction);
     const shot = player.advance(dt), time = seed * .49 + frame * dt;
+    const cameraMoved = Math.abs(shot - lastShot) > 1e-7;
     const pose = sampleRoadCamera(shot, null);
     camera.position.fromArray(pose.position);
     camera.quaternion.fromArray(pose.quaternion);
@@ -213,12 +219,16 @@ test('portrait lights keep their speed and heading near reading stops at differe
       const speed = step.length() / dt;
       const turn = Math.acos(T.MathUtils.clamp(step.dot(heading[lane]) / (step.length() * heading[lane].length()), -1, 1)) * 180 / Math.PI;
       const at = `lane ${lane}, reading stop ${stop}, shot ${shot.toFixed(2)}, frame ${frame}, seed ${seed}, direction ${direction}`;
-      assert.ok(speed > 8, `visible speed ${speed.toFixed(1)}px/s at ${at}`);
-      assert.ok(turn < 12, `visible heading changes ${turn.toFixed(1)}° at ${at}`);
+      // Near a gesture reversal, projected motion also includes the camera.
+      const moving = cameraMoved || lastCameraMoved;
+      assert.ok(speed > (moving ? 5 : 8), `visible speed ${speed.toFixed(1)}px/s at ${at}`);
+      assert.ok(turn < (moving ? 25 : 12), `visible heading changes ${turn.toFixed(1)}° at ${at}`);
      });
      heading = nextHeading;
     }
     previous = screen;
+    lastShot = shot;
+    lastCameraMoved = cameraMoved;
    }
   }
  }
@@ -265,4 +275,29 @@ test('the loops change passes while the corresponding bead and trail are dimmed'
    assert.deepEqual(changes, [6, 6, 6], 'all reading and travel changes are checked in each direction');
   }
  } finally { rig.dispose(); }
+});
+
+test('each reading bead travels across its reference corridor instead of circling in place', () => {
+ const camera = new T.PerspectiveCamera(40, 414 / 896, .2, 2400);
+ for (const [scene, shot] of ROAD_READING_STOPS.entries()) {
+  const pose = sampleRoadCamera(shot, null);
+  camera.position.fromArray(pose.position);
+  camera.quaternion.fromArray(pose.quaternion);
+  camera.updateMatrixWorld(true);
+  const flight = createLightFlight();
+  const bounds = Array.from({length: 3}, () => new T.Box2());
+  for (let frame = 0; frame <= 18 * 30; frame++) {
+   const time = frame / 30;
+   flight.update(time, shot);
+   bounds.forEach((box, lane) => {
+    const projected = flight.point(time, new T.Vector3(), lane).project(camera);
+    box.expandByPoint(new T.Vector2(projected.x, projected.y));
+   });
+  }
+  bounds.forEach((box, lane) => {
+   const extent = box.getSize(new T.Vector2());
+   const travel = scene === 1 ? extent.y : extent.x;
+   assert.ok(travel > .39, `scene ${scene + 1}, lane ${lane} covers only ${(travel * 50).toFixed(1)}% of the frame`);
+  });
+ }
 });

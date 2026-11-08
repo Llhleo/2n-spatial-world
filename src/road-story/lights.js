@@ -64,7 +64,7 @@ export function createLightTravelers() {
   }
   beads.forEach(({core, halo, tail, light, position, trail}, lane) => {
    const pass = flight.pass(lane), opacity = flight.opacity(lane);
-   const tailSeconds = cueTailSeconds + (reduced ? 0 : .47 * (pass >= 0 ? 1 : flight.travelDrift));
+   const tailSeconds = pass >= 0 && !reduced ? .92 : cueTailSeconds + (reduced ? 0 : .47 * flight.travelDrift);
    flight.point(time, core.position, lane, pass);
    const alpha = opacity * visibility(core.position), depth = -viewPoint.z;
    core.visible = halo.visible = alpha > .002;

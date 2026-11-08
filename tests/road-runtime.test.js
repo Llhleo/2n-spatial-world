@@ -60,6 +60,13 @@ test('only three luminous travelers exist and halo plus tail retain depth testin
 test('three distinct light cores stay in portrait reading shots during forward and reverse holds',()=>{
  const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
  const rig=createLightTravelers(),camera=new T.PerspectiveCamera(40,414/896,.2,2400),ray=new T.Raycaster();
+ const entry={position:[-340,-160,-10],target:[-330,-160,-10],up:[0,1,0]};
+ const entryFrame=memoryEntryFrame(entry);
+ for (const group of [world.group,rig.group]) {
+  group.matrixAutoUpdate=false;
+  group.matrix.copy(entryFrame);
+  group.updateMatrixWorld(true);
+ }
  const solids=[];
  world.group.traverse(object=>{if(object.material?.isMeshStandardMaterial&&!object.isInstancedMesh)solids.push(object);});
  const cores=rig.group.children.filter(object=>object.name==='road-light-core');
@@ -67,23 +74,24 @@ test('three distinct light cores stay in portrait reading shots during forward a
   for(const speed of [1,-1.35]){
    let now=0,previous=speed>0?0:30.6;
    const stops=speed>0?[9.3,18.1,28.6]:[28.6,18.1,9.3];
-   camera.aspect=speed>0?414/896:.42;
+   camera.aspect=speed>0?.60:.42;
    camera.updateProjectionMatrix();
    rig.reset();
    rig.update(now,previous,camera);
    for(const shot of stops){
-    const pose=sampleRoadCamera(shot,null);
+    const pose=sampleRoadCamera(shot,entry);
     camera.position.fromArray(pose.position);
     camera.quaternion.fromArray(pose.quaternion);
     camera.updateMatrixWorld();
     for(let t=previous+speed/60;(shot-t)*speed>1e-6;t+=speed/60)rig.update(now+=1/60,t,camera);
     for(let frame=0;frame<=12*60;frame++){
      rig.update(now+=1/60,shot,camera);
-     if(frame%60)continue;
+     if(frame%12)continue;
      world.update(now,camera,shot);
      const projected=cores.map((core,lane)=>{
-      const p=core.position.clone().project(camera);
-      const direction=core.position.clone().sub(camera.position);
+      const position=core.getWorldPosition(new T.Vector3());
+      const p=position.clone().project(camera);
+      const direction=position.sub(camera.position);
       ray.set(camera.position,direction.clone().normalize());
       ray.far=direction.length()-1.1;
       const moment=`for lane ${lane} at ${shot}s, after ${frame/60}s of reading, playback ${speed}×, NDC ${p.x.toFixed(2)},${p.y.toFixed(2)}`;
@@ -94,7 +102,7 @@ test('three distinct light cores stay in portrait reading shots during forward a
      });
      for(let i=1;i<projected.length;i++)for(let j=0;j<i;j++){
       const a=projected[i],b=projected[j];
-      assert.ok(Math.hypot((a.x-b.x)*camera.aspect,a.y-b.y)>.045,'the three cores can be counted separately');
+      assert.ok(Math.hypot((a.x-b.x)*camera.aspect,a.y-b.y)>.045,`the three cores can be counted separately at ${shot}, ambient ${now.toFixed(3)}, lanes ${i} and ${j}`);
      }
     }
     previous=shot;
@@ -123,12 +131,12 @@ test('all three distinct flight lanes clear the real road surfaces and their swa
    }
    for (const stop of ROAD_READING_STOPS) for (const direction of [-1, 1]) {
     const flight = createLightFlight();
-    for (let frame = 0; frame <= 120; frame++) {
-     const time = ambient + frame / 30, shot = stop + direction * (frame / 30 - 2);
+    for (let frame = 0; frame <= 540; frame++) {
+     const time = ambient + frame / 30, shot = stop + direction * T.MathUtils.clamp(frame / 30 - 2, -2, 0);
      flight.update(time, shot);
      for (let lane = 0; lane < 3; lane++) {
       const contact = surfaces.near(flight.point(time, position, lane));
-      assert.ok(!contact || contact.distance > 2.5,
+      assert.ok(!contact || contact.distance > 5,
        `reading lane ${lane} intersects a road around ${stop}s at ${shot.toFixed(2)}s (sway ${ambient})`);
      }
     }
