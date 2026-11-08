@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {ROAD_ENDING_OFFSET, smooth} from './path.js';
+import {ROAD_ENDING_OFFSET, ROAD_READING_STOPS, smooth} from './path.js';
 
 export const LIGHT_LAP = 60;
 export const LIGHT_PHASES = Object.freeze([-.55, 0, .55]);
@@ -180,13 +180,27 @@ export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
  return roundedLanes[lane].getPoint(T.MathUtils.euclideanModulo(clock, LIGHT_LAP) / LIGHT_LAP, target);
 }
 
-// The cue clock keeps the cinematic passes aligned with the camera. Around a
-// held shot, a small world-space orbit carries the lights through low speeds
-// and direction changes. Both the head and the tail sample the same flight.
+// These closed paths are fixed in the road's world space. The narrow second
+// scene has more room along the road than across its two visible ribbons.
+const readingRadii = [[5.8, 4.2], [3.8, 7.1], [5, 4.2]];
+const readingCenters = ROAD_READING_STOPS.map(stop =>
+ LIGHT_PHASES.map((phase, lane) => roadLightPoint(stop + phase, new T.Vector3(), lane)));
+// Switch passes while the camera is entering or leaving the reading pocket.
+// The orbit is never pulled toward a different curve while it is visible.
+const readingWindows = [[5.42, 12.38], [13.76, 20.93], [23.27, 30.78]];
+const passFade = .36;
+
+function readingPass(shot, lane) {
+ const stagger = (lane - 1) * .07;
+ return readingWindows.findIndex(([start, end]) => shot >= start + stagger && shot < end + stagger);
+}
+
+// Track the camera cues during travel and let a separate, one-way loop
+// carry the lights through each reading window and short gesture reversal.
 export function createLightFlight() {
  let clock = 0, velocity = 0, lastTime = null, lastShot = 0;
  const history = [];
- const orbitRadius = 3.2;
+ let reducedMotion = false;
  return {
   update(time, shot, reduced = false) {
    const elapsed = time - lastTime, delta = shot - lastShot;
@@ -203,29 +217,49 @@ export function createLightFlight() {
     velocity += T.MathUtils.clamp(goal - velocity, -elapsed * acceleration, elapsed * acceleration);
     clock += elapsed * velocity;
    }
-   const radius = (reduced ? 1 : orbitRadius) * Math.exp(-((velocity / .6) ** 2));
-   if (!history.length || time > history.at(-1).time) history.push({time, clock, radius});
+   const drift = Math.exp(-((velocity / .6) ** 2));
+   if (!history.length || time > history.at(-1).time) history.push({time, clock, drift});
+   reducedMotion = reduced;
    while (history.length > 1 && (time - history[1].time > 1.05 || history.length > 256)) history.shift();
    lastTime = time;
    lastShot = shot;
    return clock;
   },
-  point(time, target, lane) {
+  pass(lane) { return readingPass(lastShot, lane); },
+  get travelDrift() { return history.at(-1)?.drift ?? 0; },
+  opacity(lane) {
+   const shot = lastShot - (lane - 1) * .07;
+   let distance = passFade;
+   for (const [start, end] of readingWindows) distance = Math.min(distance, Math.abs(shot - start), Math.abs(shot - end));
+   return smooth(distance / passFade);
+  },
+  point(time, target, lane, pass = readingPass(lastShot, lane)) {
+   const t = Math.max(history[0].time, Math.min(time, lastTime));
+   const angle = t * (1.24 + lane * .12) + lane * 2.4;
+   if (pass >= 0) {
+    const [radiusX, radiusY] = readingRadii[pass];
+    const scale = reducedMotion ? .32 : 1;
+    const x = scale * radiusX * Math.cos(angle), y = scale * radiusY * Math.sin(angle);
+    target.copy(readingCenters[pass][lane]);
+    target.x += x;
+    target.y += y;
+    target.z += .24 * x + .28 * y;
+    return target;
+   }
    let i = history.length - 1;
    while (i > 0 && history[i - 1].time >= time) i--;
    const a = history[Math.max(0, i - 1)], b = history[i];
    const mix = a === b ? 0 : T.MathUtils.clamp((time - a.time) / (b.time - a.time), 0, 1);
    const phase = T.MathUtils.lerp(a.clock, b.clock, mix);
-   const radius = T.MathUtils.lerp(a.radius, b.radius, mix);
-   const angle = Math.max(history[0].time, Math.min(time, lastTime)) * (1.45 + lane * .13) + lane * 2.4;
    roadLightPoint(phase + LIGHT_PHASES[lane], target, lane);
+   // A paused cinematic cue retains a small drift outside the reading loops.
+   const radius = (reducedMotion ? 1 : 3.2) * T.MathUtils.lerp(a.drift, b.drift, mix);
    const x = radius * Math.cos(angle), y = radius * Math.sin(angle);
    target.x += x;
    target.y += .88 * y;
    target.z += .35 * x + .4 * y;
    return target;
   },
-  get orbitMix() { return (history.at(-1)?.radius ?? 0) / orbitRadius; },
   get oldestTime() { return history[0]?.time ?? 0; },
   reset() { lastTime = null; history.length = 0; }
  };

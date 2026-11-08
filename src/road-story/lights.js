@@ -53,7 +53,7 @@ export function createLightTravelers() {
   const shot = seconds + Math.min(4, Math.max(0, nextT) * 18);
   const clock = flight.update(time, shot, reduced);
   cueOffset = Math.abs(shot - clock);
-  const tailSeconds = roadLightTailSeconds(shot, reduced) + (reduced ? 0 : .47 * flight.orbitMix);
+  const cueTailSeconds = roadLightTailSeconds(shot, reduced);
   const sceneStrength = smooth((seconds - .8) / 2) * (1 - smooth(nextT / .09));
   localView.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld);
   group.getWorldQuaternion(rootRotation).invert();
@@ -63,8 +63,10 @@ export function createLightTravelers() {
    return sceneStrength * smooth((depth - 14) / 24) * (1 - smooth((depth - 440) / 340));
   }
   beads.forEach(({core, halo, tail, light, position, trail}, lane) => {
-   flight.point(time, core.position, lane);
-   const alpha = visibility(core.position), depth = -viewPoint.z;
+   const pass = flight.pass(lane), opacity = flight.opacity(lane);
+   const tailSeconds = cueTailSeconds + (reduced ? 0 : .47 * (pass >= 0 ? 1 : flight.travelDrift));
+   flight.point(time, core.position, lane, pass);
+   const alpha = opacity * visibility(core.position), depth = -viewPoint.z;
    core.visible = halo.visible = alpha > .002;
    core.material.opacity = alpha;
    halo.position.copy(core.position);
@@ -73,19 +75,19 @@ export function createLightTravelers() {
    light.position.copy(core.position);
    light.intensity = 950 * alpha;
    handoff = Math.max(handoff, 1 - smooth(core.position.distanceTo(LIGHT_HANDOFF) / 82));
-   tail.visible = sceneStrength > .002;
+   tail.visible = sceneStrength * opacity > .002;
    if (!tail.visible) return;
    const step = tailSeconds / segments, start = time - tailSeconds;
-   flight.point(start, before, lane);
+   flight.point(start, before, lane, pass);
    point.copy(before);
    for (let k = 0; k <= segments; k++) {
     const life = k / segments, sampleTime = start + k * step;
-    flight.point(Math.min(time, sampleTime + step), after, lane);
+    flight.point(Math.min(time, sampleTime + step), after, lane, pass);
     tangent.copy(after).sub(before).normalize();
     side.crossVectors(tangent, Math.abs(tangent.y) > .94 ? right : up).normalize();
     normal.crossVectors(tangent, side).normalize();
     const radius = .06 + .43 * life;
-    const strength = visibility(point) * smooth((sampleTime - flight.oldestTime) / .05);
+    const strength = opacity * visibility(point) * smooth((sampleTime - flight.oldestTime) / .05);
     for (let j = 0; j < sides; j++) {
      const angle = j / sides * Math.PI * 2, a = Math.cos(angle) * radius, b = Math.sin(angle) * radius;
      position.setXYZ(k * sides + j, point.x + side.x * a + normal.x * b, point.y + side.y * a + normal.y * b, point.z + side.z * a + normal.z * b);

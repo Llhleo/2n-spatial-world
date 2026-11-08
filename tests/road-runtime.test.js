@@ -4,12 +4,12 @@ import * as T from 'three';
 import fs from 'node:fs';
 import {createRoadGeometry} from '../src/road-story/geometry.js';
 import {PETAL_NAMES} from '../src/road-traffic.js';
-import {sampleRoadCamera,roadEndingEntry} from '../src/road-story/path.js';
+import {sampleRoadCamera,roadEndingEntry,ROAD_READING_STOPS} from '../src/road-story/path.js';
 import {endingCamera} from '../src/guild-ending-particles.js';
 import {memoryEntryFrame} from '../src/guild-memory-entry.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
 import {roadSurfaces} from './support/road-surface-clearance.js';
-import {roadLightPoint,LIGHT_LAP} from '../src/road-story/light-flight.js';
+import {createLightFlight,roadLightPoint,LIGHT_LAP} from '../src/road-story/light-flight.js';
 
 const data=p=>JSON.parse(fs.readFileSync(new URL('../'+p,import.meta.url)));
 const source=new T.SphereGeometry(1,6,4),material=new T.MeshBasicMaterial(),assets=new Map(PETAL_NAMES.map(n=>[n,{geometry:source,material,face:new T.Quaternion()}]));
@@ -120,6 +120,18 @@ test('all three distinct flight lanes clear the real road surfaces and their swa
    for(let lane=0;lane<3;lane++)for(let t=0;t<LIGHT_LAP;t+=.005){
     roadLightPoint(t,position,lane);
     assert.equal(surfaces.near(position),null,`lane ${lane} approaches a solid road at ${t.toFixed(3)}s (sway ${ambient})`);
+   }
+   for (const stop of ROAD_READING_STOPS) for (const direction of [-1, 1]) {
+    const flight = createLightFlight();
+    for (let frame = 0; frame <= 120; frame++) {
+     const time = ambient + frame / 30, shot = stop + direction * (frame / 30 - 2);
+     flight.update(time, shot);
+     for (let lane = 0; lane < 3; lane++) {
+      const contact = surfaces.near(flight.point(time, position, lane));
+      assert.ok(!contact || contact.distance > 2.5,
+       `reading lane ${lane} intersects a road around ${stop}s at ${shot.toFixed(2)}s (sway ${ambient})`);
+     }
+    }
    }
   }
   for(const t of [9.3,13,18.1,21.65,28.6,35.5]){

@@ -40,7 +40,7 @@ test('the authored flight hides behind the actual bridge and passes near the nex
   cameraAt(shot);
   const head = flight.point(now, new T.Vector3(), 1), screen = head.clone().project(camera);
   const depth = -head.clone().applyMatrix4(camera.matrixWorldInverse).z;
-  if (Math.abs(screen.x) > .93 || Math.abs(screen.y) > .85 || depth < 20) continue;
+  if (Math.abs(screen.x) > .93 || Math.abs(screen.y) > .85 || depth < 20 || flight.opacity(1) < .3) continue;
   const vector = head.clone().sub(camera.position);
   const ray = new T.Raycaster(camera.position, vector.clone().normalize(), .2, vector.length() - 2);
   const blocked = ray.intersectObjects(solids, false).length > 0;
@@ -67,7 +67,7 @@ test('three heads follow their own lanes and trails preserve real motion during 
  try {
   let phaseBeforeReversal;
   for (let frame = 0; frame <= 192; frame++) {
-   const time = frame / 120, shot = 20.85 + (frame < 96 ? frame : 192 - frame) / 120;
+   const time = frame / 120, shot = 21.3 + (frame < 96 ? frame : 192 - frame) / 120;
    const clock = control.update(time, shot);
    if (frame === 162) phaseBeforeReversal = clock;
    if (frame === 192) assert.ok(phaseBeforeReversal > clock, 'the traveling cue can still rewind');
@@ -126,7 +126,7 @@ test('the center light enters the portrait close-up while its tail is long in bo
    const head = flight.point(time, new T.Vector3(), 1);
    const depth = -head.clone().applyMatrix4(camera.matrixWorldInverse).z;
    const screen = head.project(camera);
-   closeUp ||= depth > 38 && depth < 80 && Math.abs(screen.x) < .9 && Math.abs(screen.y) < .9;
+   closeUp ||= flight.opacity(1) > .5 && depth > 38 && depth < 80 && Math.abs(screen.x) < .9 && Math.abs(screen.y) < .9;
   }
   assert.ok(closeUp, `the light misses the long-tail portrait close-up at playback rate ${rate}`);
  }
@@ -182,4 +182,87 @@ test('the rendered lights keep moving through reading holds and opposite gesture
    }
   } finally { rig.dispose(); }
  }
+});
+
+test('portrait lights keep their speed and heading near reading stops at different arrival phases', () => {
+ const width = 390, height = 844, dt = 1 / 60;
+ const camera = new T.PerspectiveCamera(40, width / height, .2, 2400);
+ for (const stop of ROAD_READING_STOPS) for (const direction of [-1, 1]) {
+  for (let seed = 0; seed < 8; seed++) {
+   const flight = createLightFlight();
+   const player = createGesturePlayback([0, ...ROAD_READING_STOPS, 36]);
+   player.seek(stop - direction * 1.95);
+   player.request(direction);
+   let previous, heading;
+   for (let frame = 0; frame <= 435; frame++) {
+    if (frame === 180 || frame === 350) player.request(direction);
+    if (frame === 225 || frame === 305) player.request(-direction);
+    const shot = player.advance(dt), time = seed * .49 + frame * dt;
+    const pose = sampleRoadCamera(shot, null);
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.quaternion);
+    camera.updateMatrixWorld(true);
+    flight.update(time, shot);
+    const screen = Array.from({length: 3}, (_, lane) => {
+     const point = flight.point(time, new T.Vector3(), lane).project(camera);
+     return new T.Vector2(point.x * width / 2, point.y * height / 2);
+    });
+    if (previous) {
+     const nextHeading = screen.map((point, lane) => point.clone().sub(previous[lane]));
+     if (heading && Math.abs(shot - stop) <= .9) nextHeading.forEach((step, lane) => {
+      const speed = step.length() / dt;
+      const turn = Math.acos(T.MathUtils.clamp(step.dot(heading[lane]) / (step.length() * heading[lane].length()), -1, 1)) * 180 / Math.PI;
+      const at = `lane ${lane}, reading stop ${stop}, shot ${shot.toFixed(2)}, frame ${frame}, seed ${seed}, direction ${direction}`;
+      assert.ok(speed > 8, `visible speed ${speed.toFixed(1)}px/s at ${at}`);
+      assert.ok(turn < 12, `visible heading changes ${turn.toFixed(1)}° at ${at}`);
+     });
+     heading = nextHeading;
+    }
+    previous = screen;
+   }
+  }
+ }
+});
+
+test('the loops change passes while the corresponding bead and trail are dimmed', () => {
+ const rig = createLightTravelers(), control = createLightFlight();
+ const cores = rig.group.children.filter(child => child.name === 'road-light-core');
+ const tails = rig.group.children.filter(child => child.name === 'road-light-trail');
+ const camera = new T.PerspectiveCamera(40, 414 / 896, .2, 2400);
+ const entry = {position: [0, 0, 0], target: [0, 0, -1]};
+ try {
+  for (const rate of [1, -1.35]) {
+   control.reset();
+   rig.reset();
+   let previous;
+   const changes = [0, 0, 0];
+   for (let frame = 0; frame < 30 * 30; frame++) {
+    const time = frame / 30, shot = (rate > 0 ? 5.05 : 31.3) + time * rate;
+    if (shot < 5.05 || shot > 31.3) break;
+    const pose = sampleRoadCamera(shot, shot < 5.5 || shot > 30.6 ? entry : null);
+    camera.position.fromArray(pose.position);
+    camera.quaternion.fromArray(pose.quaternion);
+    camera.fov = pose.fov;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+    control.update(time, shot);
+    rig.update(time, shot, camera);
+    const current = cores.map((core, lane) => {
+     const data = tails[lane].geometry.attributes.trail;
+     let maxTail = 0;
+     if (tails[lane].visible) for (let i = 0; i < data.count; i++) maxTail = Math.max(maxTail, data.getY(i));
+     return {pass: control.pass(lane), core: core.visible ? core.material.opacity : 0, tail: maxTail};
+    });
+    if (previous) current.forEach((light, lane) => {
+     const last = previous[lane];
+     if (last.pass === light.pass) return;
+     changes[lane]++;
+     assert.ok(Math.max(last.core, light.core, last.tail, light.tail) < .02,
+      `a pass change leaves a bright head or connecting trail at ${shot.toFixed(2)}s`);
+    });
+    previous = current;
+   }
+   assert.deepEqual(changes, [6, 6, 6], 'all reading and travel changes are checked in each direction');
+  }
+ } finally { rig.dispose(); }
 });
