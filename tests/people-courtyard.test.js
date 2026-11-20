@@ -49,7 +49,7 @@ test('groups preserve source order and remainder', () => {
 test('windows are continuous and deterministic', () => {
   assert.equal(typeof courtyard.createPeopleRoute, 'function');
   const route = courtyard.createPeopleRoute(data(95));
-  assert.ok(Math.abs(route.seconds-(2 + 4.5 + 6.5 + 14 * 3.2 + 2 + 17 * .9))<1e-10);
+  assert.ok(Math.abs(route.seconds-(2 + 4.5 + 6.5 + 14 * 3.2 + 2 + 16 * .9 + 2.4))<1e-10);
   assert.equal(route.windows[0].start, 0);
   assert.equal(route.windows.at(-1).end, 1);
   route.windows.forEach((window, index) => {

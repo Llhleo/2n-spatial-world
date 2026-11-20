@@ -34,7 +34,12 @@ function sample(t,key,out){
  return out.set(0,0,0).addScaledVector(p[i],2*q-3*s+1).addScaledVector(m[i],(q-2*s+u)*h).addScaledVector(p[i+1],-2*q+3*s).addScaledVector(m[i+1],(q-s)*h);
 }
 const focus=new T.Vector3();
-export function lookbackPose(t,camera){t=T.MathUtils.clamp(t,0,1);sample(t,'p',camera.position);sample(t,'target',focus);camera.lookAt(focus);return {position:camera.position.toArray(),target:focus.toArray()};}
+export function lookbackPose(t,camera){t=T.MathUtils.clamp(t,0,1);sample(t,'p',camera.position);sample(t,'target',focus);
+ // Widen the shoulder turn, rejoining the exact gathering view by 0.80.
+ const turn=Math.sin(Math.PI*T.MathUtils.clamp((t-.685)/.115,0,1))**4;
+ camera.position.z+=18*turn;
+ focus.x-=12*turn;
+ camera.lookAt(focus);return {position:camera.position.toArray(),target:focus.toArray()};}
 const reading=new T.PerspectiveCamera();lookbackPose(1,reading);reading.updateMatrixWorld();
 export const readingQuaternion=reading.quaternion.clone();
 export const readingPoint=(x,y,z=-100,out=new T.Vector3())=>out.set(x,y,z).applyQuaternion(readingQuaternion).add(reading.position);

@@ -1,3 +1,4 @@
+import {TOTAL_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,scrollToStory,storyToScroll} from './map-pace.js';
 import './loading-log.js';
 import {limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse} from './manual-history-entry.js';
 import {cancelPendingModelLoads} from './petal-loader.js';
@@ -6,7 +7,7 @@ import {createPeopleRoute} from './people-courtyard.js';
 import {createAutoplay} from './autoplay.js';
 import {createMapFlowers} from './map-flowers.js';
 import {RETURN_START,STORY_UNITS} from './lookback.js';
-import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,PEOPLE_UNITS,autoplayDuration,autoplayToScroll,scrollToAutoplay,capturePeoplePosition,restorePeoplePosition,scrollToStory,storyToScroll,chapterAt,sampleStoryPose} from './people-story.js';
+import {LEGACY_TOTAL_UNITS,PEOPLE_UNITS,capturePeoplePosition,restorePeoplePosition,chapterAt,sampleStoryPose} from './people-story.js';
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createNextView} from './guild-next-view.js';
@@ -254,7 +255,7 @@ if (renderer) {
       if((nativeDelta>0&&scroll===1)||(nativeDelta<0&&scroll===0))particleScrollOffset=0;
     }
     const manualScroll=scrollProgress(scroll+particleScrollOffset,1);
-    const requested=initialEnding?(peopleRoute?1:LEGACY_TOTAL_UNITS/TOTAL_UNITS):controlled?manualScroll:reduced.matches?progress:auto;
+    const requested=initialEnding?(peopleRoute?1:storyToScroll(LEGACY_TOTAL_UNITS/28,peopleRoute)):controlled?manualScroll:reduced.matches?progress:auto;
     const target=controlled||initialEnding?scrollToStory(requested,peopleRoute):requested;
     if(!wasPlaying){
       if(reduced.matches)progress=target;
