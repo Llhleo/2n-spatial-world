@@ -3,6 +3,7 @@ import {normalizePeople} from './people-data.js';
 import {lookbackPose, readingPoint, readingQuaternion, FLOWER_SPECS, flowerPose} from './lookback.js';
 
 const TRANSITION = .9;
+const ENTRY_TRANSFER = 2.4;
 const clamp = t => Math.max(0, Math.min(1, t));
 const ease = t => { const u = clamp(t); return u * u * u * (10 + u * (-15 + 6 * u)); };
 const entry = lookbackPose(1, new T.PerspectiveCamera());
@@ -11,13 +12,13 @@ const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
 /** Shared durations: half of each transition belongs to each neighboring window. */
 function windowsFor(stations) {
-  const seconds = stations.reduce((sum, station) => sum + station.readSeconds, 0) + Math.max(0, stations.length - 1) * TRANSITION;
+  const seconds = stations.reduce((sum, station) => sum + station.readSeconds, 0) + Math.max(0, stations.length - 1) * TRANSITION + (stations.length > 1 ? ENTRY_TRANSFER - TRANSITION : 0);
   let cursor = 0;
   const windows = stations.map((station, stationIndex) => {
     const start = cursor;
-    const readStart = start + (stationIndex ? TRANSITION / 2 : 0);
+    const readStart = start + (stationIndex === 1 ? ENTRY_TRANSFER / 2 : stationIndex ? TRANSITION / 2 : 0);
     const readEnd = readStart + station.readSeconds;
-    cursor = readEnd + (stationIndex < stations.length - 1 ? TRANSITION / 2 : 0);
+    cursor = readEnd + (stationIndex === 0 ? ENTRY_TRANSFER / 2 : stationIndex < stations.length - 1 ? TRANSITION / 2 : 0);
     return {stationIndex, start: start / seconds, readStart: readStart / seconds, readEnd: readEnd / seconds, end: cursor / seconds};
   });
   windows.at(-1).readEnd = 1;
