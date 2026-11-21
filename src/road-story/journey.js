@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {cameraCurve} from './camera-curve.js';
+import {ROAD_SURFACE_STENCIL,writeBackgroundOcclusion} from './stencil.js';
 export const offsets=[[0,0,0],[480,0,-520],[0,0,-1040]];
 const vec=a=>new T.Vector3(...a),ease=x=>Math.max(0,Math.min(1,x*x*x*(x*(x*6-15)+10)));
 const connectionPoints=[[[81,245,-180],[155,105,-45],[245,65,-65],[380,20,-210],[480,-75,-350],[556,-230,-470]],[[586,-260,-850],[440,-150,-690],[260,-80,-780],[80,-40,-850],[-72,-114,-990]]];
@@ -30,7 +31,7 @@ export function makeConnections(){
   const sample=(u,v)=>{const p=curve.getPointAt(u),t=curve.getTangentAt(u),side=vec([-t.y,t.x,0]).normalize();return p.addScaledVector(side,(v-.5)*width).add(vec([0,0,1.5*Math.sin(Math.PI*v)]));};
   for(let i=0;i<=N;i++)for(let j=0;j<=M;j++)positions.push(...sample(i/N,j/M).toArray());
   for(let i=0;i<N;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+M+1;indices.push(a,b,a+1,b,b+1,a+1);}
-  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();group.add(new T.Mesh(geometry,new T.MeshStandardMaterial({color:0x28323b,metalness:.55,roughness:.38,side:T.DoubleSide})));
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();group.add(new T.Mesh(geometry,new T.MeshStandardMaterial({color:0x28323b,metalness:.55,roughness:.38,side:T.DoubleSide,...writeBackgroundOcclusion(ROAD_SURFACE_STENCIL)})));
   for(let j=0;j<=18;j++){const points=[];for(let i=0;i<=N;i++)points.push(sample(i/N,j/18).add(vec([0,0,.05])));const rail=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),180,j===0||j===18?.10:.025,4,false),new T.MeshBasicMaterial({color:j===0||j===18?0xd9dfd9:0x7f9097}));if(j===18)rail.name='road-connection-edge';group.add(rail);}
  }return group;
 }

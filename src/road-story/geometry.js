@@ -4,13 +4,14 @@ import {createTraffic,trafficCoordinate,PETAL_NAMES} from '../road-traffic.js';
 import {offsets,makeConnections} from './journey.js';
 import {roadTextParts} from './typography.js';
 import {createRoadGlint} from './road-glint.js';
+import {LIGHT_TRAIL_STENCIL,ROAD_SURFACE_STENCIL,writeBackgroundOcclusion} from './stencil.js';
 
 export function createRoadGeometry({assets,vectorText,waveConfig,historyRecords}){
 const W=864,H=1872,camera=new T.PerspectiveCamera(40,W/H,.1,2400),plates=new T.Group();
 const V=(x,y,z)=>new T.Vector3(x,y,z);let seed=3349;
 const rnd=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
 const roads=[],backgrounds=[],petals=[];
-const matte=new T.MeshStandardMaterial({color:0x28323b,metalness:.55,roughness:.38,side:T.DoubleSide});
+const matte=new T.MeshStandardMaterial({color:0x28323b,metalness:.55,roughness:.38,side:T.DoubleSide,...writeBackgroundOcclusion(ROAD_SURFACE_STENCIL)});
 const fine=new T.MeshBasicMaterial({color:0x7a8c94,transparent:true,opacity:.6});
 const outline=new T.MeshBasicMaterial({color:0xd9dfd9,transparent:true,opacity:.85});
 const faint=new T.MeshBasicMaterial({color:0x53656d,transparent:true,opacity:.5});
@@ -29,17 +30,26 @@ function waveMesh(mesh){
    shader.uniforms.tidalNearFade=mesh.material.userData.tidalNearFade;
    shader.vertexShader='uniform vec2 tidalNearFade;\nvarying float vTidalVisibility;\n'+shader.vertexShader;
    shader.fragmentShader='varying float vTidalVisibility;\n'+shader.fragmentShader;
-   const project=T.ShaderChunk.project_vertex.replace('mvPosition = modelViewMatrix * mvPosition;','vec3 waveSource = mvPosition.xyz;\n'+displace+'\nmvPosition = modelViewMatrix * mvPosition;\nvTidalVisibility = smoothstep(tidalNearFade.x,tidalNearFade.y,-mvPosition.z);');
+   const project=T.ShaderChunk.project_vertex.replace('mvPosition = modelViewMatrix * mvPosition;',`
+    vec3 waveSource = mvPosition.xyz;
+    ${displace}
+    vec3 facet = normalize(mat3(modelViewMatrix) * instanceMatrix[2].xyz);
+    mvPosition = modelViewMatrix * mvPosition;
+    float depth = -mvPosition.z;
+    float light = abs(dot(facet, normalize(vec3(-.52,.54,1.))));
+    float air = 1. - .42 * smoothstep(290.,640.,depth);
+    vTidalVisibility = smoothstep(tidalNearFade.x,tidalNearFade.y,depth) * air * (.5+.5*light);
+   `);
    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',project);
    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a *= vTidalVisibility;');
   }
   else shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n'+displace);
  };
- mesh.material.customProgramCacheKey=()=>mesh.isInstancedMesh?'2n-tidal-instances-v13-near-fade':'2n-tidal-v11';return mesh;
+ mesh.material.customProgramCacheKey=()=>mesh.isInstancedMesh?'2n-tidal-relief':'2n-tidal-v11';return mesh;
 }
 function bgStroke(parent,points,radius,mat,segments){return waveMesh(stageMotion.pattern?typeContour(parent,points,mat,stageMotion.lineRow++):tube(parent,points,radius,mat,segments));}
 let glyphGeometry=null;
-function typeContour(parent,points,mat,row=0){
+function typeContour(parent,points,mat,row=0,relief=0){
  mat.side=T.DoubleSide;
  const c=curve(points),count=Math.max(4,Math.floor(c.getLength()/3.2));
  if(!glyphGeometry){
@@ -48,7 +58,14 @@ function typeContour(parent,points,mat,row=0){
   glyphGeometry=new T.BufferGeometry();glyphGeometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));glyphGeometry.setIndex(idx);glyphGeometry.computeVertexNormals();
  }
  const mesh=new T.InstancedMesh(glyphGeometry,mat,count),matrix=new T.Matrix4();mesh.userData.typeLine=true;
- for(let n=0;n<count;n++){const u=row%2?1-(n+.25)/count:(n+.25)/count,p=c.getPointAt(u),t=c.getTangentAt(u).normalize().multiplyScalar(row%2?-1:1),up=V(-t.y,t.x,0).normalize(),normal=new T.Vector3().crossVectors(t,up).normalize();matrix.makeBasis(t,up,normal);matrix.setPosition(p);mesh.setMatrixAt(n,matrix);}
+ for(let n=0;n<count;n++){
+  const direction=row%2?-1:1,u=row%2?1-(n+.25)/count:(n+.25)/count;
+  const p=c.getPointAt(u),t=c.getTangentAt(u).normalize().multiplyScalar(direction);
+  const up=V(-t.y,t.x,0).normalize();
+  up.applyAxisAngle(t,relief*(.32+.31*Math.sin(2*Math.PI*u+row*.12))*direction);
+  const normal=new T.Vector3().crossVectors(t,up).normalize();
+  matrix.makeBasis(t,up,normal);matrix.setPosition(p);mesh.setMatrixAt(n,matrix);
+ }
  parent.add(mesh);return mesh;
 }
 function preparePetalClearance(){}
@@ -121,23 +138,31 @@ function backgroundDesign(parent,kind){
  const g=new T.Group();g.name='engraved-background-'+kind;parent.add(g);backgrounds.push(g);
  const makeInk=(level)=>new T.MeshBasicMaterial({color:new T.Color(.16*level,.205*level,.24*level)});
  const contour=(cx,cy,base,extent,stretch=1,lean=0)=>{
-  const height=(x,y)=>{const dx=x-cx,dy=(y-cy)/stretch,r=Math.hypot(dx,dy);return base+110*(1-Math.exp(-r*r/19000))+14*Math.sin(x*.011+y*.007);};
-  const pos=[],idx=[],NX=48,NY=72;
-  for(let i=0;i<=NY;i++)for(let j=0;j<=NX;j++){const x=-225+j*450/NX,y=-370+i*740/NY;pos.push(x,y,height(x,y)-.5);}
-  for(let i=0;i<NY;i++)for(let j=0;j<NX;j++){const a=i*(NX+1)+j,b=a+NX+1;idx.push(a,a+1,b,a+1,b+1,b);}
-  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setIndex(idx);geo.computeVertexNormals();
-  // Open contour field: no opaque rectangular backing to intersect travelling roads.
+  const contours=[
+   (a,r)=>43*Math.sin(2*a-.45)*Math.sin(r*.011)-.14*r+.24*r*Math.cos(a),
+   (a,r)=>52*Math.cos(a+.7)*Math.sin(r*.014+.4)+18*Math.cos(2*a+r*.009),
+   (a,r)=>46*Math.sin(a*2+r*.018)-32*Math.cos(a-.6)*Math.sin(r*.012)
+  ];
+  // The strokes turn over sloped ridges in world space, with row-to-row depth
+  // changes producing parallax as the camera leaves each reading position.
   for(let k=0;k<74;k++){
    const r=10+k*extent/74,pts=[];
-   for(let j=0;j<=120;j++){const a=j/120*Math.PI*2,rr=r*(1+.10*Math.sin(a*3+.8)+.045*Math.cos(a*5+r*.018));const x=cx+Math.cos(a)*rr+lean*Math.sin(a)*rr,y=cy+Math.sin(a)*rr*stretch;pts.push([x,y,height(x,y)]);}
+   for(let j=0;j<=120;j++){
+    const a=j/120*Math.PI*2,rr=r*(1+.10*Math.sin(a*3+.8)+.045*Math.cos(a*5+r*.018));
+    const x=cx+Math.cos(a)*rr+lean*Math.sin(a)*rr,y=cy+Math.sin(a)*rr*stretch;
+    const fold=(kind===0?41:29)*Math.sin(r*.045+.85*Math.sin(a*2+kind));
+    const z=base+92*(1-Math.exp(-r*r/19000))+contours[kind](a,r)+fold;
+    pts.push([x,y,z]);
+   }
    const falloff=.38+.62*Math.exp(-k/34);
-   const mat=makeInk((k%6===0?.58:.23)*falloff);
+   const ridge=.63+.37*(.5+.5*Math.sin(r*.045-.65));
+   const mat=makeInk((k%6===0?.63:.29)*falloff*ridge);
    if(stageMotion.pattern)mat.color.multiplyScalar(1.82);
-   inkMotion(waveMesh(stageMotion.pattern?typeContour(g,pts,mat,k):tube(g,pts,k%6===0?.18:.065,mat,120)),k*.22,.6);
+   inkMotion(waveMesh(stageMotion.pattern?typeContour(g,pts,mat,k,1):tube(g,pts,k%6===0?.18:.065,mat,120)),k*.22,.6);
   }
  };
  if(kind===0){
-  contour(-53,22,-225,290,1.18,.24);
+  contour(-53,22,-198,290,1.18,.24);
   for(let i=0;i<6;i++){const x=61+i*9,z=-140-i*23;bgStroke(g,[[x,-174,z],[x+40,-60,z-10],[x+15,94,z-32],[x-11,168,z-49]],i%2?.16:.24,makeInk(.40),100);}
  }else if(kind===1){
   contour(-73,-52,-310,300,1.4,-.22);
@@ -147,7 +172,7 @@ function backgroundDesign(parent,kind){
    bgStroke(g,pts,i%5===0?.21:.085,makeInk(i%5===0?.55:.26),100);
   }
  }else{
-  contour(47,-25,-260,310,1.33,-.35);
+  contour(47,-25,-232,310,1.33,-.35);
   for(let k=0;k<19;k++){
    const pts=[];for(let j=0;j<=120;j++){const a=-1.8+j/120*3.5,r=100+k*5.8;pts.push([-18+Math.cos(a)*r,28+Math.sin(a)*r*1.42,-135-k*7+Math.sin(a)*15]);}
    bgStroke(g,pts,k%5===0?.24:.10,makeInk(k%5===0?.48:.22),120);
@@ -326,7 +351,7 @@ group.add(connections);
 function mergeStatic(parent,waves=false){
  const groups=new Map();parent.updateMatrixWorld(true);
  parent.traverse(o=>{if(!o.isMesh||o.isInstancedMesh||o.userData.asset||o.parent===plates||!!o.userData.wave!==waves||o.userData.isLabel)return;
-  const m=o.material,key=[m.type,m.metalness||0,m.roughness||0,m.transparent,m.opacity].join(':');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);
+  const m=o.material,key=[m.type,m.metalness||0,m.roughness||0,m.transparent,m.opacity,m.stencilWrite,m.stencilWriteMask].join(':');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(o);
  });
  for(const list of groups.values()){
   if(list.length<2)continue;const geometries=[];
@@ -340,7 +365,13 @@ function mergeTypeLines(parent){
  const rows=[];parent.updateMatrixWorld(true);parent.traverse(o=>{if(o.userData.typeLine)rows.push(o);});if(!rows.length)return;
  const count=rows.reduce((n,o)=>n+o.count,0),material=new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}),mesh=new T.InstancedMesh(glyphGeometry,material,count),matrix=new T.Matrix4(),local=new T.Matrix4(),inverse=parent.matrixWorld.clone().invert();let slot=0;
  for(const row of rows){local.multiplyMatrices(inverse,row.matrixWorld);for(let i=0;i<row.count;i++){row.getMatrixAt(i,matrix);matrix.premultiply(local);mesh.setMatrixAt(slot,matrix);mesh.setColorAt(slot++,row.material.color);}row.removeFromParent();row.dispose();row.material.dispose();}
- mesh.name='tidal-2n-glyph-field';mesh.userData.typeLine=true;waveMesh(mesh);mesh.computeBoundingSphere();mesh.boundingSphere.radius+=20;parent.add(mesh);
+ // The opaque road surfaces and light trails reserve their silhouettes
+ // before the moving glyphs are drawn, even where a fold reaches forward.
+ material.stencilWrite=true;
+ material.stencilWriteMask=0;
+ material.stencilFunc=T.EqualStencilFunc;
+ material.stencilFuncMask=ROAD_SURFACE_STENCIL|LIGHT_TRAIL_STENCIL;
+ mesh.name='tidal-2n-glyph-field';mesh.renderOrder=-2;mesh.userData.typeLine=true;waveMesh(mesh);mesh.computeBoundingSphere();mesh.boundingSphere.radius+=20;parent.add(mesh);
 }
 for(const c of contexts){
  c.labels.traverse(o=>o.userData.isLabel=true);

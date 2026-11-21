@@ -24,9 +24,9 @@ const guides = [
   {period: 8.25, start: .72, sweep: verticalSweep({center: [.81,.816,140], radius: [.041,.103,6], lean: [.08,12]})}
  ],
  [
-  {period: 9.7, start: .16, knots: [[.17,.909,149],[.253,.863,152],[.361,.827,156],[.402,.826,153],[.410,.867,147],[.338,.906,145],[.231,.939,144],[.174,.937,145]]},
-  {period: 9.4, start: .47, knots: [[.489,.904,153],[.57,.884,154],[.681,.845,164],[.759,.832,166],[.774,.863,164],[.69,.904,157],[.56,.935,149],[.495,.933,147]]},
-  {period: 8.9, start: .71, knots: [[.633,.77,165],[.716,.732,165],[.806,.685,169],[.852,.663,170],[.888,.686,163],[.842,.742,157],[.745,.8,154],[.651,.806,156]]}
+  {period: 7.8, start: .16, knots: [[.17,.909,149],[.253,.863,152],[.361,.827,156],[.402,.826,153],[.410,.867,147],[.338,.906,145],[.231,.939,144],[.174,.937,145]]},
+  {period: 7.5, start: .47, knots: [[.489,.904,153],[.57,.884,154],[.681,.845,164],[.759,.832,166],[.774,.863,164],[.69,.904,157],[.56,.935,149],[.495,.933,147]]},
+  {period: 7.1, start: .71, knots: [[.633,.77,165],[.716,.732,165],[.806,.685,169],[.852,.663,170],[.888,.686,163],[.842,.742,157],[.745,.8,154],[.651,.806,156]]}
  ]
 ];
 
@@ -61,7 +61,8 @@ const lanes = guides.map((scene, index) => {
   const curve = new T.CatmullRomCurve3(rounded, true, 'catmullrom');
   curve.arcLengthDivisions = 512;
   curve.updateArcLengths();
-  return {period, start, sample: (u, target) => curve.getPoint(T.MathUtils.lerp(u, curve.getUtoTmapping(u), .16), target)};
+  const evenSpeed=index===2?.65:.16;
+  return {period, start, sample: (u, target) => curve.getPoint(T.MathUtils.lerp(u, curve.getUtoTmapping(u), evenSpeed), target)};
  });
 });
 

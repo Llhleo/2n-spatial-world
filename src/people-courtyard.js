@@ -75,22 +75,29 @@ export function resizeCourtyard(route,{width,height,glyphMetrics}){
  return {...route,sourceStations,stations:authored,memberGroups:groups.map((memberIndices,i)=>({id:`members-${i}`,memberIndices})),...windowsFor(authored),viewport:{width,height}};
 }
 
-/** Hermite interpolation with shared derivatives makes random seeks C1 continuous. */
+const readRipple=.36;
+const readDistance=u=>u+readRipple*Math.sin(2*Math.PI*u)/(2*Math.PI);
+
+/** Slow through the reading pose. Transfers match velocity and acceleration
+ * at both ends, so scrubbing in either direction has the same curve. */
 function sampleTrack(knots, seconds, key) {
   let i = 0;
   while (i < knots.length - 2 && seconds > knots[i + 1].time) i++;
   const a = knots[i], b = knots[i + 1], h = b.time - a.time, u = clamp((seconds - a.time) / h);
-  const u2 = u * u, u3 = u2 * u;
+  const u3=u*u*u;
+  const outgoing=u*(1-u)**3*(1+3*u),incoming=u3*(-4+u*(7-3*u));
+  if(i%2===0){
+    let progress=readDistance(u);
+    if(i===0)progress-=(1+readRipple)*outgoing;
+    if(i===knots.length-2)progress-=(1+readRipple)*incoming;
+    return mix(a[key],b[key],progress);
+  }
   const derivative = index => {
-    if (!index || index === knots.length - 1) return [0, 0, 0];
-    // Each pair bounds one reading interval. Share its slow drift derivative
-    // with the neighboring transfer, rather than letting transfer distances
-    // pull the target away from the fixed readable subject during the hold.
     const first = knots[index - index % 2], last = knots[index - index % 2 + 1];
-    return last[key].map((v, axis) => (v - first[key][axis]) / (last.time - first.time));
+    return last[key].map((v, axis) => (1+readRipple)*(v-first[key][axis])/(last.time-first.time));
   };
-  const da = derivative(i), db = derivative(i + 1);
-  return a[key].map((v, axis) => (2 * u3 - 3 * u2 + 1) * v + (u3 - 2 * u2 + u) * h * da[axis] + (-2 * u3 + 3 * u2) * b[key][axis] + (u3 - u2) * h * db[axis]);
+  const da=derivative(i),db=derivative(i+1);
+  return mix(a[key],b[key],ease(u)).map((v,axis)=>v+h*(outgoing*da[axis]+incoming*db[axis]));
 }
 
 /** One reversible chapter gate, expressed in route time, including a moving
@@ -113,10 +120,14 @@ export function sampleCourtyardView(route, t, aspect = 414 / 896) {
   route.windows.forEach(window => {
     const station = route.stations[window.stationIndex];
     const p = station.cameraPosition, target = station.target;
-    const drift = window.stationIndex && window.stationIndex < route.stations.length - 1 ? .65 : 0;
+    const first=window.stationIndex===0,last=window.stationIndex===route.stations.length-1;
+    const previous=route.stations[Math.max(0,window.stationIndex-1)].cameraPosition;
+    const next=route.stations[Math.min(route.stations.length-1,window.stationIndex+1)].cameraPosition;
+    // The camera moves gently past the fixed chain and its reading target.
+    const drift=new T.Vector3(...next).sub(new T.Vector3(...previous)).normalize().multiplyScalar(first||last ? .9 : 1.8);
     for (const [progress, direction] of [[window.readStart, -1], [window.readEnd, 1]]) {
-      const offset = new T.Vector3(0, 0, direction * drift).applyQuaternion(station.quaternion?new T.Quaternion(...station.quaternion):readingQuaternion).toArray();
-      knots.push({time: progress * route.seconds, position: p.map((v, i) => v + offset[i]), target: [...target], up: [...station.up]});
+      const offset=(first&&direction<0||last&&direction>0)?0:direction;
+      knots.push({time: progress * route.seconds,position:new T.Vector3(...p).addScaledVector(drift,offset).toArray(),target:[...target],up:[...station.up]});
     }
   });
   tracks.set(route,knots);}

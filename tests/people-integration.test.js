@@ -1,4 +1,5 @@
 import {createGesturePlayback} from '../src/gesture-playback.js';
+import {ECHO_LIGHTS_FINISH} from '../src/road-story/echo.js';
 import {ROAD_READING_STOPS} from '../src/road-story/path.js';
 import * as manualEntry from '../src/manual-history-entry.js';
 const {limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse}=manualEntry;
@@ -25,7 +26,7 @@ import {scrollProgress} from '../src/viewport.js';
 import {createClosureView} from '../src/guild-closure-view.js';
 import {createMonument} from '../src/monument.js';
 import {historyTimeToDistance} from '../src/guild-history-route.js';
-import {particleEndingEnabled} from '../src/guild-next-route.js';
+import {NEXT_UNITS,PARTICLE_ENDING_SECONDS,particleEndingEnabled} from '../src/guild-next-route.js';
 import {renderMemoryPreview} from '../src/guild-memory-preview.js';
 
 const api=await import('../src/people-story.js').catch(()=>({}));
@@ -99,7 +100,7 @@ test('semantic remap retains original member inside changed subwindow numbering'
 
 // The GPU/text boundary is replaced; the actual entry script and scheduler run.
 // This catches adding people to the original ready gate or seeking on retry.
-function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false,scrollQuantum=0}={}){
+function entry({floatBuffers=true,constructionError=false,preparationError=false,reduced=false,late=false,galleryFactory,data=fixture,openingFailure=false,historyFailure=false,preview=false,cacheWarmFrames=0,gestures=false,scrollQuantum=0,echo=false}={}){
  const classes=new Set(),events=new Map(),elements=new Map(),calls={distancePrepared:[],distanceCancelled:[],prepare:0,historyPrepare:0,history:[],next:[],captures:0,memory:[],people:[],companion:[],scroll:[],render:0,shots:[],routes:[]};
  const element=id=>{
   if(!elements.has(id))elements.set(id,{hidden:false,dataset:{},style:{},classList:{add(){},remove(){}},textContent:'',setAttribute(){},querySelector(){return element(id+'-span');},addEventListener(type,fn){events.set(id+':'+type,fn);}});
@@ -119,8 +120,10 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
  const updateGallery=gallery.update;gallery.update=(...args)=>{calls.people.push(args);return updateGallery(...args);};
  const world={loading:{failures:{},counts:{}},groundStatus:'ready',prepare:async()=>{},update(){}};
  const view={width:414,height:896,range:api.TOTAL_UNITS*896};
+ const roads={group:new THREE.Group(),ready:echo,install(){},captureEntry(){},prepare:async()=>{}};
+ const echoView={group:new THREE.Group()};
  class Renderer{extensions={has:()=>floatBuffers};setClearColor(){}setPixelRatio(v){this.ratio=v;}getPixelRatio(){return this.ratio;}setSize(){}initTexture(){}render(scene,cam){calls.render++;calls.shots.push(cam.position.toArray());calls.routes.push(gallery.route);}setAnimationLoop(fn){frame=fn;}}
- const context={createGesturePlayback,ROAD_READING_STOPS,createGuildRoadStory:()=>({group:new THREE.Group(),ready:false,install(){},captureEntry(){},prepare:async()=>{}}),particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,get particleEndingReady(){return cacheTicks>=cacheWarmFrames;},warmParticleEnding(){cacheTicks++;},prepareParticleEnding(){},invalidateParticleEnding(){cacheTicks=0;calls.invalidated=(calls.invalidated||0)+1;},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:(preview?'?historyPreview=1&':'?')+'playback='+(gestures?'gesture':'legacy')},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
+ const context={createGesturePlayback,ROAD_READING_STOPS,createGuildRoadStory:()=>({group:new THREE.Group(),ready:false,install(){},captureEntry(){},prepare:async()=>{}}),particleEndingEnabled,limitManualHistoryEntry,manualHistoryEntryEnd,limitManualParticleEnding,limitManualHistoryReverse,renderMemoryPreview,createMemoryScene:()=>({group:new THREE.Group(),assetCount:14,get particleEndingReady(){return cacheTicks>=cacheWarmFrames;},warmParticleEnding(){cacheTicks++;},prepareParticleEnding(){},invalidateParticleEnding(){cacheTicks=0;calls.invalidated=(calls.invalidated||0)+1;},setPreview(){},update(state,camera){calls.memory.push(state);camera.position.set(0,0,100);},shot:{target:[0,0,0]},install(){}}),URLSearchParams,location:{search:(preview?'?historyPreview=1&':'?')+'ending=classic&playback='+(gestures?'gesture':'legacy')},...api,THREE:{...THREE,WebGLRenderer:Renderer},oceanPose,createAutoplay,junglePose,hellPose,lookbackPose,RETURN_START:27.2/28,RETURN_UNITS:28,STORY_UNITS:55.2,pose,gardenPose,scrollProgress,
   createNextView(){const view=resource();view.readingBounds=new THREE.Box3();view.update=state=>calls.next.push(state);return view;},createMonument,normalizeHistory,historyData,createHistoryView(){const h=resource();h.ready=false;h.readingBounds=new THREE.Box3();h.update=state=>{if(Number.isFinite(state.historyT))calls.history.push(state);};h.prepare=async()=>{calls.historyPrepare++;if(historyFailure&&calls.historyPrepare===1)throw new Error('font unavailable');h.ready=true;};return h;},createLighting(){},createRevealLight(){},atmosphere:()=>({update(){}}),createBiomes:()=>world,createCompanionship:()=>companion,createMapFlowers:resource,createRegionNames:resource,
   cancelPendingModelLoads(){},createLoadingIntro:()=>({update:({allReady})=>({locked:!allReady,speed:1})}),attachIntroInput(){},allBiomesReady:()=>oldReady,warmBiomeResources:async()=>{},prepareBiomePetals:async()=>{},
   createPeopleRoute,resizeCourtyard,peopleData:data,createPeopleGallery(data,route){if(!galleryFactory)gallery.route=route||createPeopleRoute(data);if(constructionError)throw new Error('invalid record');return gallery;},
@@ -130,6 +133,9 @@ function entry({floatBuffers=true,constructionError=false,preparationError=false
   matchMedia:query=>({get matches(){return query.includes('prefers-reduced-motion')&&currentReduced;}}),devicePixelRatio:1,performance:{now:()=>now},setTimeout:()=>1,clearTimeout(){},requestIdleCallback(){},window:{},
   addEventListener(type,fn){events.set(type,fn);},scrollTo({top}){scrollY=scrollQuantum?Math.floor(top/scrollQuantum)*scrollQuantum:top;calls.scroll.push(top);},get scrollY(){return scrollY;},
  };
+ if(echo)Object.assign(context,{createGuildRoadStory:()=>roads,createFiveRealmEcho:()=>echoView,
+  ECHO_LIGHTS_FINISH,NEXT_UNITS,PARTICLE_ENDING_SECONDS,location:{search:'?roadPreview=3'},
+  renderRoadStory({chapter}){calls.shots.push(chapter);echoView.group.userData.time=chapter.nextT*PARTICLE_ENDING_SECONDS;}});
  vm.runInNewContext(readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),context);
  return {calls,gallery,elements,events,classes,get openingAttempts(){return openingAttempts;},complete(){complete();},setReduced(value){currentReduced=value;},async settle(){await new Promise(resolve=>setImmediate(resolve));},tick(){now+=20;frame(now);},open(){oldReady=true;},seek(p){scrollY=p*view.range;},resize(height=414,width=896){const old={...view};view.width=width;view.height=height;view.range=api.TOTAL_UNITS*height;resize(view,old);}};
 }
@@ -722,4 +728,41 @@ test('viewport remap retains the completed road boundary side after native round
   near(Number(app.elements.get('world').dataset.playbackSeconds),36);
   app.events.get('wheel')(wheelEvent(1000));app.seek(1);for(let i=0;i<100;i++)app.tick();assert.equal(app.elements.get('world').dataset.biome,'next');
  }
+});
+
+test('one touch gesture carries the default road through the visible Echo handoff',async()=>{
+ const app=entry({echo:true,scrollQuantum:1});
+ await app.settle();app.open();app.tick();
+ const canvas=app.elements.get('world'),target={closest:()=>false};
+ near(Number(canvas.dataset.playbackSeconds),28.6);
+ app.events.get('touchstart')({type:'touchstart',target,touches:[{clientY:500}]});
+ app.events.get('touchmove')({target,touches:[{clientY:450}],preventDefault(){}});
+ app.events.get('touchend')({touches:[]});
+ let last=28.6,crossed=0;
+ for(let i=0;i<820;i++){
+  app.tick();
+  const seconds=Number(canvas.dataset.playbackSeconds);
+  if(last>35.84&&seconds<36.2){near(seconds-last,.02);crossed++;}
+  if(seconds>36.08&&seconds<41.98)near(seconds-last,.02);
+  last=seconds;
+ }
+ assert.ok(crossed>10);
+ assert.equal(canvas.dataset.biome,'next');
+ assert.equal(canvas.dataset.playbackScope,'native');
+ near(Number(canvas.dataset.playbackSeconds),36+ECHO_LIGHTS_FINISH);
+ const down=wheelEvent(1000);app.events.get('wheel')(down);
+ assert.equal(down.prevented,undefined);
+ app.seek(1);for(let i=0;i<125;i++)app.tick();
+ app.events.get('wheel')(wheelEvent(-1000));app.seek(.4);
+ let reversed=0;
+ for(let i=0;i<840;i++){
+  const before=Number(canvas.dataset.playbackSeconds);app.tick();
+  if(before>35.8&&before<36.1){
+   const after=Number(canvas.dataset.playbackSeconds);
+   assert.ok(before-after>=.0199&&before-after<.0207);
+   reversed++;
+  }
+ }
+ assert.ok(reversed>8);
+ near(Number(canvas.dataset.playbackSeconds),28.6);
 });

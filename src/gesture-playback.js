@@ -10,9 +10,17 @@ export function createGesturePlayback(stops){
   direction=next;
   target=next>0?(stops.find(v=>v>time+1e-7)??stops.at(-1)):([...stops].reverse().find(v=>v<time-1e-7)??stops[0]);
  }
- function advance(dt){
-  const step=Math.min(.05,Math.max(0,Number.isFinite(dt)?dt:0)),difference=target-time;
-  if(Math.abs(difference)<=step){time=target;direction=0;}else time+=Math.sign(difference)*step;
+ function advance(dt,{rate=1,settle=0}={}){
+  const step=Math.min(.05,Math.max(0,Number.isFinite(dt)?dt:0))*rate;
+  const difference=target-time,distance=Math.abs(difference);
+  const cruise=Math.max(0,distance-settle);
+  if(settle>0&&step>cruise){
+   // Integrate a linear deceleration so the handoff can stop between frames.
+   const left=Math.max(0,Math.sqrt(Math.min(distance,settle))-(step-cruise)/(2*Math.sqrt(settle)))**2;
+   time=left<=1e-8?target:target-Math.sign(difference)*left;
+   if(time===target)direction=0;
+  }else if(distance<=step){time=target;direction=0;}
+  else time+=Math.sign(difference)*step;
   return time;
  }
  return {request,advance,seek,get time(){return time;},get target(){return target;},get playing(){return Math.abs(target-time)>1e-8;},get direction(){return direction;}};

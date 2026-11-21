@@ -234,7 +234,7 @@ test('portrait lights keep their speed and heading near reading stops at differe
  }
 });
 
-test('the loops change passes while the corresponding bead and trail are dimmed', () => {
+test('reading changes hide the flank resets and keep the third chapter guide visible', () => {
  const rig = createLightTravelers(), control = createLightFlight();
  const cores = rig.group.children.filter(child => child.name === 'road-light-core');
  const tails = rig.group.children.filter(child => child.name === 'road-light-trail');
@@ -261,12 +261,17 @@ test('the loops change passes while the corresponding bead and trail are dimmed'
      const data = tails[lane].geometry.attributes.trail;
      let maxTail = 0;
      if (tails[lane].visible) for (let i = 0; i < data.count; i++) maxTail = Math.max(maxTail, data.getY(i));
-     return {pass: control.pass(lane), core: core.visible ? core.material.opacity : 0, tail: maxTail};
+     return {pass: control.pass(lane), core: core.visible ? core.material.opacity : 0, tail: maxTail, position: core.position.clone()};
     });
     if (previous) current.forEach((light, lane) => {
      const last = previous[lane];
      if (last.pass === light.pass) return;
      changes[lane]++;
+     if (lane === 1 && Math.abs(shot - 23.27) < .07) {
+      assert.ok(Math.min(last.core, light.core, last.tail, light.tail) > .8, 'the guide stays lit at the third ingress');
+      assert.ok(light.position.distanceTo(last.position) < 6, 'the guide continues on the same path');
+      return;
+     }
      assert.ok(Math.max(last.core, light.core, last.tail, light.tail) < .02,
       `a pass change leaves a bright head or connecting trail at ${shot.toFixed(2)}s`);
     });

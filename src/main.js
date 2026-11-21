@@ -1,3 +1,4 @@
+import {createFiveRealmEcho,ECHO_LIGHTS_FINISH} from './road-story/echo.js';
 import {createGuildRoadStory} from './guild-road-story.js';
 import {renderRoadStory} from './road-story/view.js';
 import {createGesturePlayback} from './gesture-playback.js';
@@ -14,7 +15,7 @@ import {TOTAL_UNITS,LEGACY_TOTAL_UNITS,NEXT_START_UNITS,PEOPLE_UNITS,autoplayDur
 import {createPeopleGallery} from './people-gallery.js';
 import peopleData from '../content/people.json';
 import {createNextView} from './guild-next-view.js';
-import {particleEndingEnabled} from './guild-next-route.js';
+import {NEXT_UNITS,PARTICLE_ENDING_SECONDS,particleEndingEnabled} from './guild-next-route.js';
 import {createHistoryView} from './guild-history-view.js';
 import {createMemoryScene} from './guild-memory-scene.js';
 import {renderMemoryPreview} from './guild-memory-preview.js';
@@ -36,7 +37,7 @@ const HERO_END=6/28, DESERT_END=14/28, OCEAN_END=20/28, JUNGLE_END=24/28;
 
 const canvas = document.querySelector('#world');
 let renderer;
-try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' }); }
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, stencil: true, powerPreference: 'high-performance' }); }
 catch { document.querySelector('#fallback').hidden = false; }
 if (renderer) {
   renderer.setClearColor(0x060709);
@@ -47,9 +48,17 @@ if (renderer) {
   const openingMonument=createMonument();openingMonument.name='opening-monument';scene.add(openingMonument);
   const historyRecords=normalizeHistory(historyData);
   const memoryPreview=new URLSearchParams(location.search).get('historyPreview')==='1';
-  const particleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
+  const supportsParticleEnding=particleEndingEnabled(location.search,renderer.extensions.has('EXT_color_buffer_float'));
+  const endingMode=new URLSearchParams(location.search).get('ending');
+  const useEcho=endingMode!=='legacy'&&endingMode!=='classic'&&!memoryPreview;
+  const particleEnding=useEcho||supportsParticleEnding;
   const roads=createGuildRoadStory({historyRecords:historyRecords.events});scene.add(roads.group);
-  const gestureMode=new URLSearchParams(location.search).get('playback')!=='legacy',roadPreview=new URLSearchParams(location.search).get('roadPreview')==='1';
+  const gestureMode=new URLSearchParams(location.search).get('playback')!=='legacy',roadPreviewMode=new URLSearchParams(location.search).get('roadPreview');
+  const roadPreview=['1','2','3'].includes(roadPreviewMode);
+  const peoplePreview=!roadPreview&&!memoryPreview&&new URLSearchParams(location.search).get('peoplePreview')==='1';
+  const previewRoadStop=roadPreviewMode==='2'?ROAD_READING_STOPS[1]:roadPreviewMode==='3'?ROAD_READING_STOPS[2]:null;
+  const echo=useEcho?createFiveRealmEcho(renderer):null;
+  if(echo)scene.add(echo.group);
   const memory=createMemoryScene({mobile:matchMedia('(max-width: 700px)').matches});
   if(memory)scene.add(memory.group);
   let memoryIndex=0,memoryText=true;
@@ -65,7 +74,7 @@ if (renderer) {
   if(!historyRecords.errors.length){history=createHistoryView(historyRecords.events);scene.add(history.group);}else historyError=new Error(historyRecords.errors.join(' '));
   async function prepareHistory(){
     if(!history||historyPreparing)return;historyPreparing=true;historyError=null;
-    try{await Promise.all([history.prepare(),nextView.prepare(),roads.prepare()]);if(particleEnding)memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
+    try{await Promise.all([history.prepare(),nextView.prepare(),roads.prepare()]);if(supportsParticleEnding&&(!echo||!roads.ready))memory.prepareParticleEnding(renderer);}catch(error){historyError=error;}finally{historyPreparing=false;}
   }
   createLighting(scene, renderer);
   createRevealLight(scene);
@@ -139,15 +148,24 @@ if (renderer) {
   let progress = 0, previous = performance.now(), auto = 0, controlled = false;
   let gesturePlayer=null,gestureActive=false,roadControl=false,previewStarted=false,gestureResumeDirection=0,roadExitDirection=0;
   const roadStart=LEGACY_TOTAL_UNITS/28,roadEnd=NEXT_START_UNITS/28;
+  // Keep the same gesture in control while the three beads carry the camera
+  // into Echo. Return to native scroll once the last bead has faded.
+  const echoHandoffSeconds=echo?ECHO_LIGHTS_FINISH:0;
+  const gestureEnd=36+echoHandoffSeconds;
+  const gestureEndProgress=echo?roadEnd+NEXT_UNITS/28*echoHandoffSeconds/PARTICLE_ENDING_SECONDS:roadEnd;
+  const gestureProgress=time=>time<=36?roadStart+(roadEnd-roadStart)*time/36
+    :roadEnd+NEXT_UNITS/28*(time-36)/PARTICLE_ENDING_SECONDS;
+  const gestureTime=p=>p<=roadEnd?(p-roadStart)/(roadEnd-roadStart)*36
+    :36+(p-roadEnd)*28/NEXT_UNITS*PARTICLE_ENDING_SECONDS;
   let touchAnchor=null,touchDirection=0,wheelAt=-Infinity,wheelDirection=0;
   function ensureGesture(){
-    if(!gesturePlayer)gesturePlayer=createGesturePlayback([0,...ROAD_READING_STOPS,36]);
-    if(!gestureActive){gesturePlayer.seek((progress-roadStart)/(roadEnd-roadStart)*36);gestureActive=true;if(gestureResumeDirection){gesturePlayer.request(gestureResumeDirection);gestureResumeDirection=0;}}
+    if(!gesturePlayer)gesturePlayer=createGesturePlayback([0,...ROAD_READING_STOPS,gestureEnd]);
+    if(!gestureActive){gesturePlayer.seek(gestureTime(progress));gestureActive=true;if(gestureResumeDirection){gesturePlayer.request(gestureResumeDirection);gestureResumeDirection=0;}}
     return gesturePlayer;
   }
   function roadInputScope(direction=0){
     if(!gestureMode||memoryPreview||reduced.matches)return false;
-    return roadControl||(progress>roadStart+1e-9&&progress<roadEnd-1e-9)||(direction>0&&Math.abs(progress-roadStart)<1e-9)||(direction<0&&Math.abs(progress-roadEnd)<1e-9);
+    return roadControl||(progress>roadStart+1e-9&&progress<gestureEndProgress-1e-9)||(direction>0&&Math.abs(progress-roadStart)<1e-9)||(direction<0&&Math.abs(progress-gestureEndProgress)<1e-9);
   }
   function alignRoadScroll(boundaryDirection=0){
     particleScrollOffset=0;particleRebasePending=false;
@@ -210,7 +228,7 @@ if (renderer) {
       let top=nextScroll*next.range;
       // Rescaling the outward pixel can round it inward again. Retain the
       // completed boundary side until a fresh native movement takes over.
-      if(roadExitDirection>0)top=Math.max(top,Math.ceil(storyToScroll(roadEnd,peopleRoute)*next.range)+1);
+      if(roadExitDirection>0)top=Math.max(top,Math.ceil(storyToScroll(gestureEndProgress,peopleRoute)*next.range)+1);
       else if(roadExitDirection<0)top=Math.min(top,Math.floor(storyToScroll(roadStart,peopleRoute)*next.range)-1);
       scrollTo({top:Math.max(0,top),behavior:'instant'});
       previousNativeScroll=scrollY;
@@ -277,20 +295,36 @@ if (renderer) {
     const view=viewport();
     // Build at most one fixed physics tick per displayed frame, long before
     // the ending is reached. Scrubbing only samples the completed GPU history.
-    if(particleEnding)memory.warmParticleEnding?.(camera.aspect,reduced.matches);
+    if(supportsParticleEnding&&(!echo||!roads.ready))memory.warmParticleEnding?.(camera.aspect,reduced.matches);
     const failed=!!gpuError||Object.values(world.loading.failures).some(list=>list.length);
     const memoryReady=memoryPreview&&memory.assetCount===14;
-    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=(introState.locked&&!memoryReady)||(roadPreview&&(!roads.ready||!people?.ready));
-    if(roadPreview&&!introLocked&&!previewStarted){previewStarted=true;controlled=true;progress=LEGACY_TOTAL_UNITS/28;gestureActive=false;requestGesture(1);}
+    const introState=intro.update({allReady:allBiomesReady(world)&&gpuReady&&companionship.ready&&flowers.ready,reduced:reduced.matches});introLocked=(introState.locked&&!memoryReady)||(roadPreview&&(!roads.ready||!people?.ready))||(peoplePreview&&!people?.ready);
+    if(peoplePreview&&!introLocked&&!previewStarted){
+      previewStarted=true;controlled=true;
+      const firstRead=peopleRoute.windows[1].readStart;
+      progress=(STORY_UNITS+PEOPLE_UNITS*firstRead)/28;
+      alignRoadScroll();
+    }else if(roadPreview&&!introLocked&&!previewStarted){
+      previewStarted=true;controlled=true;
+      progress=previewRoadStop===null?roadStart:roadStart+(roadEnd-roadStart)*previewRoadStop/36;
+      gestureActive=false;
+      if(previewRoadStop===null)requestGesture(1);
+      else if(gestureMode&&!reduced.matches)beginRoadControl();
+      else alignRoadScroll();
+    }
     if(memoryReady&&history&&!history.ready&&!historyPreparing&&!historyError)void prepareHistory();
     document.documentElement.classList.toggle('loading-intro',introLocked);
     const wasPlaying=player.playing;
     let roadAdvanced=false;const progressBeforeManual=progress;
     if(roadControl&&reduced.matches)releaseRoadControl();
     if(roadControl&&controlled&&!wasPlaying&&!memoryPreview){
-      const playback=ensureGesture(),direction=playback.direction,time=playback.advance(dt);roadAdvanced=true;
-      progress=roadStart+(roadEnd-roadStart)*time/36;
-      if(!playback.playing&&((time<=0&&direction<0)||(time>=36&&direction>0)))releaseRoadControl(direction);
+      const playback=ensureGesture(),direction=playback.direction;
+      const transition=echo&&direction<0?Math.min(1,Math.max(0,(playback.time-36)/.6)):0;
+      const rate=1+.35*transition*transition*(3-2*transition);
+      const settle=echo&&playback.target===gestureEnd ? .15 : 0;
+      const time=playback.advance(dt,{rate,settle});roadAdvanced=true;
+      progress=gestureProgress(time);
+      if(!playback.playing&&((time<=0&&direction<0)||(time>=gestureEnd&&direction>0)))releaseRoadControl(direction);
     }
     if(wasPlaying){gestureActive=false;roadControl=false;}
     if(wasPlaying){
@@ -341,8 +375,8 @@ if (renderer) {
     // Only crossing into this chapter hands control to the time player.
     // Native targets outside it retain the original damping and particle guards.
     if(gestureMode&&!memoryPreview&&!reduced.matches&&controlled&&!wasPlaying&&!roadAdvanced&&!roadControl){
-      const direction=progressBeforeManual<=roadStart+1e-9&&progress>roadStart+1e-9?1:progressBeforeManual>=roadEnd-1e-9&&progress<roadEnd-1e-9?-1:0;
-      if(direction){progress=direction>0?roadStart:roadEnd;beginRoadControl();requestGesture(direction);}
+      const direction=progressBeforeManual<=roadStart+1e-9&&progress>roadStart+1e-9?1:progressBeforeManual>=gestureEndProgress-1e-9&&progress<gestureEndProgress-1e-9?-1:0;
+      if(direction){progress=direction>0?roadStart:gestureEndProgress;beginRoadControl();requestGesture(direction);}
     }
     document.documentElement.classList.toggle('gesture-playback',roadControl&&!memoryPreview);
     if(people?.ready&&(!metricsAdopted||measuredRoutePending))adoptReadyMetrics();
@@ -356,6 +390,7 @@ if (renderer) {
     const returnProgress=chapter.returnT,peopleProgress=chapter.peopleT;
     const state=sampleStoryPose(progress,camera,portrait,peopleRoute,particleEnding);
     const inNext=chapter.chapter==='next',closing=chapter.chapter==='history'||inNext;
+    const echoActive=!!echo&&roads.ready&&memory.assetCount===14;
     nextView.group.visible=false;
     if(history){history.group.visible=false;if(closing)history.update(state,camera,view);}
     if(gpuReady&&history&&(!history.ready||!nextView.ready)&&!historyPreparing&&!historyError)void prepareHistory();
@@ -376,7 +411,7 @@ if (renderer) {
       });
       people.group.visible=people.group.visible&&state.peopleOpacity>0;
     }
-    const nextButtons=inNext&&state.buttonsVisible&&nextView.ready&&(!particleEnding||memory.particleEndingReady);
+    const nextButtons=inNext&&state.buttonsVisible&&(echoActive||nextView.ready&&(!supportsParticleEnding||memory.particleEndingReady));
     replayButton.hidden=introLocked||!nextButtons;
     flowers.group.visible=heroProgress>=.98;
     flowers.update(camera,reduced.matches?0:dt);
@@ -416,7 +451,7 @@ if (renderer) {
     const peopleText=galleryFailed?'人物文字暂未准备好，可继续滑动或重试':'正在准备人物文字，可继续滑动';
     if(peopleText!==lastPeopleText){peopleStatus.querySelector('span').textContent=peopleText;lastPeopleText=peopleText;}
     peopleRetry.hidden=!galleryFailed;peopleRetry.disabled=peoplePreparing;
-    const readingReady=inNext?nextView.ready&&(!particleEnding||memory.particleEndingReady):closing&&roads.ready?true:!!history?.ready;
+    const readingReady=inNext?(echoActive||nextView.ready&&(!supportsParticleEnding||memory.particleEndingReady)):closing&&roads.ready?true:!!history?.ready;
     historyStatus.hidden=introLocked||!closing||readingReady;
     historyStatus.querySelector('span').textContent=historyError?'故事资源准备失败，可重试':inNext?'正在准备结尾，可继续滑动':'正在准备公会历史，可继续滑动';
     historyRetry.hidden=!historyError;historyRetry.disabled=historyPreparing;
@@ -426,10 +461,11 @@ if (renderer) {
       renderMemoryPreview({scene,renderer,camera,memory,history,index:memoryIndex,progress:scrollProgress(scrollY,view.range),viewport:view,dt,reducedMotion:reduced.matches,showText:memoryText});
       canvas.dataset.biome='memory-preview';canvas.dataset.memoryStage=String(memoryIndex);
     }else if(closing&&roads.ready&&memory.assetCount===14){
-      renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,state,chapter,viewport:view,dt,reducedMotion:reduced.matches,departureGroups:[companionship.group],updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0018;}});
+      renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,echo,state,chapter,viewport:view,dt,reducedMotion:reduced.matches,departureGroups:[companionship.group],updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0018;}});
+      canvas.dataset.echoTime=inNext&&echo?String(echo.group.userData.time):'';
       canvas.dataset.roadInstances=String(roads.instanceCount);canvas.dataset.roadVisible=String(roads.visibleCount);canvas.dataset.gestureTime=String(gesturePlayer?.time??0);
     }else if(closing&&memory.assetCount===14){
-      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding,nextT:inNext&&(!particleEnding||memory.particleEndingReady)?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
+      renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:supportsParticleEnding,nextT:inNext&&(!supportsParticleEnding||memory.particleEndingReady)?chapter.nextT:undefined,entryPose:state.entryPose,departureGroups:[companionship.group],progress:chapter.historyT,viewport:view,dt,reducedMotion:reduced.matches,showText:true,updateEnvironment:renderCamera=>{atmosphereRig.update(renderCamera,heroProgress);world.update(renderCamera,worldProgress);if(scene.fog)scene.fog.density=.0015;}});
     }else renderer.render(scene, camera);
   }
   renderer.setAnimationLoop(frame);

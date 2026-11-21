@@ -2,12 +2,12 @@ import * as T from 'three';
 import {renderMemoryPreview} from '../guild-memory-preview.js';
 import {smooth,sampleRoadCamera} from './path.js';
 
-export function renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,state,chapter,viewport,dt,reducedMotion,departureGroups,updateEnvironment}){
+export function renderRoadStory({scene,renderer,camera,roads,memory,history,nextView,echo,state,chapter,viewport,dt,reducedMotion,departureGroups,updateEnvironment}){
  const visibility=scene.children.map(o=>[o,o.visible]),position=camera.position.clone(),quaternion=camera.quaternion.clone(),up=camera.up.clone(),fov=camera.fov;
  const fog=scene.fog,fogColor=fog?.color.clone(),fogDensity=fog?.density;
  const ownedLights=new Set(),endingLights=new Set(),savedLights=[];roads.group.traverse(o=>{if(o.isLight)ownedLights.add(o);});memory.group.traverse(o=>{if(o.isLight)endingLights.add(o);});
  scene.traverse(o=>{if(o.isLight)savedLights.push({light:o,visible:o.visible,intensity:o.intensity,color:o.color.clone()});});
- const studioBlend=smooth(chapter.historyT*36/4.3),endingBlend=smooth((chapter.historyT*36-30.6)/5.4);
+ const studioBlend=smooth(chapter.historyT*36/4.3),endingBlend=echo?0:smooth((chapter.historyT*36-30.6)/5.4);
  const roadEnvironment=cam=>{updateEnvironment?.(cam);for(const saved of savedLights){
   const light=saved.light;
   if(ownedLights.has(light)){light.visible=saved.visible&&endingBlend<1;light.intensity*=1-endingBlend;}
@@ -20,6 +20,18 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
  }};
  try{
   roads.group.visible=true;
+  if(chapter.chapter==='next'&&echo){
+   for(const object of scene.children)if(object!==roads.group&&object!==echo.group)object.visible=false;
+   const lightCue=echo.update(camera,state.entryPose,chapter.nextT,reducedMotion);
+   roads.update({historyT:1,entryPose:state.entryPose,camera,dt,reducedMotion,ending:true,nextT:chapter.nextT,echo:lightCue});
+   roadEnvironment(camera);
+   for(const light of ownedLights)if(light.userData.studioPower){
+    light.visible=lightCue.storyBlend<1;
+    light.intensity=light.userData.studioPower*(1-lightCue.storyBlend);
+   }
+   renderer.render(scene,camera);
+   return;
+  }
   const endingReady=nextView.ready&&(!state.particleEnding||memory.particleEndingReady);
   if(chapter.chapter==='next'&&endingReady){
    memory.setLayerOpacity?.(1);
@@ -27,7 +39,7 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
    renderMemoryPreview({scene,renderer,camera,memory,history,nextView,particleEnding:state.particleEnding,nextT:chapter.nextT,entryPose:roads.endingEntry(state.entryPose),departureGroups,progress:1,viewport,dt,reducedMotion,showText:false,roadArrival:{},updateEnvironment:renderCamera=>{roads.update({historyT:1,entryPose:state.entryPose,camera:renderCamera,dt,reducedMotion,ending:true,nextT:chapter.nextT});memory.setRoadLightHandoff?.(roads.lightHandoff);roadEnvironment(renderCamera);}});
    return;
   }
-  if(chapter.historyT*36>=23.1){
+  if(!echo&&chapter.historyT*36>=23.1){
    // The real followers form a moving depth stream in the side clearing. Their
    // fronts use this travelling camera, rather than a hidden shell's camera.
    memory.setLayerOpacity?.(1);
@@ -35,7 +47,7 @@ export function renderRoadStory({scene,renderer,camera,roads,memory,history,next
    return;
   }
   for(const o of scene.children)if(o===memory.group||o===history?.group||o===nextView.group||o.name==='opening-monument'||departureGroups.includes(o))o.visible=false;
-  roads.update({historyT:chapter.historyT,entryPose:state.entryPose,camera,dt,reducedMotion});
+  roads.update({historyT:chapter.historyT,entryPose:state.entryPose,camera,dt,reducedMotion,echo:echo?.roadLights});
   roadEnvironment(camera);
   renderer.render(scene,camera);
  }finally{

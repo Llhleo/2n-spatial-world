@@ -185,6 +185,7 @@ export function roadLightPoint(clock, target = new T.Vector3(), lane = 1) {
 // The orbit is never pulled toward a different curve while it is visible.
 const readingWindows = [[5.42, 12.38], [13.76, 20.93], [23.27, 30.78]];
 const passFade = .36, passStagger = .24;
+const thirdLeadStart = 23.12, thirdLeadEnd = 25.85;
 
 function readingPass(shot, lane) {
  const stagger = (lane - 1) * passStagger;
@@ -196,9 +197,17 @@ function readingPass(shot, lane) {
 export function createLightFlight() {
  let clock = 0, velocity = 0, lastTime = null, lastShot = 0;
  const history = [];
+ const thirdPoint = new T.Vector3();
  let reducedMotion = false;
+ function sampleCues(time) {
+  let i = history.length - 1;
+  while (i > 0 && history[i - 1].time >= time) i--;
+  const a = history[Math.max(0, i - 1)], b = history[i];
+  const mix = a === b ? 0 : T.MathUtils.clamp((time - a.time) / (b.time - a.time), 0, 1);
+  return [a, b, mix];
+ }
  return {
-  update(time, shot, reduced = false) {
+  update(time, shot, reduced = false, synchronized = false) {
    const elapsed = time - lastTime, delta = shot - lastShot;
    if (lastTime === null || elapsed < 0 || Math.abs(delta) > .32) {
     clock = shot;
@@ -214,9 +223,14 @@ export function createLightFlight() {
     clock += elapsed * velocity;
    }
    const drift = Math.exp(-((velocity / .6) ** 2));
-   if (!history.length || time > history.at(-1).time) history.push({time, clock, drift});
+   // Let the free drift settle before branching onto the ending splines.
+   // Both sets of curves keep the same acceleration-limited clock.
+   const sync = synchronized ? smooth((clock - 31.6) / 2.5) : 0;
+   if (!history.length || time > history.at(-1).time) {
+    history.push({time, shot, clock, drift: drift * (1 - sync)});
+   }
    reducedMotion = reduced;
-   while (history.length > 1 && (time - history[1].time > 1.05 || history.length > 256)) history.shift();
+   while (history.length > 1 && (time - history[1].time > 1.4 || history.length > 256)) history.shift();
    lastTime = time;
    lastShot = shot;
    return clock;
@@ -226,17 +240,26 @@ export function createLightFlight() {
   opacity(lane) {
    const shot = lastShot - (lane - 1) * passStagger;
    let distance = passFade;
-   for (const [start, end] of readingWindows) distance = Math.min(distance, Math.abs(shot - start), Math.abs(shot - end));
+   for (const [index, [start, end]] of readingWindows.entries()) {
+    if (index !== 2 || lane !== 1) distance = Math.min(distance, Math.abs(shot - start));
+    distance = Math.min(distance, Math.abs(shot - end));
+   }
    return smooth(distance / passFade);
   },
+  phaseAt(time) {
+   const [a, b, mix] = sampleCues(time);
+   return T.MathUtils.lerp(a.clock, b.clock, mix);
+  },
+  thirdReadingMix(lane) { return lane === 1 ? smooth((lastShot - thirdLeadStart) / (thirdLeadEnd - thirdLeadStart)) : 1; },
   point(time, target, lane, pass = readingPass(lastShot, lane)) {
    const t = Math.max(history[0].time, Math.min(time, lastTime));
-   if (pass >= 0) return readingLightPoint(t, target, pass, lane, reducedMotion);
+   const thirdLead = lane === 1 && (pass === 2 || (pass < 0 && lastShot < thirdLeadEnd && lastShot > thirdLeadStart));
+   if (pass >= 0 && !thirdLead) return readingLightPoint(t, target, pass, lane, reducedMotion);
+   const [a, b, mix] = sampleCues(t);
+   const shot = T.MathUtils.lerp(a.shot, b.shot, mix);
+   const arrival = thirdLead ? smooth((shot - thirdLeadStart) / (thirdLeadEnd - thirdLeadStart)) : 0;
+   if (arrival === 1) return readingLightPoint(t, target, 2, lane, reducedMotion);
    const angle = t * (1.24 + lane * .12) + lane * 2.4;
-   let i = history.length - 1;
-   while (i > 0 && history[i - 1].time >= time) i--;
-   const a = history[Math.max(0, i - 1)], b = history[i];
-   const mix = a === b ? 0 : T.MathUtils.clamp((time - a.time) / (b.time - a.time), 0, 1);
    const phase = T.MathUtils.lerp(a.clock, b.clock, mix);
    roadLightPoint(phase + LIGHT_PHASES[lane], target, lane);
    // A paused cinematic cue retains a small drift outside the reading loops.
@@ -245,6 +268,7 @@ export function createLightFlight() {
    target.x += x;
    target.y += .88 * y;
    target.z += .35 * x + .4 * y;
+   if (arrival > 0) target.lerp(readingLightPoint(t, thirdPoint, 2, lane, reducedMotion), arrival);
    return target;
   },
   get oldestTime() { return history[0]?.time ?? 0; },

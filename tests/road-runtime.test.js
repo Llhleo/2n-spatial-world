@@ -10,12 +10,81 @@ import {memoryEntryFrame} from '../src/guild-memory-entry.js';
 import {createLightTravelers} from '../src/road-story/lights.js';
 import {roadSurfaces} from './support/road-surface-clearance.js';
 import {createLightFlight,roadLightPoint,LIGHT_LAP} from '../src/road-story/light-flight.js';
+import {LIGHT_TRAIL_STENCIL,ROAD_SURFACE_STENCIL} from '../src/road-story/stencil.js';
 
 const data=p=>JSON.parse(fs.readFileSync(new URL('../'+p,import.meta.url)));
 const source=new T.SphereGeometry(1,6,4),material=new T.MeshBasicMaterial(),assets=new Map(PETAL_NAMES.map(n=>[n,{geometry:source,material,face:new T.Quaternion()}]));
+test('all three title backdrops span separate depths and tilt their glyphs into the folds',()=>{
+ const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
+ const camera=new T.PerspectiveCamera(40,414/896,.2,2400),matrix=new T.Matrix4();
+ for(const [index,context] of world.contexts.entries()){
+  const shot=ROAD_READING_STOPS[index],pose=sampleRoadCamera(shot,null);
+  camera.position.fromArray(pose.position);camera.quaternion.fromArray(pose.quaternion);camera.updateMatrixWorld();
+  world.group.updateMatrixWorld(true);world.update(10,camera,shot);
+  const field=context.root.getObjectByName(`engraved-background-${index}`).getObjectByName('tidal-2n-glyph-field');
+  const depths=[];
+  let tilted=0;
+  for(let instance=0;instance<field.count;instance+=4){
+   field.getMatrixAt(instance,matrix);
+   const point=new T.Vector3().setFromMatrixPosition(matrix).applyMatrix4(field.matrixWorld);
+   const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
+   point.project(camera);
+   if(Math.abs(point.x)>1||Math.abs(point.y)>1||depth<165)continue;
+   depths.push(depth);
+   if(Math.abs(matrix.elements[6])>.25)tilted++;
+  }
+  depths.sort((a,b)=>a-b);
+  assert.ok(depths.length>300&&tilted>100);
+  const span=depths[Math.floor(depths.length*.9)]-depths[Math.floor(depths.length*.1)];
+  assert.ok(span>48,`chapter ${index+1} visible depth span: ${span.toFixed(1)}`);
+ }
+});
+
+test('third reading holds keep visible tails on all three beads with Echo enabled',()=>{
+ const rig=createLightTravelers(),camera=new T.PerspectiveCamera(40,414/896,.2,2400),shot=ROAD_READING_STOPS[2];
+ const pose=sampleRoadCamera(shot,null);
+ camera.position.fromArray(pose.position);camera.quaternion.fromArray(pose.quaternion);camera.updateMatrixWorld();
+ const echo={seconds:0,storyBlend:0,lightStart:()=>-.9};
+ const trails=rig.group.children.filter(o=>o.name==='road-light-trail');
+ for(let frame=0;frame<140;frame++)rig.update(frame/60,shot,camera,false,0,echo);
+ for(const trail of trails){
+  const {position,trail:strength}=trail.geometry.attributes,point=new T.Vector3(),center=new T.Vector3();
+  const screenCenter=index=>{
+   center.set(0,0,0);
+   for(let side=0;side<6;side++)center.add(point.fromBufferAttribute(position,index+side));
+   return center.multiplyScalar(1/6).clone().project(camera).multiply(new T.Vector3(207,448,0));
+  };
+  assert.ok(trail.visible);
+  const end=screenCenter(position.count-6);
+  const reaches=[];
+  for(let index=0;index<position.count;index+=6){
+   if(T.MathUtils.smoothstep(strength.getX(index),0,1)*strength.getY(index)>.25)reaches.push(screenCenter(index).distanceTo(end));
+  }
+  assert.ok(Math.max(...reaches)>11);
+ }
+ rig.dispose();
+});
 test('real scene geometry survives ten-minute idle, all camera flights, and viewport changes',()=>{
  const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
  const fields=[];world.group.traverse(o=>{if(o.userData.typeLine)fields.push(o);});
+ const blockers=ROAD_SURFACE_STENCIL|LIGHT_TRAIL_STENCIL;
+ assert.ok(fields.every(({material})=>material.stencilWrite&&material.stencilWriteMask===0&&
+  material.stencilFunc===T.EqualStencilFunc&&material.stencilRef===0&&material.stencilFuncMask===blockers));
+ const assertSurfaceMask=({material})=>{
+  assert.ok(!material.transparent&&material.depthTest&&material.depthWrite);
+  assert.ok(material.stencilWrite&&material.stencilRef===ROAD_SURFACE_STENCIL&&
+   material.stencilWriteMask===ROAD_SURFACE_STENCIL&&material.stencilZPass===T.ReplaceStencilOp&&
+   material.stencilFail===T.KeepStencilOp&&material.stencilZFail===T.KeepStencilOp);
+ };
+ // Check the final render meshes after road geometry/material batching.
+ for(const {roads} of world.contexts)for(const {root} of roads){
+  const slabs=root.children.filter(o=>o.isMesh&&o.material.isMeshStandardMaterial&&o.material.metalness===.55);
+  assert.equal(slabs.length,1);
+  slabs.forEach(assertSurfaceMask);
+ }
+ const bridges=world.group.children.at(-1).children.filter(o=>o.isMesh&&o.material.isMeshStandardMaterial);
+ assert.equal(bridges.length,2);
+ bridges.forEach(assertSurfaceMask);
  assert.ok(fields.length>=3,'default background is repeated 2n text rather than plain contours');
  assert.ok(fields.every(o=>o.isInstancedMesh),'repeated glyphs share small geometry');
  for(const field of fields){const shader={uniforms:{},vertexShader:T.ShaderLib.basic.vertexShader,fragmentShader:T.ShaderLib.basic.fragmentShader};field.material.onBeforeCompile(shader);assert.ok(shader.vertexShader.includes('mvPosition.z +='),'wave displacement follows instance placement');
@@ -114,6 +183,35 @@ test('three distinct light cores stay in portrait reading shots during forward a
   world.group.traverse(o=>{if(o.geometry&&o.geometry!==source)geometries.add(o.geometry);if(o.material&&o.material!==material)materials.add(o.material);});
   for(const geometry of geometries)geometry.dispose();
   for(const material of materials)material.dispose();
+ }
+});
+
+test('the traveling guide stays in the third portrait shot without crossing a road',()=>{
+ const world=createRoadGeometry({assets,vectorText:data('public/assets/road-story/text-meshes.json'),waveConfig:data('public/assets/road-story/wave-config.json'),historyRecords:data('content/history.json').events});
+ const camera=new T.PerspectiveCamera(40,414/896,.2,2400),ray=new T.Raycaster();
+ const solids=[];
+ world.group.traverse(o=>{if(o.material?.isMeshStandardMaterial&&!o.isInstancedMesh)solids.push(o);});
+ const surfaces=roadSurfaces(world.group,8),position=new T.Vector3();
+ for(const rate of [1,1.35,-1.35])for(const phase of [0,5,11]){
+  const flight=createLightFlight();
+  for(let frame=0;frame<420;frame++){
+   const time=phase+frame/60,shot=(rate>0?19.8:28.8)+frame*rate/60;
+   flight.update(time,shot);
+   if(shot<23.07||shot>25.94||frame%3)continue;
+   const pose=sampleRoadCamera(shot,null);
+   camera.position.fromArray(pose.position);
+   camera.quaternion.fromArray(pose.quaternion);
+   camera.updateMatrixWorld();
+   world.update(time,camera,shot);
+   surfaces.update();
+   flight.point(time,position,1);
+   const screen=position.clone().project(camera),contact=surfaces.near(position);
+   assert.ok(flight.opacity(1)>.9&&Math.abs(screen.x)<.98&&Math.abs(screen.y)<.98&&Math.abs(screen.z)<1);
+   assert.ok(!contact||contact.distance>5);
+   const toBead=position.clone().sub(camera.position);
+   ray.set(camera.position,toBead.clone().normalize());ray.far=toBead.length()-1.1;
+   assert.equal(ray.intersectObjects(solids,false).length,0);
+  }
  }
 });
 

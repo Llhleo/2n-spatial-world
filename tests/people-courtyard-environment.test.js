@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as T from 'three';
 import {createCompanionship} from '../src/companionship.js';
-import {createPeopleRoute,resizeCourtyard,sampleCourtyard} from '../src/people-courtyard.js';
+import {createPeopleRoute,resizeCourtyard,sampleCourtyard,sampleCourtyardView} from '../src/people-courtyard.js';
 import {FLOWER_SPECS} from '../src/lookback.js';
 const data={leaders:[{id:'a',name:'A'},{id:'b',name:'B'}],members:Array.from({length:95},(_,i)=>`member ${i}`)};
 function geometry(name){
@@ -90,6 +90,22 @@ test('world chain anchors remain stationary during camera drift, without rank re
  const first=positions(w.readStart),last=positions(w.readEnd);let shared=0;
  for(const [id,p]of first)if(last.has(id)){shared++;assert.ok(p.distanceTo(last.get(id))<1e-4,'petal is attached to camera');}
  assert.ok(shared>=4);rig.dispose();
+});
+
+test('camera keeps a positive reading speed and a continuous transfer tangent',()=>{
+ const route=resizeCourtyard(createPeopleRoute(data),{width:414,height:896});
+ const point=seconds=>new T.Vector3(...sampleCourtyardView(route,seconds/route.seconds).position);
+ const dt=.001;
+ for(const w of route.windows.slice(1,-1)){
+  const start=w.readStart*route.seconds,end=w.readEnd*route.seconds,mid=(start+end)/2;
+  const speed=t=>point(t+dt).distanceTo(point(t-dt))/(2*dt);
+  assert.ok(speed(mid)>.3&&speed(mid)<.65*speed(start));
+  for(const t of [start,end]){
+   const before=point(t).sub(point(t-dt)).multiplyScalar(1/dt);
+   const after=point(t+dt).sub(point(t)).multiplyScalar(1/dt);
+   assert.ok(before.distanceTo(after)<.04);
+  }
+ }
 });
 
 test('decorative motion advances only with positive dt',()=>{
